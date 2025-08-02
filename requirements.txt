@@ -7,3 +7,4 @@ urllib3
 Pillow
 pytz
 django-cors-headers
+python-dotenv
