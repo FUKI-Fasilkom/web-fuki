@@ -1,0 +1,41 @@
+{% load static %}
+
+<nav x-data="{ open: false }" class="bg-[#F8FBEF] border-b border-gray-700">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
+    <div class="flex items-center space-x-3">
+      <img src="{% static 'images/Logo-FUKI.png' %}" alt="FUKI Logo" class="w-8 h-8 sm:w-10 sm:h-10 object-contain" />
+      <span class="font-bold text-gray-800 text-sm sm:text-lg">FUKI FASILKOM UI</span>
+    </div>
+
+    <div class="hidden md:flex space-x-6 text-sm sm:text-base">
+      <a href="#" class="text-gray-800 hover:text-green-700">Beranda</a>
+      <a href="#" class="text-gray-800 hover:text-green-700">Profil</a>
+      <a href="#" class="text-gray-800 hover:text-green-700">Biro & Departemen</a>
+      <a href="#" class="text-gray-800 hover:text-green-700">Kegiatan</a>
+      <a href="#" class="text-gray-800 hover:text-green-700">Hubungi Kami</a>
+    </div>
+
+    <div class="md:hidden">
+      <button @click="open = !open" class="text-gray-800 focus:outline-none">
+        <svg x-show="!open" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none"
+             viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M4 6h16M4 12h16M4 18h16"/>
+        </svg>
+        <svg x-show="open" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none"
+             viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <div x-show="open" x-transition class="md:hidden px-4 pb-4 space-y-2 text-sm sm:text-base">
+    <a href="#" class="block text-gray-800 hover:text-green-700">Beranda</a>
+    <a href="#" class="block text-gray-800 hover:text-green-700">Profil</a>
+    <a href="#" class="block text-gray-800 hover:text-green-700">Biro & Departemen</a>
+    <a href="#" class="block text-gray-800 hover:text-green-700">Kegiatan</a>
+    <a href="#" class="block text-gray-800 hover:text-green-700">Hubungi Kami</a>
+  </div>
+</nav>
