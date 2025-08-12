@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Profil{% endblock %}
+
+{% block content %}
+    <style>
+        .drop-shadow-custom {
+            text-shadow: 0 0 89px #A6CE39;
+        }
+        
+        .letter-spacing-wide {
+            letter-spacing: 0.1em;
+        }
+        
+        .word-spacing-wide {
+            word-spacing: 0.5em;
+        }
+    </style>
+    {% include 'header.html' with page_title="Profil" %}
+
+    <section class="bg-[#F6FAEB] py-10 text-center px-4">
+        <h1 class="text-6xl font-bold text-gray-800 mb-12">Tentang Fuki</h1>
+        <h2 class="flex flex-wrap justify-center items-baseline text-gray-800 mb-12">
+            <div class="flex flex-wrap justify-center items-baseline text-gray-800 gap-2 mb-4">
+                <div class="flex items-baseline gap-1">
+                    <span class="text-6xl md:text-7xl font-extrabold drop-shadow-custom">F</span>
+                    <span class="text-3xl md:text-5xl font-medium">orum</span>
+                </div>
+                
+                <div class="flex items-baseline gap-1 ml-4">
+                    <span class="text-6xl md:text-7xl font-extrabold drop-shadow-custom">U</span>
+                    <span class="text-3xl md:text-5xl font-medium">khuwah</span>
+                </div>
+                
+                <div class="flex items-baseline gap-1 ml-4">
+                    <span class="text-3xl md:text-5xl font-medium">dan</span>
+                </div>
+            </div>
+            
+            <div class="flex flex-wrap justify-center items-baseline text-gray-800 gap-2">
+                <div class="flex items-baseline gap-1 ml-6">
+                    <span class="text-6xl md:text-7xl font-extrabold drop-shadow-custom">K</span>
+                    <span class="text-3xl md:text-5xl font-medium">ajian</span>
+                </div>
+                
+                <div class="flex items-baseline gap-1 ml-4">
+                    <span class="text-6xl md:text-7xl font-extrabold drop-shadow-custom">I</span>
+                    <span class="text-3xl md:text-5xl font-medium">slam</span>
+                </div>
+            </div>
+        </h2>
+
+        <div class="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
+            {% for f in fungsionaris_list %}
+            <div class="bg-white border rounded-lg shadow p-4">
+                {% if f.foto %}
+                <img src="{{ f.foto.url }}" alt="{{ f.nama }}" class="w-full h-60 object-cover rounded-md">
+                {% else %}
+                <img src="{% static 'images/default_profile.png' %}" alt="Default" class="w-full h-60 object-cover rounded-md">
+                {% endif %}
+                <div class="mt-3 text-center">
+                    <p class="font-semibold text-lg">{{ f.nama }}</p>
+                    <p class="text-gray-500 text-sm">{{ f.jabatan }}</p>
+                </div>
+            </div>
+            {% empty %}
+            <p class="text-gray-500 col-span-full">Belum ada data fungsionaris.</p>
+            {% endfor %}
+        </div>
+
+        <div class="mt-10 px-2 ml-0 sm:ml-8 md:ml-16 lg:ml-24 text-left">
+            <div class="inline-block border px-4 py-2 rounded-full text-gray-700 mb-3 text-sm sm:text-base">
+                Peran dan Ruang Lingkup Kegiatan
+            </div>
+            <p class="max-w-lg text-gray-700 text-sm sm:text-base text-left">
+                Fuki adalah wadah untuk mempererat ukhuwah dan meningkatkan kualitas Islam agar dapat menjadi Muslim yang bermanfaat bagi sekitar.
+            </p>
+        </div>
+
+        <div class="mt-6 px-2 mr-0 sm:mr-8 md:mr-16 lg:mr-24 text-right">
+            <div class="inline-block border px-4 py-2 rounded-full text-gray-700 mb-3 text-sm sm:text-base">
+                Fuki Sebagai LDK FASILKOM UI
+            </div>
+            <p class="max-w-lg ml-auto text-gray-700 text-sm sm:text-base text-right">
+                Fuki adalah wadah untuk mempererat ukhuwah dan meningkatkan kualitas Islam agar dapat menjadi Muslim yang bermanfaat bagi sekitar.
+            </p>
+        </div>
+    </section>
+
+{% endblock %}
