@@ -1,0 +1,60 @@
+<!-- templates/main/birdep_list.html -->
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Biro & Departemen{% endblock %}
+
+{% block content %}
+<div class="relative w-full min-h-screen bg-gradient-to-b from-[#D6E8A4] to-[#F6FAEB] overflow-hidden">
+    <!-- Water ripple background -->
+    <div class="absolute top-1/2 right-0 translate-x-1/4 -translate-y-1/2 w-[300px] sm:w-[450px] md:w-[550px] lg:w-[700px] xl:w-[800px] aspect-square flex items-center justify-center z-0">
+        <div class="absolute rounded-full border-4 border-white opacity-40 w-full h-full"></div>
+        <div class="absolute rounded-full border-4 border-white opacity-40 w-[85%] h-[85%]"></div>
+        <div class="absolute rounded-full border-8 border-white opacity-40 w-[70%] h-[70%]"></div>
+        <div class="absolute rounded-full border-8 border-white opacity-40 w-[55%] h-[55%]"></div>
+        <div class="absolute rounded-full border-white opacity-40 w-[40%] h-[40%]" style="border-width: 10px;"></div>
+    </div>
+
+    <div class="relative z-20 max-w-screen-xl mx-auto px-6 py-16">
+        <!-- Hero Section -->
+        <div class="mb-12">
+            <h1 class="text-6xl lg:text-7xl font-bold text-gray-800 mb-4">Biro &<br>Departemen</h1>
+        </div>
+
+        <!-- BirDep Grid -->
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 mb-12">
+            {% for birdep in birdeps %}
+            <div class="bg-white rounded-2xl p-6 text-center shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-2 cursor-pointer" 
+                 onclick="location.href='{% url 'birdep;birdep_tentang' birdep.slug %}'"> </div>
+                <div class="w-20 h-16 bg-[#8BC34A] rounded-lg mx-auto mb-4 flex items-center justify-center overflow-hidden">
+                    {% if birdep.logo_filename %}
+                        <img src="{% static birdep.logo_url %}" alt="{{ birdep.nama }}" class="w-full h-full object-contain p-2">
+                    {% else %}
+                        <span class="text-white text-2xl font-bold">&lt;/&gt;</span>
+                    {% endif %}
+                </div>
+                <h3 class="font-semibold text-gray-800">{{ birdep.nama }}</h3>
+            </div>
+            {% empty %}
+            <!-- Placeholder cards when no BirDep exists -->
+            {% for i in "12345" %}
+            <div class="bg-white rounded-2xl p-6 text-center shadow-lg">
+                <div class="w-20 h-16 bg-[#8BC34A] rounded-lg mx-auto mb-4 flex items-center justify-center">
+                    <span class="text-white text-2xl font-bold">&lt;/&gt;</span>
+                </div>
+                <h3 class="font-semibold text-gray-800">Card Title</h3>
+            </div>
+            {% endfor %}
+            {% for i in "12345" %}
+            <div class="bg-white rounded-2xl p-6 text-center shadow-lg">
+                <div class="w-20 h-16 bg-[#8BC34A] rounded-lg mx-auto mb-4 flex items-center justify-center">
+                    <span class="text-white text-2xl font-bold">&lt;/&gt;</span>
+                </div>
+                <h3 class="font-semibold text-gray-800">Card Title</h3>
+            </div>
+            {% endfor %}
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
