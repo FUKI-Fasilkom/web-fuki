@@ -25,7 +25,7 @@
         <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 mb-12">
             {% for birdep in birdeps %}
             <div class="bg-white rounded-2xl p-6 text-center shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-2 cursor-pointer" 
-                 onclick="location.href='{% url 'birdep;birdep_tentang' birdep.slug %}'"> </div>
+                data-url="{% url 'birdep:birdep_tentang' birdep.slug %}">
                 <div class="w-20 h-16 bg-[#8BC34A] rounded-lg mx-auto mb-4 flex items-center justify-center overflow-hidden">
                     {% if birdep.logo_filename %}
                         <img src="{% static birdep.logo_url %}" alt="{{ birdep.nama }}" class="w-full h-full object-contain p-2">
@@ -58,3 +58,13 @@
     </div>
 </div>
 {% endblock %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const cards = document.querySelectorAll('[data-url]');
+    cards.forEach(card => {
+        card.addEventListener('click', function() {
+            window.location.href = this.dataset.url;
+        });
+    });
+});
+</script>

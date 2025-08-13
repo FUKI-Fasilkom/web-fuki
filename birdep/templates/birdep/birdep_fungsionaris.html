@@ -18,8 +18,8 @@
     <div class="relative z-20 max-w-screen-xl mx-auto px-6 py-16">
         <!-- Breadcrumb -->
         <div class="mb-8 text-gray-600">
-            <a href="{% url 'main:birdep_list' %}" class="hover:text-gray-800">BirDep</a> / 
-            <a href="{% url 'main:birdep_tentang' birdep.slug %}" class="hover:text-gray-800">Info BirDep</a> / 
+            <a href="{% url 'birdep:birdep_list' %}" class="hover:text-gray-800">BirDep</a> / 
+            <a href="{% url 'birdep:birdep_tentang' birdep.slug %}" class="hover:text-gray-800">Info BirDep</a> / 
             Fungsionaris
         </div>
 
@@ -30,7 +30,7 @@
 
         <!-- BirDep Header -->
         <div class="text-center mb-8">
-            <h2 class="text-3xl font-bold text-gray-800">[{{ birdep.nama }}]</h2>
+            <h2 class="text-3xl font-bold text-gray-800">{{ birdep.nama }}</h2>
         </div>
 
         <!-- Tab Navigation -->
@@ -39,15 +39,15 @@
                 <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
                     <span class="text-white text-sm">⋮⋮</span>
                 </div>
-                <a href="{% url 'birdep_tentang' birdep.slug %}" 
+                <a href="{% url 'birdep:birdep_tentang' birdep.slug %}" 
                    class="px-6 py-3 rounded-full text-sm font-medium transition-all duration-300 {% if current_tab == 'tentang' %}bg-[#8BC34A] text-white{% else %}bg-gray-200 text-gray-600 hover:bg-gray-300{% endif %}">
-                    Tentang [Nama BirDep]
+                    Tentang {{ birdep.nama }}
                 </a>
-                <a href="{% url 'birdep_program' birdep.slug %}" 
+                <a href="{% url 'birdep:birdep_program' birdep.slug %}" 
                    class="px-6 py-3 rounded-full text-sm font-medium transition-all duration-300 {% if current_tab == 'program' %}bg-[#8BC34A] text-white{% else %}bg-gray-200 text-gray-600 hover:bg-gray-300{% endif %}">
                     Program
                 </a>
-                <a href="{% url 'birdep_fungsionaris' birdep.slug %}" 
+                <a href="{% url 'birdep:birdep_fungsionaris' birdep.slug %}" 
                    class="px-6 py-3 rounded-full text-sm font-medium transition-all duration-300 {% if current_tab == 'fungsionaris' %}bg-[#8BC34A] text-white{% else %}bg-gray-200 text-gray-600 hover:bg-gray-300{% endif %}">
                     Fungsionaris
                 </a>
@@ -65,9 +65,8 @@
                         <span class="text-4xl text-gray-400">👤</span>
                     {% endif %}
                 </div>
-                <h3 class="font-bold text-gray-800 mb-2">[{{ fungsionaris.nama }}]</h3>
+                <h3 class="font-bold text-gray-800 mb-2">{{ fungsionaris.nama }}</h3>
                 <p class="text-gray-600 mb-3">{{ fungsionaris.jabatan }}</p>
-                <p class="text-gray-500 text-sm">Deskripsi Jabatan</p>
             </div>
             {% empty %}
             <!-- Default placeholder cards -->
@@ -77,8 +76,7 @@
                     <span class="text-4xl text-gray-400">👤</span>
                 </div>
                 <h3 class="font-bold text-gray-800 mb-2">[Nama Fungsionaris]</h3>
-                <p class="text-gray-600 mb-3">[Nama Fungsionaris]</p>
-                <p class="text-gray-500 text-sm">Deskripsi Jabatan</p>
+                <p class="text-gray-600 mb-3">[Deskripsi Jabatan]</p>
             </div>
             {% endfor %}
             {% endfor %}
