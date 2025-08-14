@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Kegiatan{% endblock %}
+
+{% block content %}
+<div class="relative w-full min-h-screen bg-gradient-to-b from-[#D6E8A4] to-[#F6FAEB] overflow-hidden">
+    <!-- Water ripple background -->
+    <div
+        class="absolute top-1/2 right-0 translate-x-1/4 -translate-y-1/2 w-[300px] sm:w-[450px] md:w-[550px] lg:w-[700px] xl:w-[800px] aspect-square flex items-center justify-center z-0">
+        <div class="absolute rounded-full border-4 border-white opacity-40 w-full h-full"></div>
+        <div class="absolute rounded-full border-4 border-white opacity-40 w-[85%] h-[85%]"></div>
+        <div class="absolute rounded-full border-8 border-white opacity-40 w-[70%] h-[70%]"></div>
+        <div class="absolute rounded-full border-8 border-white opacity-40 w-[55%] h-[55%]"></div>
+        <div class="absolute rounded-full border-white opacity-40 w-[40%] h-[40%]" style="border-width: 10px;"></div>
+    </div>
+
+    <div class="relative z-20 max-w-screen-xl mx-auto px-6 py-16">
+        <!-- Hero Section -->
+        <div class="mb-12">
+            <h1 class="text-6xl lg:text-7xl font-bold text-gray-800 mb-4">Kegiatan</h1>
+        </div>
+
+        <!-- Kegiatan Grid -->
+        <div class="grid md:grid-cols-2 gap-8">
+            {% for kegiatan in kegiatans %}
+            <div class="flex gap-4 bg-white rounded-2xl shadow-lg overflow-hidden">
+                <!-- Tanggal -->
+                <div class="bg-[#3B82F6] text-white flex flex-col justify-center items-center px-6 py-8 min-w-[150px]">
+                    <p class="text-4xl font-bold">{{ kegiatan.tanggal_mulai|date:"d" }}</p>
+                    <p class="text-lg">{{ kegiatan.tanggal_mulai|date:"F Y" }}</p>
+                    <p class="text-sm">{{ kegiatan.waktu_mulai|time:"H.i" }} - {{ kegiatan.waktu_selesai|time:"H.i" }}</p>
+                    {% if kegiatan.link_pendaftaran %}
+                    <a href="{{ kegiatan.link_pendaftaran }}"
+                        class="mt-4 bg-white text-[#3B82F6] px-4 py-1 rounded-full text-sm font-semibold">Register</a>
+                    {% endif %}
+                </div>
+                <!-- Detail -->
+                <div class="flex flex-col justify-center p-6 flex-1">
+                    <h3 class="font-bold text-lg">{{ kegiatan.judul }}</h3>
+                    {% if kegiatan.subjudul %}
+                    <p class="font-medium text-gray-700 mb-1">{{ kegiatan.subjudul }}</p>
+                    {% endif %}
+                    {% if kegiatan.pembicara %}
+                    <p class="text-gray-600 mb-2">Bersama {{ kegiatan.pembicara }}</p>
+                    {% endif %}
+                    <div class="flex items-center text-gray-500 text-sm mb-1">
+                        <span class="material-icons mr-1">location_on</span> {{ kegiatan.tempat }}
+                    </div>
+                    {% if kegiatan.kontak %}
+                    <div class="flex items-center text-gray-500 text-sm">
+                        <span class="material-icons mr-1">call</span> {{ kegiatan.kontak }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% empty %}
+            <p>Tidak ada kegiatan.</p>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
