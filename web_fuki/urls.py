@@ -22,7 +22,7 @@ from django.conf.urls.static import static
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('main.urls')),
-    path('birdep/', include('birdep.urls')),
+    path('team/', include('birdep.urls')),
 ]
 
 if settings.DEBUG:

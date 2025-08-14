@@ -1,86 +1,70 @@
-<!-- templates/main/birdep_fungsionaris.html -->
+<!-- birdep/templates/birdep/birdep_fungsionaris.html - UPDATED -->
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}{{ birdep.nama }} - Fungsionaris{% endblock %}
+{% block title %}{{ birdep.nama_panjang }} - Fungsionaris{% endblock %}
 
 {% block content %}
-<div class="relative w-full min-h-screen bg-gradient-to-b from-[#D6E8A4] to-[#F6FAEB] overflow-hidden">
-    <!-- Water ripple background -->
-    <div class="absolute top-1/2 right-0 translate-x-1/4 -translate-y-1/2 w-[300px] sm:w-[450px] md:w-[550px] lg:w-[700px] xl:w-[800px] aspect-square flex items-center justify-center z-0">
-        <div class="absolute rounded-full border-4 border-white opacity-40 w-full h-full"></div>
-        <div class="absolute rounded-full border-4 border-white opacity-40 w-[85%] h-[85%]"></div>
-        <div class="absolute rounded-full border-8 border-white opacity-40 w-[70%] h-[70%]"></div>
-        <div class="absolute rounded-full border-8 border-white opacity-40 w-[55%] h-[55%]"></div>
-        <div class="absolute rounded-full border-white opacity-40 w-[40%] h-[40%]" style="border-width: 10px;"></div>
-    </div>
-
-    <div class="relative z-20 max-w-screen-xl mx-auto px-6 py-16">
-        <!-- Breadcrumb -->
-        <div class="mb-8 text-gray-600">
-            <a href="{% url 'birdep:birdep_list' %}" class="hover:text-gray-800">BirDep</a> / 
-            <a href="{% url 'birdep:birdep_tentang' birdep.slug %}" class="hover:text-gray-800">Info BirDep</a> / 
-            Fungsionaris
-        </div>
-
-        <!-- Hero Section -->
-        <div class="mb-12">
-            <h1 class="text-6xl lg:text-7xl font-bold text-gray-800 mb-8">Biro &<br>Departemen</h1>
-        </div>
-
-        <!-- BirDep Header -->
-        <div class="text-center mb-8">
-            <h2 class="text-3xl font-bold text-gray-800">{{ birdep.nama }}</h2>
-        </div>
-
-        <!-- Tab Navigation -->
-        <div class="flex justify-center gap-2 mb-8 flex-wrap">
-            <div class="flex items-center gap-2">
-                <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-                    <span class="text-white text-sm">⋮⋮</span>
-                </div>
-                <a href="{% url 'birdep:birdep_tentang' birdep.slug %}" 
-                   class="px-6 py-3 rounded-full text-sm font-medium transition-all duration-300 {% if current_tab == 'tentang' %}bg-[#8BC34A] text-white{% else %}bg-gray-200 text-gray-600 hover:bg-gray-300{% endif %}">
-                    Tentang {{ birdep.nama }}
-                </a>
-                <a href="{% url 'birdep:birdep_program' birdep.slug %}" 
-                   class="px-6 py-3 rounded-full text-sm font-medium transition-all duration-300 {% if current_tab == 'program' %}bg-[#8BC34A] text-white{% else %}bg-gray-200 text-gray-600 hover:bg-gray-300{% endif %}">
-                    Program
-                </a>
-                <a href="{% url 'birdep:birdep_fungsionaris' birdep.slug %}" 
-                   class="px-6 py-3 rounded-full text-sm font-medium transition-all duration-300 {% if current_tab == 'fungsionaris' %}bg-[#8BC34A] text-white{% else %}bg-gray-200 text-gray-600 hover:bg-gray-300{% endif %}">
-                    Fungsionaris
-                </a>
+    <!-- Include header template -->
+    {% include 'header.html' with page_title="Our Team" %}
+    
+    <!-- Main content area -->
+    <div class="relative w-full min-h-screen bg-[#F6FAEB] overflow-hidden">
+        <!-- Water ripple background - posisi lebih rendah -->
+            <!-- BirDep Header -->
+            <div class="text-center mb-8">
+                <h2 class="text-3xl font-bold text-gray-800">{{ birdep.nama_panjang }}</h2>
             </div>
-        </div>
 
-        <!-- Fungsionaris Grid -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
-            {% for fungsionaris in fungsionaris_list %}
-            <div class="bg-white rounded-2xl p-6 text-center shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-2">
-                <div class="w-32 h-32 bg-gray-200 rounded-lg mx-auto mb-4 flex items-center justify-center overflow-hidden">
-                    {% if fungsionaris.foto %}
-                        <img src="{{ fungsionaris.foto.url }}" alt="{{ fungsionaris.nama }}" class="w-full h-full object-cover">
-                    {% else %}
+            <!-- Tab Navigation -->
+            <div class="flex justify-center gap-2 mb-8 flex-wrap">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                        <span class="text-white text-sm">⋮⋮</span>
+                    </div>
+                    <a href="{% url 'birdep:birdep_tentang' birdep.slug %}" 
+                       class="px-6 py-3 rounded-full text-sm font-medium transition-all duration-300 {% if current_tab == 'tentang' %}bg-[#8BC34A] text-white{% else %}bg-gray-200 text-gray-600 hover:bg-gray-300{% endif %}">
+                        Tentang {{ birdep.nama }}
+                    </a>
+                    <a href="{% url 'birdep:birdep_program' birdep.slug %}" 
+                       class="px-6 py-3 rounded-full text-sm font-medium transition-all duration-300 {% if current_tab == 'program' %}bg-[#8BC34A] text-white{% else %}bg-gray-200 text-gray-600 hover:bg-gray-300{% endif %}">
+                        Program
+                    </a>
+                    <a href="{% url 'birdep:birdep_fungsionaris' birdep.slug %}" 
+                       class="px-6 py-3 rounded-full text-sm font-medium transition-all duration-300 {% if current_tab == 'fungsionaris' %}bg-[#8BC34A] text-white{% else %}bg-gray-200 text-gray-600 hover:bg-gray-300{% endif %}">
+                        Fungsionaris
+                    </a>
+                </div>
+            </div>
+
+            <!-- Fungsionaris Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
+                {% for fungsionaris in fungsionaris_list %}
+                <div class="bg-white rounded-2xl p-6 text-center shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-2 border-2 border-gray-800">
+                    <div class="w-32 h-32 bg-gray-200 rounded-lg mx-auto mb-4 flex items-center justify-center overflow-hidden">
+                        {% if fungsionaris.foto %}
+                            <img src="{{ fungsionaris.foto.url }}" alt="{{ fungsionaris.nama }}" class="w-full h-full object-cover">
+                        {% else %}
+                            <span class="text-4xl text-gray-400">👤</span>
+                        {% endif %}
+                    </div>
+                    <h3 class="font-bold text-gray-800 mb-2">{{ fungsionaris.nama }}</h3>
+                    <p class="text-gray-600 mb-3">{{ fungsionaris.jabatan }}</p>
+                </div>
+                {% empty %}
+                <!-- Default placeholder cards -->
+                {% for i in "123456" %}
+                <div class="bg-white rounded-2xl p-6 text-center shadow-lg border-2 border-gray-800">
+                    <div class="w-32 h-32 bg-gray-200 rounded-lg mx-auto mb-4 flex items-center justify-center">
                         <span class="text-4xl text-gray-400">👤</span>
-                    {% endif %}
+                    </div>
+                    <h3 class="font-bold text-gray-800 mb-2">[Nama Fungsionaris]</h3>
+                    <p class="text-gray-600 mb-3">[Nama Fungsionaris]</p>
+                    <p class="text-gray-500 text-sm">Deskripsi Jabatan</p>
                 </div>
-                <h3 class="font-bold text-gray-800 mb-2">{{ fungsionaris.nama }}</h3>
-                <p class="text-gray-600 mb-3">{{ fungsionaris.jabatan }}</p>
+                {% endfor %}
+                {% endfor %}
             </div>
-            {% empty %}
-            <!-- Default placeholder cards -->
-            {% for i in "123456" %}
-            <div class="bg-white rounded-2xl p-6 text-center shadow-lg">
-                <div class="w-32 h-32 bg-gray-200 rounded-lg mx-auto mb-4 flex items-center justify-center">
-                    <span class="text-4xl text-gray-400">👤</span>
-                </div>
-                <h3 class="font-bold text-gray-800 mb-2">[Nama Fungsionaris]</h3>
-                <p class="text-gray-600 mb-3">[Deskripsi Jabatan]</p>
-            </div>
-            {% endfor %}
-            {% endfor %}
         </div>
     </div>
-</div>
 {% endblock %}
