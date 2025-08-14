@@ -1,14 +1,14 @@
 #!/bin/bash
 echo "Building the project..."
 
-# Install pip terlebih dahulu
-python3.9 -m ensurepip --upgrade
+# Pastikan pip tersedia dan upgrade
+python -m ensurepip --upgrade
+python -m pip install --upgrade pip
 
 # Install dependencies
-python3.9 -m pip install --upgrade pip
-python3.9 -m pip install -r requirements.txt
+python -m pip install -r requirements.txt
 
 # Collect static files
-python3.9 manage.py collectstatic --noinput --clear
+python manage.py collectstatic --noinput --clear
 
 echo "Build completed!"
