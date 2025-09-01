@@ -25,38 +25,40 @@
             {% for kegiatan in kegiatan_list %}
 
             <!-- Grid -->
-            <div class="flex gap-4 max-w-5xl mx-auto items-start">
+            <div class="flex flex-row justify-start lg:justify-center gap-4 max-w-5xl md:w-full md:px-6 lg:mx-auto items-center">
                 <!-- Card kiri (date info) -->
-                <div
-                    class="w-[331px] h-[340px] bg-[#828282] rounded-2xl shadow-lg p-6 flex flex-col justify-center text-center text-white text-opacity-50 border-[3px] border-[#828282] drop-shadow-[0_0_32px_rgba(0,0,0,0.25)]">
+            
+                <div class="w-[331px] h-[340px] bg-[#828282] rounded-2xl shadow-lg p-6 flex flex-col justify-center text-center text-white
+                                border-[3px] border-[#828282] drop-shadow-[0_0_32px_rgba(0,0,0,0.25)]">
                     <div>
                         <p class="font-bold text-[24px]">Save the date!</p>
                         <p class="font-bold my-2 text-[64px]">{{ kegiatan.tanggal|date:"j" }}</p>
                         <p class="text-bold text[20px]">{{ kegiatan.tanggal|date:"F Y" }}</p>
-                        <p class="text-bold text-[20px]">{{ kegiatan.start_time|time:"H.i" }} - {{ kegiatan.end_time|time:"H.i" }}</p>
+                        <p class="text-bold text-[20px]">{{ kegiatan.start_time|time:"H.i" }} - {{ kegiatan.end_time|time:"H.i" }}
+                        </p>
                     </div>
                     <button disabled
                         class="mt-6 bg-[#F6FAEB] text-[#828282] font-medium py-2 rounded-full shadow transition border-[3px] border-[#828282] bg-opacity-50 drop-shadow-[0_0_32px_rgba(0,0,0,0.25)]">
                         Register
                     </button>
                 </div>
-
+            
                 <!-- Card kanan (event details) -->
                 <div
-                    class="w-[713px] h-[340px] bg-[#828282] rounded-2xl shadow-lg p-6 text-white text-opacity-50 flex flex-col justify-center items-start gap-y-1 border-[3px] border-[#828282] drop-shadow-[0_0_32px_rgba(0,0,0,0.25)]">
+                    class="w-full lg:w-[713px] h-auto lg:h-[340px] bg-[#828282] rounded-2xl shadow-lg p-6 text-white text-opacity-50 flex flex-col justify-center items-start gap-y-1 border-[3px] border-[#828282] drop-shadow-[0_0_32px_rgba(0,0,0,0.25)]">
                     <h4 class="text-[24px] font-normal opacity-90">{{ kegiatan.judul }}</h4>
                     <h4 class="text-[24px] font-bold leading-snug mt-2">
                         {{ kegiatan.deskripsi }}
                     </h4>
                     <h5 class="text-[20px] font-bold mt-2">Bersama {{ kegiatan.guest_star }}</h5>
-
+            
                     <div class="flex items-center gap-2 mt-4 text-[20px] font-normal">
                         <img src="{% static 'location_vector.png' %}" alt="Logo" class="invisible">
                         <h5>
                             {% if kegiatan.link_lokasi is not None %}
-                                <a href="{{ kegiatan.link_lokasi }}">{{ kegiatan.lokasi }}</a>
+                            <a href="{{ kegiatan.link_lokasi }}">{{ kegiatan.lokasi }}</a>
                             {% else %}
-                                {{ kegiatan.lokasi }}
+                            {{ kegiatan.lokasi }}
                             {% endif %}
                         </h5>
                     </div>
