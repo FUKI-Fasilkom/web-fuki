@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Blog Kajian{% endblock %}
+
+{% block content %}
+    <style>
+        .drop-shadow-custom {
+            text-shadow: 0 0 89px #A6CE39;
+        }
+        
+        .letter-spacing-wide {
+            letter-spacing: 0.1em;
+        }
+        
+        .word-spacing-wide {
+            word-spacing: 0.5em;
+        }
+    </style>
+    {% include 'header.html' with page_title="Blog Kajian" %}
+
+        <!-- Container Utama: Padding disesuaikan agar responsif -->
+        <div class="px-4 py-8 md:p-[84px] bg-[#F6FAEB] min-h-screen flex flex-col items-center">
+            
+            <!-- Wrapper Pembatas Lebar (Max Width 1272px) -->
+            <!-- Ini memastikan konten tidak melebar berlebihan & tetap di tengah -->
+            <div class="w-full max-w-[1272px]">
+
+                <!-- Search Bar -->
+                <div class="w-full mb-12">
+                    <div class="relative w-full"> 
+                        <input 
+                            type="text" 
+                            placeholder="Cari blog kajian" 
+                            class="w-full px-6 py-4 pr-12 rounded-full border-2 border-gray-300 focus:border-lime-500 focus:outline-none text-gray-700 shadow-sm transition-all"
+                        >
+                        <button class="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-lime-600 transition-colors">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Kajian Cards Grid -->
+                <!-- 
+                    Perbaikan:
+                    1. Hapus w-fit yang menyebabkan layout rusak.
+                    2. Gunakan grid-cols-3 standar.
+                    3. gap-[36px] akan berfungsi normal karena container dibatasi max-w-[1272px].
+                    4. justify-items-center memastikan kartu tetap di tengah kolom jika di layar mobile/tablet.
+                -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-[36px] justify-items-center">
+                    {% for kajian in kajian_list %}
+                        {% include 'kajian_card.html' with kajian=kajian %}
+                    {% endfor %}
+                </div>
+
+            </div>
+            
+        </div>
+
+{% endblock %}
