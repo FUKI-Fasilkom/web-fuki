@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'main',
     'birdep',
     'profil',
+    'blog_kajian',
 ]
 
 MIDDLEWARE = [
