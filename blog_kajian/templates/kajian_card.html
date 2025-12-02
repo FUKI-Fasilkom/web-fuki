@@ -1,10 +1,5 @@
 <!-- Kajian Card Component -->
-<!-- 
-  w-full: Lebar kartu mengikuti lebar kolom grid.
-  aspect-[400/395]: Memaksa rasio tinggi/lebar tetap sama persis dengan desain (400x395),
-                    jadi jika lebar bertambah, tinggi otomatis bertambah.
--->
-<div class="relative w-full aspect-[400/395] rounded-[30px] group cursor-pointer hover:scale-[1.02] transition-transform duration-300">
+<a href="{% url 'kajian_detail' kajian.id %}" class="block relative w-full aspect-[400/395] rounded-[30px] group cursor-pointer hover:scale-[1.02] transition-transform duration-300">
     
     <!-- Layer 1: Background Abu-abu / Image -->
     <div class="absolute inset-0 bg-[#D9D9D9] rounded-[30px] overflow-hidden shadow-sm">
@@ -16,10 +11,6 @@
     </div>
 
     <!-- Layer 2: Label Container Biru -->
-    <!-- 
-      h-[42%]: Diambil dari rasio 166px/395px. 
-      Ini menjamin proporsi area biru tetap sama meskipun kartu membesar/mengecil.
-    -->
     <div class="absolute bottom-0 left-0 w-full h-[42%] bg-[#417BB1] border-[3px] border-[#3A3A3A] rounded-[30px] flex flex-col justify-center items-center text-center px-4 z-10 shadow-lg">
         
         <!-- Judul -->
@@ -35,4 +26,4 @@
 
     </div>
 
-</div>
+</a>
