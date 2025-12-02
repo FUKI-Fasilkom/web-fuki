@@ -4,7 +4,8 @@
     <!-- Layer 1: Background Abu-abu / Image -->
     <div class="absolute inset-0 bg-[#D9D9D9] rounded-[30px] overflow-hidden shadow-sm">
         {% if kajian.image %}
-            <img src="{{ kajian.image }}" alt="{{ kajian.judul }}" class="w-full h-full object-cover">
+            <!-- Tambahkan .url untuk mengakses file gambar -->
+            <img src="{{ kajian.image.url }}" alt="{{ kajian.judul }}" class="w-full h-full object-cover">
         {% else %}
             <div class="w-full h-full bg-[#D9D9D9]"></div>
         {% endif %}
@@ -15,12 +16,13 @@
         
         <!-- Judul -->
         <h3 class="text-white font-bold text-[20px] leading-tight mb-2 line-clamp-2">
-            [{{ kajian.judul|default:"Judul Kajian" }}]
+            {{ kajian.judul|default:"Judul Kajian" }}
         </h3>
         
         <!-- Keterangan -->
         <div class="text-white text-[16px] font-normal space-y-1">
-            <p>[{{ kajian.sumber|default:"Sumber/Penceramah" }}]</p>
+            <!-- Ganti sumber ke penceramah -->
+            <p>{{ kajian.penceramah|default:"Sumber/Penceramah" }}</p>
             <p>{{ kajian.tanggal|date:"j F Y"|default:"1 Januari 2025" }}</p>
         </div>
 
