@@ -27,9 +27,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv('DJANGO_SECRET')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv("DEBUG") == "True"
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1", '.vercel.app']
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", 'fuki.cs.ui.ac.id']
 
 
 # Application definition
@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'main',
+    'kegiatan',
     'birdep',
     'profil',
     'blog_kajian',
@@ -87,7 +88,7 @@ PRODUCTION = os.getenv('PRODUCTION', 'False').lower() == 'true'
 if PRODUCTION:
     DATABASES = {
         'default': dj_database_url.parse(
-            os.environ.get('DATABASE_URL')
+            os.environ.get('DATABASE_URL', 'postgres://postgres:postgres@db:5432/fuki')
         )
     }
 else:
@@ -138,7 +139,10 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
 STATIC_URL = '/static/'
-STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
+if PRODUCTION:
+    STATIC_ROOT = os.path.join(BASE_DIR, "static")
+else:
+    STATICFILES_DIRS = [os.path.join(BASE_DIR, "static")]
 if not DEBUG:
     STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
