@@ -9,27 +9,28 @@ today = datetime.date.today()
 def kegiatan_all_page(request):
     kegiatan_upcoming = Kegiatan.objects.filter(tanggal__gte=today).order_by('tanggal')
     kegiatan_past = Kegiatan.objects.filter(tanggal__lt=today).order_by('-tanggal')
-
-    template = loader.get_template("kegiatan_all.html")
+    template = loader.get_template("kegiatan_list.html")
     context = {
         'kegiatan_upcoming': kegiatan_upcoming,
         'kegiatan_past': kegiatan_past,
+        'active_tab': 'all',
     }
     return HttpResponse(template.render(context, request))
 
-
 def kegiatan_upcoming_page(request):
-    kegiatan_list = Kegiatan.objects.filter(tanggal__gte=today).order_by('tanggal')
-    template = loader.get_template("kegiatan_upcoming.html")
+    kegiatan_upcoming = Kegiatan.objects.filter(tanggal__gte=today).order_by('tanggal')
+    template = loader.get_template("kegiatan_list.html")
     context = {
-        'kegiatan_list': kegiatan_list,
+        'kegiatan_upcoming': kegiatan_upcoming,
+        'active_tab': 'upcoming',
     }
     return HttpResponse(template.render(context, request))
 
 def kegiatan_past_page(request):
-    kegiatan_list = Kegiatan.objects.filter(tanggal__lt=today).order_by('-tanggal')
-    template = loader.get_template("kegiatan_past.html")
+    kegiatan_past = Kegiatan.objects.filter(tanggal__lt=today).order_by('-tanggal')
+    template = loader.get_template("kegiatan_list.html")
     context = {
-        'kegiatan_list': kegiatan_list,
+        'kegiatan_past': kegiatan_past,
+        'active_tab': 'past',
     }
     return HttpResponse(template.render(context, request))
