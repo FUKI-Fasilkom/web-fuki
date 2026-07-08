@@ -22,6 +22,17 @@
 
         <!-- Kegiatan Grid -->
         <div class="grid md:grid-cols-1 gap-y-12 content-center">
+            {% if not kegiatan_list %}
+                <div class="flex flex-col items-center justify-center py-24 text-center w-full">
+                    <svg class="w-32 h-32 mb-6 text-[#A6CE39] opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                    <h3 class="text-3xl font-bold text-[#3A3A3A] mb-4">Belum Ada Kegiatan</h3>
+                    <p class="text-lg text-gray-600 max-w-lg mx-auto">
+                        Saat ini belum ada kegiatan yang dijadwalkan. Pantau terus halaman ini atau media sosial kami untuk <span class="italic">update</span> kegiatan seru terbaru dari FUKI!
+                    </p>
+                </div>
+            {% else %}
             {% for kegiatan in kegiatan_list %}
 
             <!-- Grid -->
@@ -70,6 +81,7 @@
             </div>
 
             {% endfor %}
+            {% endif %}
         </div>
     </div>
 </div>
