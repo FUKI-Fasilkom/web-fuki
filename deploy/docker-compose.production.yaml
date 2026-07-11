@@ -1,0 +1,42 @@
+services:
+  web:
+    image: ghcr.io/OWNER/REPO:${IMAGE_TAG}
+    container_name: production_web
+    env_file: .env
+    volumes:
+      - production_media:/app/media
+      - production_static:/app/static
+    expose:
+      - "8000"
+    networks: [production_net]
+    restart: unless-stopped
+
+  db:
+    image: postgres:15
+    container_name: production_db
+    env_file: .env
+    volumes:
+      - production_pgdata:/var/lib/postgresql/data
+    networks: [production_net]
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:latest
+    container_name: production_nginx
+    ports:
+      - "80:80"          # port beda dari production, sampai subdomain fix
+    volumes:
+      - production_static:/app/static:ro
+      - production_media:/app/media:ro
+      - ./nginx/production.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on: [web]
+    networks: [production_net]
+    restart: unless-stopped
+
+networks:
+  production_net:
+
+volumes:
+  production_pgdata:
+  production_static:
+  production_media:

@@ -1,0 +1,103 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [staging, main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine tag
+        id: meta
+        run: |
+          BRANCH_NAME=${GITHUB_REF##*/}
+          SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+          echo "tag=${BRANCH_NAME}-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-latest
+
+  deploy-staging:
+    if: github.ref == 'refs/heads/staging'
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: staging          # kasi tau github, ambil secretsnya dari environment ini
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy
+        uses: ./.github/actions/deploy-via-vpn
+        with:
+          image_tag: ${{ needs.build-and-push.outputs.image_tag }}
+          compose_file: docker-compose.staging.yml
+          nginx_conf: staging.conf
+          deploy_path: /opt/app/staging
+          container_prefix: staging
+          run_migration: "true"
+
+          ovpn_config: ${{ secrets.OVPN_CONFIG }}
+          ssh_host: ${{ secrets.SSH_HOST }}
+          ssh_user: ${{ secrets.SSH_USER }}
+          ssh_key: ${{ secrets.SSH_KEY }}
+
+          django_secret: ${{ secrets.DJANGO_SECRET }}
+          db_name: ${{ secrets.DB_NAME }}
+          db_user: ${{ secrets.DB_USER }}
+          db_password: ${{ secrets.DB_PASSWORD }}
+          #allowed_hosts: ${{ secrets.ALLOWED_HOSTS }}  # untuk saat ini ALLOWED_HOSTS masih hardcode
+          debug: ${{ secrets.DEBUG }}
+
+  deploy-production:
+    if: github.ref == 'refs/heads/main'
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: production      # <- required reviewers gate lives here
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy
+        uses: ./.github/actions/deploy-via-vpn
+        with:
+          image_tag: ${{ needs.build-and-push.outputs.image_tag }}
+          compose_file: docker-compose.production.yml
+          nginx_conf: production.conf
+          deploy_path: /opt/app/production
+          container_prefix: production
+          run_migration: "true"
+
+          ovpn_config: ${{ secrets.OVPN_CONFIG }}
+          ssh_host: ${{ secrets.SSH_HOST }}
+          ssh_user: ${{ secrets.SSH_USER }}
+          ssh_key: ${{ secrets.SSH_KEY }}
+
+          django_secret: ${{ secrets.DJANGO_SECRET }}
+          db_name: ${{ secrets.DB_NAME }}
+          db_user: ${{ secrets.DB_USER }}
+          db_password: ${{ secrets.DB_PASSWORD }}
+          #allowed_hosts: ${{ secrets.ALLOWED_HOSTS }}
+          debug: ${{ secrets.DEBUG }}

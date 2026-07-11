@@ -1,0 +1,105 @@
+name: Deploy via VPN
+description: Connects to OpenVPN, writes .env from secrets, deploys via SSH
+
+inputs:
+  image_tag: {required: true}
+  compose_file: {required: true}
+  nginx_conf: {required: true}
+  deploy_path: {required: true}
+  container_prefix: {required: true}
+  run_migration: {required: true}
+
+  ovpn_config: {required: true}
+  ssh_host: {required: true}
+  ssh_user: {required: true}
+  ssh_key: {required: true}
+
+  django_secret: {required: true}
+  db_name: {required: true}
+  db_user: {required: true}
+  db_password: {required: true}
+  #allowed_hosts: {required: true}
+  debug: {required: true}
+
+runs:
+  using: composite
+  steps:
+    - name: Install OpenVPN
+      shell: bash
+      run: sudo apt-get update && sudo apt-get install -y openvpn
+
+    - name: Connect to VPN
+      shell: bash
+      run: |
+        echo "${{ inputs.ovpn_config }}" > client.ovpn
+        sudo openvpn --config client.ovpn --daemon --log vpn.log
+        for i in $(seq 1 30); do
+          if ip addr show tun0 2>/dev/null; then echo "VPN connected"; break; fi
+          sleep 2
+        done
+
+    - name: Setup SSH key
+      shell: bash
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ inputs.ssh_key }}" > ~/.ssh/deploy_key
+        chmod 600 ~/.ssh/deploy_key
+
+    - name: Generate .env from secrets
+      shell: bash
+      run: |
+        cat > generated.env << EOF
+        IMAGE_TAG=${{ inputs.image_tag }}
+        DEBUG=${{ inputs.debug }}
+        DJANGO_SECRET=${{ inputs.django_secret }}
+        DB_NAME=${{ inputs.db_name }}
+        DB_USER=${{ inputs.db_user }}
+        DB_PASSWORD=${{ inputs.db_password }}
+        POSTGRES_DB=${{ inputs.db_name }}
+        POSTGRES_USER=${{ inputs.db_user }}
+        POSTGRES_PASSWORD=${{ inputs.db_password }}
+        EOF
+
+    - name: Ensure remote directory exists
+      shell: bash
+      run: |
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key \
+          ${{ inputs.ssh_user }}@${{ inputs.ssh_host }} \
+          "mkdir -p ${{ inputs.deploy_path }}/nginx"
+
+    - name: Upload .env, compose file, and nginx config
+      shell: bash
+      run: |
+        scp -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key \
+          generated.env \
+          ${{ inputs.ssh_user }}@${{ inputs.ssh_host }}:${{ inputs.deploy_path }}/.env
+
+        scp -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key \
+          deploy/${{ inputs.compose_file }} \
+          ${{ inputs.ssh_user }}@${{ inputs.ssh_host }}:${{ inputs.deploy_path }}/docker-compose.yml
+
+        scp -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key \
+          deploy/nginx/${{ inputs.nginx_conf }} \
+          ${{ inputs.ssh_user }}@${{ inputs.ssh_host }}:${{ inputs.deploy_path }}/nginx/default.conf
+
+    - name: Pull image & restart containers
+      shell: bash
+      run: |
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key \
+          ${{ inputs.ssh_user }}@${{ inputs.ssh_host }} \
+          "cd ${{ inputs.deploy_path }} && docker compose pull && docker compose up -d"
+
+    - name: Run migration
+      if: inputs.run_migration == 'true'
+      shell: bash
+      run: |
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key \
+          ${{ inputs.ssh_user }}@${{ inputs.ssh_host }} \
+          "docker exec ${{ inputs.container_prefix }}_web python manage.py migrate"
+
+    - name: Health check
+      shell: bash
+      run: |
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key \
+          ${{ inputs.ssh_user }}@${{ inputs.ssh_host }} \
+          "curl -f http://localhost/health/ || exit 1"
