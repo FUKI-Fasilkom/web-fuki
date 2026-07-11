@@ -12,7 +12,7 @@ inputs:
   ovpn_config: {required: true}
   ssh_host: {required: true}
   ssh_user: {required: true}
-  ssh_private_key: {required: true}
+  ssh_key: {required: true}
 
   django_secret: {required: true}
   db_name: {required: true}
@@ -42,7 +42,7 @@ runs:
       shell: bash
       run: |
         mkdir -p ~/.ssh
-        echo "${{ inputs.ssh_private_key }}" > ~/.ssh/deploy_key
+        echo "${{ inputs.ssh_key }}" > ~/.ssh/deploy_key
         chmod 600 ~/.ssh/deploy_key
 
     - name: Generate .env from secrets

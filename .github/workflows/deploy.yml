@@ -63,7 +63,7 @@ jobs:
           ovpn_config: ${{ secrets.OVPN_CONFIG }}
           ssh_host: ${{ secrets.SSH_HOST }}
           ssh_user: ${{ secrets.SSH_USER }}
-          ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          ssh_key: ${{ secrets.SSH_KEY }}
 
           django_secret: ${{ secrets.DJANGO_SECRET }}
           db_name: ${{ secrets.DB_NAME }}
@@ -93,7 +93,7 @@ jobs:
           ovpn_config: ${{ secrets.OVPN_CONFIG }}
           ssh_host: ${{ secrets.SSH_HOST }}
           ssh_user: ${{ secrets.SSH_USER }}
-          ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          ssh_key: ${{ secrets.SSH_KEY }}
 
           django_secret: ${{ secrets.DJANGO_SECRET }}
           db_name: ${{ secrets.DB_NAME }}
