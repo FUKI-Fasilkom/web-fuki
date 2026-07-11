@@ -9,6 +9,7 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  jobs:
   build-and-push:
     runs-on: ubuntu-latest
     permissions:
@@ -16,8 +17,13 @@ jobs:
       packages: write
     outputs:
       image_tag: ${{ steps.meta.outputs.tag }}
+      image_name: ${{ steps.repo.outputs.name }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Lowercase repository name
+        id: repo
+        run: echo "name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
 
       - name: Determine tag
         id: meta
@@ -39,9 +45,9 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-latest
-
+            ${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}:${{ steps.meta.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}:${{ github.ref_name }}-latest
+  
   deploy-staging:
     if: github.ref == 'refs/heads/staging'
     needs: build-and-push
