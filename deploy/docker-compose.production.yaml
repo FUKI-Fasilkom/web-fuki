@@ -1,6 +1,6 @@
 services:
   web:
-    image: ghcr.io/OWNER/REPO:${IMAGE_TAG}
+    image: ghcr.io/owner/repo:${IMAGE_TAG}
     container_name: production_web
     env_file: .env
     volumes:
