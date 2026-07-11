@@ -18,7 +18,7 @@ inputs:
   db_name: {required: true}
   db_user: {required: true}
   db_password: {required: true}
-  allowed_hosts: {required: true}
+  #allowed_hosts: {required: true}
   debug: {required: true}
 
 runs:
@@ -52,7 +52,6 @@ runs:
         IMAGE_TAG=${{ inputs.image_tag }}
         DEBUG=${{ inputs.debug }}
         DJANGO_SECRET=${{ inputs.django_secret }}
-        ALLOWED_HOSTS=${{ inputs.allowed_hosts }}
         DB_NAME=${{ inputs.db_name }}
         DB_USER=${{ inputs.db_user }}
         DB_PASSWORD=${{ inputs.db_password }}
