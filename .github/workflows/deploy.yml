@@ -59,7 +59,7 @@ jobs:
         uses: ./.github/actions/deploy-via-vpn
         with:
           image_tag: ${{ needs.build-and-push.outputs.image_tag }}
-          compose_file: docker-compose.staging.yml
+          compose_file: docker-compose.staging.yaml
           nginx_conf: staging.conf
           deploy_path: /home/fuki/web-fuki/staging
           container_prefix: staging
@@ -89,7 +89,7 @@ jobs:
         uses: ./.github/actions/deploy-via-vpn
         with:
           image_tag: ${{ needs.build-and-push.outputs.image_tag }}
-          compose_file: docker-compose.production.yml
+          compose_file: docker-compose.production.yaml
           nginx_conf: production.conf
           deploy_path: /home/fuki/web-fuki/production
           container_prefix: production
