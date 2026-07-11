@@ -61,7 +61,7 @@ jobs:
           image_tag: ${{ needs.build-and-push.outputs.image_tag }}
           compose_file: docker-compose.staging.yml
           nginx_conf: staging.conf
-          deploy_path: /opt/app/staging
+          deploy_path: /home/fuki/web-fuki/staging
           container_prefix: staging
           run_migration: "true"
 
@@ -91,7 +91,7 @@ jobs:
           image_tag: ${{ needs.build-and-push.outputs.image_tag }}
           compose_file: docker-compose.production.yml
           nginx_conf: production.conf
-          deploy_path: /opt/app/production
+          deploy_path: /home/fuki/web-fuki/production
           container_prefix: production
           run_migration: "true"
 
