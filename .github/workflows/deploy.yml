@@ -46,7 +46,7 @@ jobs:
     if: github.ref == 'refs/heads/staging'
     needs: build-and-push
     runs-on: ubuntu-latest
-    environment: staging
+    environment: staging          # kasi tau github, ambil secretsnya dari environment ini
     steps:
       - uses: actions/checkout@v4
 
@@ -69,7 +69,7 @@ jobs:
           db_name: ${{ secrets.DB_NAME }}
           db_user: ${{ secrets.DB_USER }}
           db_password: ${{ secrets.DB_PASSWORD }}
-          allowed_hosts: ${{ secrets.ALLOWED_HOSTS }}
+          #allowed_hosts: ${{ secrets.ALLOWED_HOSTS }}  # untuk saat ini ALLOWED_HOSTS masih hardcode
           debug: ${{ secrets.DEBUG }}
 
   deploy-production:
@@ -99,5 +99,5 @@ jobs:
           db_name: ${{ secrets.DB_NAME }}
           db_user: ${{ secrets.DB_USER }}
           db_password: ${{ secrets.DB_PASSWORD }}
-          allowed_hosts: ${{ secrets.ALLOWED_HOSTS }}
+          #allowed_hosts: ${{ secrets.ALLOWED_HOSTS }}
           debug: ${{ secrets.DEBUG }}
