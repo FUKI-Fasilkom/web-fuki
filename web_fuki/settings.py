@@ -29,6 +29,7 @@ SECRET_KEY = os.getenv('DJANGO_SECRET')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG") == "True"
 
+# TODO: read from env var once CI/CD ALLOWED_HOSTS secret is configured (see CICD_WORKFLOW.md §6)
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", 'fuki.cs.ui.ac.id']
 
 

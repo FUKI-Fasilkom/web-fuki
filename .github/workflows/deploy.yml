@@ -74,6 +74,7 @@ jobs:
           db_name: ${{ secrets.DB_NAME }}
           db_user: ${{ secrets.DB_USER }}
           db_password: ${{ secrets.DB_PASSWORD }}
+          ghcr_token: ${{ secrets.GHCR_READ_TOKEN }}
           #allowed_hosts: ${{ secrets.ALLOWED_HOSTS }}  # untuk saat ini ALLOWED_HOSTS masih hardcode
           debug: ${{ secrets.DEBUG }}
 
@@ -104,5 +105,6 @@ jobs:
           db_name: ${{ secrets.DB_NAME }}
           db_user: ${{ secrets.DB_USER }}
           db_password: ${{ secrets.DB_PASSWORD }}
+          ghcr_token: ${{ secrets.GHCR_READ_TOKEN }}
           #allowed_hosts: ${{ secrets.ALLOWED_HOSTS }}
           debug: ${{ secrets.DEBUG }}

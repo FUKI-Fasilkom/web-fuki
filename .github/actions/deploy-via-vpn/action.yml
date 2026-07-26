@@ -20,6 +20,7 @@ inputs:
   db_password: {required: true}
   #allowed_hosts: {required: true}
   debug: {required: true}
+  ghcr_token: {required: true}
 
 runs:
   using: composite
@@ -81,6 +82,13 @@ runs:
         scp -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key \
           deploy/nginx/${{ inputs.nginx_conf }} \
           ${{ inputs.ssh_user }}@${{ inputs.ssh_host }}:${{ inputs.deploy_path }}/nginx/default.conf
+
+    - name: Login to GHCR on server
+      shell: bash
+      run: |
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key \
+          ${{ inputs.ssh_user }}@${{ inputs.ssh_host }} \
+          "echo '${{ inputs.ghcr_token }}' | docker login ghcr.io -u x-access-token --password-stdin"
 
     - name: Pull image & restart containers
       shell: bash
