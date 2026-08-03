@@ -1,16 +1,24 @@
 name: CI/CD
 
 on:
+  # A merged PR is itself a push to the base branch, so merging deploys.
   push:
+    branches: [staging, main]
+  # Opening or updating a PR runs `checks` only - never build or deploy. This is
+  # what turns the PR into a gate: you see red before merging, not after.
+  pull_request:
     branches: [staging, main]
 
 # Two pushes to main in quick succession would otherwise run two deploy jobs
 # against the same directory at once - concurrent `docker compose up -d` plus
 # concurrent `migrate`. Queue them instead of cancelling: a half-finished
 # production deploy must never be interrupted.
+#
+# Keyed on head_ref for PRs so a force-push to a PR branch supersedes its own
+# in-flight check run, and on ref for pushes so deploys queue per environment.
 concurrency:
-  group: deploy-${{ github.ref }}
-  cancel-in-progress: false
+  group: deploy-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   REGISTRY: ghcr.io
@@ -40,6 +48,9 @@ jobs:
         run: python manage.py check --deploy --fail-level ERROR
 
   build-and-push:
+    # Pull requests stop at `checks`. Nothing is published to GHCR until the
+    # commit is actually on staging or main.
+    if: github.event_name == 'push'
     needs: checks
     runs-on: ubuntu-latest
     permissions:
@@ -81,7 +92,7 @@ jobs:
             ${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}:${{ github.ref_name }}-latest
 
   deploy-staging:
-    if: github.ref == 'refs/heads/staging'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/staging'
     needs: build-and-push
     runs-on: ubuntu-latest
     environment: staging          # kasi tau github, ambil secretsnya dari environment ini
@@ -115,7 +126,9 @@ jobs:
           debug: ${{ secrets.DEBUG }}
 
   deploy-production:
-    if: github.ref == 'refs/heads/main'
+    # Reached by merging a PR into main (the merge is a push), or by pushing to
+    # main directly. Use branch protection to rule out the latter.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: build-and-push
     runs-on: ubuntu-latest
     environment: production      # <- required reviewers gate lives here
