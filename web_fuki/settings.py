@@ -29,8 +29,26 @@ SECRET_KEY = os.getenv('DJANGO_SECRET')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG") == "True"
 
-# TODO: read from env var once CI/CD ALLOWED_HOSTS secret is configured (see CICD_WORKFLOW.md §6)
-ALLOWED_HOSTS = ["localhost", "127.0.0.1", 'fuki.cs.ui.ac.id']
+def _csv_env(name, default):
+    """Read a comma-separated env var, falling back to `default` when unset/empty."""
+    raw = os.getenv(name, '')
+    values = [item.strip() for item in raw.split(',') if item.strip()]
+    return values or default
+
+
+# Set via the ALLOWED_HOSTS secret in CI/CD. The fallback keeps local dev and the
+# deploy health check (which requests http://localhost/health/) working if the
+# secret is ever missing -- an empty list would 400 every request instead.
+ALLOWED_HOSTS = _csv_env('ALLOWED_HOSTS', ["localhost", "127.0.0.1", "fuki.cs.ui.ac.id"])
+
+# nginx terminates the connection and proxies to gunicorn, so Django has to be
+# told which header carries the original scheme. Without this, request.is_secure()
+# is always False and CSRF rejects POSTs once TLS is added in front.
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+CSRF_TRUSTED_ORIGINS = _csv_env(
+    'CSRF_TRUSTED_ORIGINS',
+    [f'https://{host}' for host in ALLOWED_HOSTS if not host.startswith('127.')],
+)
 
 
 # Application definition
@@ -50,13 +68,15 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    # WhiteNoise must sit directly below SecurityMiddleware so static files are
+    # served without paying for the rest of the middleware stack.
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    "whitenoise.middleware.WhiteNoiseMiddleware",
 ]
 
 ROOT_URLCONF = 'web_fuki.urls'
@@ -83,23 +103,24 @@ WSGI_APPLICATION = 'web_fuki.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
-PRODUCTION = os.getenv('PRODUCTION', 'False').lower() == 'true'
-
-if PRODUCTION:
+# Driven by DB_HOST rather than a PRODUCTION toggle: the old flag meant a single
+# forgotten env var silently pointed the container at its own localhost. Discrete
+# vars are also safer than DATABASE_URL, which requires URL-encoding any password
+# containing @ / : or #. DATABASE_URL is still honoured for a managed DB later.
+if os.getenv('DATABASE_URL'):
     DATABASES = {
-        'default': dj_database_url.parse(
-            os.environ.get('DATABASE_URL', 'postgres://postgres:postgres@db:5432/fuki')
-        )
+        'default': dj_database_url.parse(os.environ['DATABASE_URL'], conn_max_age=600)
     }
 else:
     DATABASES = {
         'default': {
-            'ENGINE': 'django.db.backends.postgresql_psycopg2',
+            'ENGINE': 'django.db.backends.postgresql',
             'NAME': os.getenv('DB_NAME', 'postgres'),
             'USER': os.getenv('DB_USER', 'postgres'),
             'PASSWORD': os.getenv('DB_PASSWORD', 'password'),
-            'HOST': 'localhost',
-            'PORT': '5432',
+            'HOST': os.getenv('DB_HOST', 'localhost'),
+            'PORT': os.getenv('DB_PORT', '5432'),
+            'CONN_MAX_AGE': 600,
         }
     }
 
@@ -139,12 +160,31 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
 STATIC_URL = '/static/'
-if PRODUCTION:
-    STATIC_ROOT = os.path.join(BASE_DIR, "static")
-else:
-    STATICFILES_DIRS = [os.path.join(BASE_DIR, "static")]
-if not DEBUG:
-    STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
+# STATIC_ROOT deliberately differs from the source `static/` directory. When they
+# were the same path, the production volume mounted over /app/static was only ever
+# seeded from the image on first creation -- so any later edit to a file in
+# static/ never reached the server again. Collecting into a separate directory
+# means every deploy rewrites it.
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_DIRS = [BASE_DIR / 'static']
+
+STORAGES = {
+    'default': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'staticfiles': {
+        # The old STATICFILES_STORAGE setting was removed in Django 5.1, so on
+        # Django 6 it was silently ignored and WhiteNoise was never actually
+        # active. Plain compression (not the manifest variant) is used so a stale
+        # {% static %} reference cannot hard-fail collectstatic and crash-loop the
+        # container on deploy.
+        'BACKEND': (
+            'django.contrib.staticfiles.storage.StaticFilesStorage' if DEBUG
+            else 'whitenoise.storage.CompressedStaticFilesStorage'
+        ),
+    },
+}
 
 
 # Default primary key field type
