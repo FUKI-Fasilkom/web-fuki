@@ -1,0 +1,132 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Kegiatan{% endblock %}
+
+{% block content %}
+{% include 'header.html' with page_title="Kegiatan" %}
+<div class="relative w-full min-h-screen bg-[#F8FBEF] overflow-hidden">
+    <div class="relative z-20 max-w-screen-xl mx-auto px-6 py-16 flex flex-col gap-y-6">
+        
+        <!-- Filter Tabs -->
+        <div class="flex justify-center space-x-4 my-6">
+            <a href="{% url 'kegiatan:kegiatan_all' %}"
+               class="px-6 py-2 rounded-full border-[3px] border-[#3A3A3A] transition 
+               {% if active_tab == 'all' %}bg-[#A6CE39] text-gray-800 font-semibold shadow-md{% else %}bg-[#E3EFC2] text-gray-700 shadow-inner hover:bg-[#d4edbf]{% endif %}">
+               All
+            </a>
+            <a href="{% url 'kegiatan:kegiatan_upcoming' %}"
+               class="px-6 py-2 rounded-full border-[3px] border-[#3A3A3A] transition 
+               {% if active_tab == 'upcoming' %}bg-[#A6CE39] text-gray-800 font-semibold shadow-md{% else %}bg-[#E3EFC2] text-gray-700 shadow-inner hover:bg-[#d4edbf]{% endif %}">
+               Upcoming
+            </a>
+            <a href="{% url 'kegiatan:kegiatan_past' %}"
+               class="px-6 py-2 rounded-full border-[3px] border-[#3A3A3A] transition 
+               {% if active_tab == 'past' %}bg-[#A6CE39] text-gray-800 font-semibold shadow-md{% else %}bg-[#E3EFC2] text-gray-700 shadow-inner hover:bg-[#d4edbf]{% endif %}">
+               Past
+            </a>
+        </div>
+
+        <!-- Kegiatan Grid -->
+        <div class="grid md:grid-cols-1 gap-y-16 lg:gap-y-12 content-center">
+            {% if not kegiatan_upcoming and not kegiatan_past %}
+                <div class="flex flex-col items-center justify-center py-24 text-center w-full">
+                    <svg class="w-32 h-32 mb-6 text-[#A6CE39] opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                    <h3 class="text-3xl font-bold text-[#3A3A3A] mb-4">Belum Ada Kegiatan</h3>
+                    <p class="text-lg text-gray-600 max-w-lg mx-auto">
+                        Saat ini belum ada kegiatan yang dijadwalkan. Pantau terus halaman ini atau media sosial kami untuk <span class="italic">update</span> kegiatan seru terbaru dari FUKI!
+                    </p>
+                </div>
+            {% else %}
+                
+                <!-- Upcoming Events -->
+                {% if kegiatan_upcoming %}
+                {% for kegiatan in kegiatan_upcoming %}
+                <div class="flex flex-col lg:flex-row justify-center gap-0 lg:gap-6 max-w-5xl w-full px-4 md:px-6 mx-auto items-center">
+                    <div class="w-full lg:max-w-none lg:w-[331px] h-auto lg:h-[340px] bg-[#417BB1] rounded-t-3xl rounded-b-none lg:rounded-2xl shadow-lg p-6 flex flex-col justify-center text-center text-white border-[3px] border-b-0 lg:border-b-[3px] border-[#3A3A3A] drop-shadow-[0_0_32px_rgba(0,0,0,0.25)] lg:drop-shadow-[0_0_32px_rgba(0,0,0,0.25)]">
+                        <div>
+                            <p class="font-bold text-[24px]">Save the date!</p>
+                            <p class="font-bold my-2 text-[64px]">{{ kegiatan.tanggal|date:"j" }}</p>
+                            <p class="text-bold text[20px]">{{ kegiatan.tanggal|date:"F Y" }}</p>
+                            <p class="text-bold text-[20px]">{{ kegiatan.start_time|time:"H.i" }} - {{kegiatan.end_time|time:"H.i" }}</p>
+                        </div>
+                        <button class="mt-6 bg-[#F6FAEB] text-gray-800 font-medium py-2 rounded-full shadow hover:bg-[#d4edbf] transition border-[3px] border-[#3A3A3A] drop-shadow-[0_0_32px_rgba(0,0,0,0.25)]">
+                            {% if kegiatan.link_registrasi is not None %}
+                            <a href="{{ kegiatan.link_registrasi }}">Register</a>
+                            {% else %}
+                            Register
+                            {% endif %}
+                        </button>
+                    </div>
+                
+                    <div class="w-full lg:w-[713px] h-auto lg:h-[340px] bg-[#417BB1] rounded-b-3xl rounded-t-none lg:rounded-2xl shadow-lg p-6 text-white flex flex-col justify-center items-start gap-y-1 border-[3px] border-t-[2px] lg:border-t-[3px] border-dashed lg:border-solid border-[#3A3A3A] drop-shadow-[0_16px_32px_rgba(0,0,0,0.25)] lg:drop-shadow-[0_0_32px_rgba(0,0,0,0.25)]">
+                        <h4 class="text-[24px] font-normal opacity-90">{{ kegiatan.judul }}</h4>
+                        <h4 class="text-[24px] font-bold leading-snug mt-2">{{ kegiatan.deskripsi }}</h4>
+                        <h5 class="text-[20px] font-bold mt-2">Bersama {{ kegiatan.guest_star }}</h5>
+                
+                        <div class="flex items-center gap-2 mt-4 text-[20px] font-normal">
+                            <img src="{% static 'location_vector.png' %}" alt="Logo">
+                            <h5>
+                                {% if kegiatan.link_lokasi is not None %}
+                                <a href="{{ kegiatan.link_lokasi }}">{{ kegiatan.lokasi }}</a>
+                                {% else %}
+                                {{ kegiatan.lokasi }}
+                                {% endif %}
+                            </h5>
+                        </div>
+                        <div class="flex items-center gap-2 mt-4 text-[20px] font-normal">
+                            <img src="{% static 'phone_vector.png' %}" alt="Logo">
+                            <h5>{{ kegiatan.contact }}</h5>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+                {% endif %}
+
+                <!-- Past Events -->
+                {% if kegiatan_past %}
+                {% for kegiatan in kegiatan_past %}
+                <div class="flex flex-col lg:flex-row justify-center gap-0 lg:gap-6 max-w-5xl w-full px-4 md:px-6 mx-auto items-center">
+                    <div class="w-full lg:max-w-none lg:w-[331px] h-auto lg:h-[340px] bg-[#828282] rounded-t-3xl rounded-b-none lg:rounded-2xl shadow-lg p-6 flex flex-col justify-center text-center text-white border-[3px] border-b-0 lg:border-b-[3px] border-[#828282] drop-shadow-[0_0_32px_rgba(0,0,0,0.25)] lg:drop-shadow-[0_0_32px_rgba(0,0,0,0.25)]">
+                        <div>
+                            <p class="font-bold text-[24px]">Save the date!</p>
+                            <p class="font-bold my-2 text-[64px]">{{ kegiatan.tanggal|date:"j" }}</p>
+                            <p class="text-bold text[20px]">{{ kegiatan.tanggal|date:"F Y" }}</p>
+                            <p class="text-bold text-[20px]">{{ kegiatan.start_time|time:"H.i" }} - {{ kegiatan.end_time|time:"H.i" }}</p>
+                        </div>
+                        <button disabled class="mt-6 bg-[#F6FAEB] text-[#828282] font-medium py-2 rounded-full shadow transition border-[3px] border-[#828282] bg-opacity-50 drop-shadow-[0_0_32px_rgba(0,0,0,0.25)]">
+                            Register
+                        </button>
+                    </div>
+                
+                    <div class="w-full lg:w-[713px] h-auto lg:h-[340px] bg-[#828282] rounded-b-3xl rounded-t-none lg:rounded-2xl shadow-lg p-6 text-white text-opacity-50 flex flex-col justify-center items-start gap-y-1 border-[3px] border-t-[2px] lg:border-t-[3px] border-dashed lg:border-solid border-[#828282] drop-shadow-[0_16px_32px_rgba(0,0,0,0.25)] lg:drop-shadow-[0_0_32px_rgba(0,0,0,0.25)]">
+                        <h4 class="text-[24px] font-normal opacity-90">{{ kegiatan.judul }}</h4>
+                        <h4 class="text-[24px] font-bold leading-snug mt-2">{{ kegiatan.deskripsi }}</h4>
+                        <h5 class="text-[20px] font-bold mt-2">Bersama {{ kegiatan.guest_star }}</h5>
+                
+                        <div class="flex items-center gap-2 mt-4 text-[20px] font-normal">
+                            <img src="{% static 'location_vector.png' %}" alt="Logo" class="invisible">
+                            <h5>
+                                {% if kegiatan.link_lokasi is not None %}
+                                <a href="{{ kegiatan.link_lokasi }}">{{ kegiatan.lokasi }}</a>
+                                {% else %}
+                                {{ kegiatan.lokasi }}
+                                {% endif %}
+                            </h5>
+                        </div>
+                        <div class="flex items-center gap-2 mt-4 text-[20px] font-normal">
+                            <img src="{% static 'phone_vector.png' %}" alt="Logo" class="invisible">
+                            <h5>{{ kegiatan.contact }}</h5>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+                {% endif %}
+
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

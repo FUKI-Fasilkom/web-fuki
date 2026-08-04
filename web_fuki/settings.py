@@ -72,6 +72,7 @@ INSTALLED_APPS = [
     'kegiatan',
     'birdep',
     'profil',
+    'blog_kajian',
 ]
 
 MIDDLEWARE = [
