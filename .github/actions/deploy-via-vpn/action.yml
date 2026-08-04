@@ -316,14 +316,41 @@ runs:
         exit 1
         REMOTE
 
-    # Immutable branch-sha tags mean every deploy leaves the previous image behind.
-    # On a 1.9GB VPS shared with staging that fills the disk given enough deploys.
-    - name: Prune unused images
+    # Immutable branch-sha tags mean every deploy leaves the previous image behind,
+    # and the disk is shared with staging on a small VPS.
+    #
+    # Scoped deliberately to this repository's own images. `docker image prune -af`
+    # would delete ANY image not currently referenced by a container - including
+    # those of other projects sharing this faculty VPS whose containers happen to
+    # be stopped or removed. Do not widen this back out.
+    - name: Prune old images for this repository
       if: always()
       shell: bash
+      env:
+        IMAGE_TAG: ${{ inputs.image_tag }}
       run: |
         set -euo pipefail
-        ssh deploy-target 'docker image prune -af --filter "until=168h"' || true
+        ssh deploy-target "TAG='$IMAGE_TAG' bash -s" << 'REMOTE'
+        set -uo pipefail
+        REPO="ghcr.io/fuki-fasilkom/web-fuki"
+
+        # Images referenced by any container, running or stopped.
+        IN_USE="$(docker ps -a --format '{{.Image}}' | sort -u)"
+
+        docker images "$REPO" --format '{{.Repository}}:{{.Tag}}' \
+          | grep -v '<none>' \
+          | while read -r img; do
+              # never remove what this deploy just installed, or anything a
+              # container still points at (staging's image included)
+              [ "$img" = "${REPO}:${TAG}" ] && continue
+              printf '%s\n' "$IN_USE" | grep -qxF "$img" && continue
+              echo "removing $img"
+              docker rmi "$img" >/dev/null 2>&1 || true
+            done
+
+        # Dangling layers only - untagged leftovers of our own rebuilds.
+        docker image prune -f
+        REMOTE
 
     - name: Log out of GHCR
       if: always()
