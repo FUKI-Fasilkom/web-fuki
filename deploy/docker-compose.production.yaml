@@ -2,29 +2,49 @@ services:
   web:
     image: ghcr.io/fuki-fasilkom/web-fuki:${IMAGE_TAG}
     container_name: production_web
-    env_file: .env
+    # app.env, not .env: Compose interpolates $ inside .env, which would corrupt
+    # DJANGO_SECRET. app.env is passed through to the container verbatim.
+    env_file: app.env
     volumes:
       - production_media:/app/media
-      - production_static:/app/static
+      # STATIC_ROOT is /app/staticfiles; nginx mounts this same volume read-only
+      # at /app/static, which is where its `alias` points.
+      - production_static:/app/staticfiles
     expose:
       - "8000"
+    depends_on:
+      db:
+        condition: service_healthy
     networks: [production_net]
     restart: unless-stopped
 
   db:
     image: postgres:15
     container_name: production_db
-    env_file: .env
+    # Explicit vars rather than `env_file: .env` so the database container is not
+    # handed DJANGO_SECRET and the rest of the application's environment.
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - production_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
     networks: [production_net]
     restart: unless-stopped
 
   nginx:
-    image: nginx:latest
+    # Pinned: `latest` was re-pulled on every deploy, so an upstream major bump
+    # could break production on a deploy that changed nothing in this repo.
+    image: nginx:1.27-alpine
     container_name: production_nginx
     ports:
-      - "80:80"          # port beda dari production, sampai subdomain fix
+      - "80:80"
     volumes:
       - production_static:/app/static:ro
       - production_media:/app/media:ro

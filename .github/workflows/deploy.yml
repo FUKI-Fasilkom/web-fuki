@@ -1,15 +1,57 @@
 name: CI/CD
 
 on:
+  # A merged PR is itself a push to the base branch, so merging deploys.
   push:
     branches: [staging, main]
+  # Opening or updating a PR runs `checks` only - never build or deploy. This is
+  # what turns the PR into a gate: you see red before merging, not after.
+  pull_request:
+    branches: [staging, main]
+
+# Two pushes to main in quick succession would otherwise run two deploy jobs
+# against the same directory at once - concurrent `docker compose up -d` plus
+# concurrent `migrate`. Queue them instead of cancelling: a half-finished
+# production deploy must never be interrupted.
+#
+# Keyed on head_ref for PRs so a force-push to a PR branch supersedes its own
+# in-flight check run, and on ref for pushes so deploys queue per environment.
+concurrency:
+  group: deploy-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Catches missing settings, bad URLconf and misconfigured security options
+      # before anything reaches the VPS. Warnings (e.g. missing HSTS while we are
+      # still HTTP-only) do not fail the build; genuine errors do.
+      - name: Django system checks
+        env:
+          DJANGO_SECRET: ci-placeholder-not-used-at-runtime
+          DEBUG: "False"
+          ALLOWED_HOSTS: localhost
+        run: python manage.py check --deploy --fail-level ERROR
+
   build-and-push:
+    # Pull requests stop at `checks`. Nothing is published to GHCR until the
+    # commit is actually on staging or main.
+    if: github.event_name == 'push'
+    needs: checks
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -31,6 +73,12 @@ jobs:
           SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
           echo "tag=${BRANCH_NAME}-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
 
+      # Required for cache-to: type=gha below. The runner's default buildx driver
+      # is `docker`, which cannot export a cache ("Cache export is not supported
+      # for the docker driver"); this sets up the docker-container driver.
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
@@ -43,12 +91,14 @@ jobs:
         with:
           context: .
           push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           tags: |
             ${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}:${{ steps.meta.outputs.tag }}
             ${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}:${{ github.ref_name }}-latest
-  
+
   deploy-staging:
-    if: github.ref == 'refs/heads/staging'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/staging'
     needs: build-and-push
     runs-on: ubuntu-latest
     environment: staging          # kasi tau github, ambil secretsnya dari environment ini
@@ -64,22 +114,27 @@ jobs:
           deploy_path: /home/fuki/web-fuki/staging
           container_prefix: staging
           run_migration: "true"
+          health_port: "8080"          # staging nginx; port 80 is production
+          backup_before_migrate: "true"
 
           ovpn_config: ${{ secrets.OVPN_CONFIG }}
           ssh_host: ${{ secrets.SSH_HOST }}
           ssh_user: ${{ secrets.SSH_USER }}
           ssh_key: ${{ secrets.SSH_KEY }}
+          ssh_known_hosts: ${{ secrets.SSH_KNOWN_HOSTS }}
 
           django_secret: ${{ secrets.DJANGO_SECRET }}
           db_name: ${{ secrets.DB_NAME }}
           db_user: ${{ secrets.DB_USER }}
           db_password: ${{ secrets.DB_PASSWORD }}
           ghcr_token: ${{ secrets.GHCR_READ_TOKEN }}
-          #allowed_hosts: ${{ secrets.ALLOWED_HOSTS }}  # untuk saat ini ALLOWED_HOSTS masih hardcode
+          allowed_hosts: ${{ secrets.ALLOWED_HOSTS }}
           debug: ${{ secrets.DEBUG }}
 
   deploy-production:
-    if: github.ref == 'refs/heads/main'
+    # Reached by merging a PR into main (the merge is a push), or by pushing to
+    # main directly. Use branch protection to rule out the latter.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: build-and-push
     runs-on: ubuntu-latest
     environment: production      # <- required reviewers gate lives here
@@ -95,16 +150,19 @@ jobs:
           deploy_path: /home/fuki/web-fuki/production
           container_prefix: production
           run_migration: "true"
+          health_port: "80"
+          backup_before_migrate: "true"
 
           ovpn_config: ${{ secrets.OVPN_CONFIG }}
           ssh_host: ${{ secrets.SSH_HOST }}
           ssh_user: ${{ secrets.SSH_USER }}
           ssh_key: ${{ secrets.SSH_KEY }}
+          ssh_known_hosts: ${{ secrets.SSH_KNOWN_HOSTS }}
 
           django_secret: ${{ secrets.DJANGO_SECRET }}
           db_name: ${{ secrets.DB_NAME }}
           db_user: ${{ secrets.DB_USER }}
           db_password: ${{ secrets.DB_PASSWORD }}
           ghcr_token: ${{ secrets.GHCR_READ_TOKEN }}
-          #allowed_hosts: ${{ secrets.ALLOWED_HOSTS }}
+          allowed_hosts: ${{ secrets.ALLOWED_HOSTS }}
           debug: ${{ secrets.DEBUG }}

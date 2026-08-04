@@ -25,4 +25,5 @@ urlpatterns = [
     path('kegiatan/', include('kegiatan.urls')),
     path('team/', include('birdep.urls')),
     path('profil/', include('profil.urls')),
+    path('kajian/', include('blog_kajian.urls'))
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

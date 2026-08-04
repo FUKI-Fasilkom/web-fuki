@@ -2,10 +2,14 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1
+
+# build-essential/libpq-dev are no longer installed: psycopg2-binary and pillow
+# both ship manylinux wheels, so nothing here compiles from source. Dropping the
+# toolchain removes ~400MB from the image. Re-add them if a future dependency
+# needs to build a C extension.
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
@@ -14,8 +18,9 @@ COPY . .
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# Dummy SECRET_KEY hanya supaya command Django bisa jalan saat build (tidak dipakai runtime)
-ENV SECRET_KEY=build-time-placeholder
+# STATIC_ROOT and MEDIA_ROOT. Created here so the named volumes mounted over them
+# inherit the right ownership instead of being created by the daemon as root.
+RUN mkdir -p /app/staticfiles /app/media
 
 EXPOSE 8000
 
