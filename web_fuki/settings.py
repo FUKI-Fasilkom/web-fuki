@@ -36,10 +36,18 @@ def _csv_env(name, default):
     return values or default
 
 
-# Set via the ALLOWED_HOSTS secret in CI/CD. The fallback keeps local dev and the
-# deploy health check (which requests http://localhost/health/) working if the
-# secret is ever missing -- an empty list would 400 every request instead.
-ALLOWED_HOSTS = _csv_env('ALLOWED_HOSTS', ["localhost", "127.0.0.1", "fuki.cs.ui.ac.id"])
+_LOOPBACK_HOSTS = ["localhost", "127.0.0.1"]
+
+# Set via the ALLOWED_HOSTS secret in CI/CD. The fallback covers a missing secret,
+# which would otherwise 400 every request.
+ALLOWED_HOSTS = _csv_env('ALLOWED_HOSTS', ["fuki.cs.ui.ac.id"])
+
+# The deploy health check runs on the VPS itself as `curl http://localhost:<port>/health/`
+# and nginx forwards that Host verbatim, so Django sees `localhost`. These are
+# appended unconditionally: setting the secret to just the public domain -- the
+# obvious thing to do -- would make Django answer 400 and mark an otherwise
+# healthy deploy as failed, after the migration had already run.
+ALLOWED_HOSTS += [h for h in _LOOPBACK_HOSTS if h not in ALLOWED_HOSTS]
 
 # nginx terminates the connection and proxies to gunicorn, so Django has to be
 # told which header carries the original scheme. Without this, request.is_secure()
@@ -47,7 +55,7 @@ ALLOWED_HOSTS = _csv_env('ALLOWED_HOSTS', ["localhost", "127.0.0.1", "fuki.cs.ui
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 CSRF_TRUSTED_ORIGINS = _csv_env(
     'CSRF_TRUSTED_ORIGINS',
-    [f'https://{host}' for host in ALLOWED_HOSTS if not host.startswith('127.')],
+    [f'https://{host}' for host in ALLOWED_HOSTS if host not in _LOOPBACK_HOSTS],
 )
 
 
