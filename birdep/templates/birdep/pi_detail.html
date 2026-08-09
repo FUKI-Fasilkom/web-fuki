@@ -2,7 +2,7 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}{{ pengurus.get_jabatan_display }}{% endblock %}
+{% block title %}{{ pengurus.jabatan }}{% endblock %}
 
 {% block content %}
     <!-- Include header template -->
@@ -13,14 +13,20 @@
         <div class="relative z-20 max-w-screen-xl mx-auto px-6 py-16">
             <!-- Back Button -->
             <div class="mb-8">
-                <a href="{% url 'birdep:pi_list' %}" class="inline-flex items-center px-4 py-2 bg-[#8BC34A] text-white rounded-full hover:bg-green-600 transition-colors">
+                {% if pengurus.kategori == 'ki' %}
+                    <a href="{% url 'birdep:ki_list' %}" class="inline-flex items-center px-4 py-2 bg-[#8BC34A] text-white rounded-full hover:bg-green-600 transition-colors">
+                {% elif pengurus.kategori == 'mdc' %}
+                    <a href="{% url 'birdep:mdc_list' %}" class="inline-flex items-center px-4 py-2 bg-[#8BC34A] text-white rounded-full hover:bg-green-600 transition-colors">
+                {% else %}
+                    <a href="{% url 'birdep:pi_list' %}" class="inline-flex items-center px-4 py-2 bg-[#8BC34A] text-white rounded-full hover:bg-green-600 transition-colors">
+                {% endif %}
                     ← Kembali
                 </a>
             </div>
             
             <!-- Title -->
             <div class="text-center mb-12">
-                <h2 class="text-4xl font-bold text-gray-800 mb-4">{{ pengurus.get_jabatan_display|upper }}</h2>
+                <h2 class="text-4xl font-bold text-gray-800 mb-4">{{ pengurus.jabatan|upper }}</h2>
             </div>
             
             <!-- Content Layout -->

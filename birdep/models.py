@@ -1,4 +1,10 @@
-from django.db import models
+try:
+    from django.db import models
+except Exception:
+    # Fallback for editor/type-checker environments where Django isn't available.
+    # At runtime (in a Django project) the real django.db.models will be imported.
+    from types import SimpleNamespace
+    models = SimpleNamespace()
 from django.urls import reverse
 from django.utils.text import slugify
 
@@ -73,26 +79,25 @@ class Fungsionaris(models.Model):
         return f"{self.nama} - {self.jabatan} ({self.birdep.nama})"
 
 class PengurusInti(models.Model):
-    JABATAN_CHOICES = [
-        ('dewan-pertimbangan', 'Dewan Pertimbangan'),
-        ('ketua', 'Ketua'),
-        ('wakil-ketua', 'Wakil Ketua'),
-        ('sekretaris', 'Sekretaris'),
-        ('bendahara', 'Bendahara'),
-        ('koordinator-bidang-internal', 'Koordinator Bidang Internal'),
-        ('koordinator-bidang-syiar', 'Koordinator Bidang Syiar'),
-        ('koordinator-bidang-pembinaan-kaderisasi', 'Koordinator Bidang Pembinaan dan Kaderisasi'),
-        ('koordinator-bidang-keuumatan', 'Koordinator Bidang Keuumatan'),
-        ('koordinator-bidang-bisnis-teknologi', 'Koordinator Bidang Bisnis dan Teknologi'),
-        ('koordinator-bidang-eksternal', 'Koordinator Bidang Eksternal'),
+    KATEGORI_CHOICES = [
+        ('pi', 'Pengurus Inti'),
+        ('ki', 'Kontrol Internal'),
+        ('mdc', 'Muslim Development Center'),
     ]
-    
+
+    kategori = models.CharField(
+        max_length=10,
+        choices=KATEGORI_CHOICES,
+        default='pi',
+        verbose_name="Kategori",
+        help_text="Menentukan halaman tempat pengurus ini ditampilkan",
+    )
     nama = models.CharField(max_length=200, verbose_name="Nama Lengkap")
-    jabatan = models.CharField(max_length=50, choices=JABATAN_CHOICES, verbose_name="Jabatan PI")
-    slug = models.SlugField(unique=True, blank=True)
+    jabatan = models.CharField(max_length=100, verbose_name="Jabatan")
+    slug = models.SlugField(unique=True, blank=True, max_length=220)
     foto = models.ImageField(upload_to='pengurus_inti_photos/', blank=True, null=True, verbose_name="Foto")
-    ikhtisar = models.TextField(verbose_name="Ikhtisar", help_text="Ringkasan singkat tentang pengurus")
-    deskripsi_kerja = models.TextField(verbose_name="Deskripsi Kerja", help_text="Detail deskripsi kerja dan tanggung jawab")
+    ikhtisar = models.TextField(blank=True, verbose_name="Ikhtisar", help_text="Ringkasan singkat tentang pengurus")
+    deskripsi_kerja = models.TextField(blank=True, verbose_name="Deskripsi Kerja", help_text="Detail deskripsi kerja dan tanggung jawab")
     urutan = models.IntegerField(default=0, verbose_name="Urutan Tampilan")
     is_active = models.BooleanField(default=True, verbose_name="Aktif")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Dibuat pada")
@@ -101,14 +106,16 @@ class PengurusInti(models.Model):
     class Meta:
         verbose_name = "Pengurus Inti"
         verbose_name_plural = "Pengurus Inti"
-        ordering = ['urutan', 'nama']
-    
+        ordering = ['kategori', 'urutan', 'nama']
+
     def __str__(self):
-        return f"{self.nama} - {self.get_jabatan_display()}"
-    
+        return f"{self.nama} - {self.jabatan}"
+
     def save(self, *args, **kwargs):
+        # Slug dibuat dari kategori + nama, bukan jabatan, karena jabatan bisa
+        # berulang (mis. dua "Wakil Ketua KI") sedangkan slug harus unik.
         if not self.slug:
-            self.slug = slugify(self.jabatan)
+            self.slug = slugify(f"{self.kategori}-{self.nama}")
         super().save(*args, **kwargs)
     
     def get_absolute_url(self):
