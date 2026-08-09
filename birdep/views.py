@@ -1,47 +1,50 @@
 # birdep/views.py
+from django.http import Http404
 from django.shortcuts import render, get_object_or_404
 from .models import BirDep, Program, Fungsionaris, PengurusInti
 
 def team_list(request):
-    """Halaman utama Our Team - menampilkan PI, KI, dan BirDep lainnya"""
+    """Halaman utama Our Team - menampilkan PI, KI, MDC, dan seluruh BirDep"""
     birdeps = BirDep.objects.filter(is_active=True).order_by('nama')
-    
+
     context = {
         'birdeps': birdeps,
         'title': 'Our Team'
     }
     return render(request, 'birdep/team_list.html', context)
 
-def pi_list(request):
-    """Halaman list Pengurus Inti"""
-    # Data hardcode sesuai screenshot
-    jabatan_list = [
-        {'nama': 'Dewan Pertimbangan', 'slug': 'dewan-pertimbangan'},
-        {'nama': 'Ketua', 'slug': 'ketua'},
-        {'nama': 'Wakil Ketua', 'slug': 'wakil-ketua'},
-        {'nama': 'Sekretaris', 'slug': 'sekretaris'},
-        {'nama': 'Bendahara', 'slug': 'bendahara'},
-        {'nama': 'Koordinator Bidang Internal', 'slug': 'koordinator-bidang-internal'},
-        {'nama': 'Koordinator Bidang Syiar', 'slug': 'koordinator-bidang-syiar'},
-        {'nama': 'Koordinator Bidang Pembinaan dan Kaderisasi', 'slug': 'koordinator-bidang-pembinaan-kaderisasi'},
-        {'nama': 'Koordinator Bidang Keuumatan', 'slug': 'koordinator-bidang-keuumatan'},
-        {'nama': 'Koordinator Bidang Bisnis dan Teknologi', 'slug': 'koordinator-bidang-bisnis-teknologi'},
-        {'nama': 'Koordinator Bidang Eksternal', 'slug': 'koordinator-bidang-eksternal'},
-    ]
-    
+def pengurus_list(request, kategori='pi'):
+    """Halaman daftar pengurus untuk kategori PI, KI, atau MDC.
+
+    Sebelumnya daftar jabatan ditulis langsung di dalam view. Sekarang diambil
+    dari database supaya perubahan struktur kepengurusan cukup dilakukan lewat
+    admin, tanpa mengubah kode.
+    """
+    kategori_sah = dict(PengurusInti.KATEGORI_CHOICES)
+    if kategori not in kategori_sah:
+        raise Http404("Kategori pengurus tidak dikenal")
+
+    pengurus_list = PengurusInti.objects.filter(
+        kategori=kategori,
+        is_active=True,
+    ).order_by('urutan', 'nama')
+
     context = {
-        'jabatan_list': jabatan_list,
-        'title': 'Pengurus Inti'
+        'pengurus_list': pengurus_list,
+        'kategori': kategori,
+        'kategori_nama': kategori_sah[kategori],
+        'title': kategori_sah[kategori],
     }
     return render(request, 'birdep/pi_list.html', context)
 
+
 def pi_detail(request, slug):
-    """Halaman detail Pengurus Inti berdasarkan jabatan"""
+    """Halaman detail satu orang pengurus"""
     pengurus = get_object_or_404(PengurusInti, slug=slug, is_active=True)
-    
+
     context = {
         'pengurus': pengurus,
-        'title': f'{pengurus.get_jabatan_display()}',
+        'title': pengurus.jabatan,
     }
     return render(request, 'birdep/pi_detail.html', context)
 

@@ -64,15 +64,15 @@ class FungsionarisAdmin(admin.ModelAdmin):
 
 @admin.register(PengurusInti)
 class PengurusIntiAdmin(admin.ModelAdmin):
-    list_display = ['nama', 'jabatan', 'urutan', 'is_active']
-    list_filter = ['jabatan', 'is_active']
-    search_fields = ['nama', 'ikhtisar']
+    list_display = ['nama', 'jabatan', 'kategori', 'urutan', 'is_active']
+    list_filter = ['kategori', 'is_active']
+    search_fields = ['nama', 'jabatan', 'ikhtisar']
     list_editable = ['urutan', 'is_active']
-    prepopulated_fields = {'slug': ('jabatan',)}
+    prepopulated_fields = {'slug': ('nama',)}
     
     fieldsets = (
         ('Informasi Personal', {
-            'fields': ('nama', 'jabatan', 'slug', 'foto')
+            'fields': ('kategori', 'nama', 'jabatan', 'slug', 'foto')
         }),
         ('Konten', {
             'fields': ('ikhtisar', 'deskripsi_kerja')
