@@ -42,7 +42,7 @@
             <!-- Content Area -->
             <div class="max-w-4xl mx-auto px-4">
                 <!-- Content Sections -->
-                <div class="flex flex-col md:flex-row items-center gap-8 mb-12 md:pl-16">
+                <div class="flex flex-col md:flex-row items-center justify-center gap-8 mb-12">
                     <!-- Logo BirDep di kiri -->
                     <div class="w-40 h-40 flex items-center justify-center flex-shrink-0">
                         {% if birdep.logo_filename %}
@@ -55,7 +55,7 @@
                     </div>
 
                     <!-- Text Content -->
-                    <div class="flex-1 mt-4 md:mt-0 text-center md:text-left">
+                    <div class="max-w-md mt-4 md:mt-0 text-center md:text-left">
                         <div class="">
                             {% if birdep.tentang_deskripsi %}
                                 <p class="text-gray-800 text-lg leading-relaxed">{{ birdep.tentang_deskripsi|linebreaks }}</p>
