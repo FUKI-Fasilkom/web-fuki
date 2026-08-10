@@ -17,21 +17,24 @@
             </div>
 
             <!-- Tab Navigation -->
-            <div class="flex justify-center gap-2 mb-8 flex-wrap">
-                <div class="flex items-center gap-2">
-                    <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-                        <span class="text-white text-sm">⋮⋮</span>
-                    </div>
+            <div class="flex justify-center mb-12 flex-wrap">
+                <div class="flex items-center gap-4">
+                    <a href="{% url 'birdep:team_list' %}" class="w-10 h-10 bg-[#32679A] rounded-full flex items-center justify-center text-white border-2 border-gray-800 hover:bg-[#25527d] transition-colors shadow-sm">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M4 4h4v4H4V4zm6 0h4v4h-4V4zm6 0h4v4h-4V4zM4 10h4v4H4v-4zm6 0h4v4h-4v-4zm6 0h4v4h-4v-4zM4 16h4v4H4v-4zm6 0h4v4h-4v-4zm6 0h4v4h-4v-4z"/></svg>
+                    </a>
+                    
                     <a href="{% url 'birdep:birdep_tentang' birdep.slug %}" 
-                       class="px-6 py-3 rounded-full text-sm font-medium transition-all duration-300 {% if current_tab == 'tentang' %}bg-[#8BC34A] text-white{% else %}bg-gray-200 text-gray-600 hover:bg-gray-300{% endif %}">
+                       class="px-8 py-2.5 rounded-full text-base font-semibold transition-all duration-300 {% if current_tab == 'tentang' %}bg-[#A6CE39] text-gray-900 border-2 border-gray-800 shadow-sm{% else %}bg-[#E3EFC2] text-gray-800 border-2 border-[#2E6B34] hover:bg-[#d5e8a6]{% endif %}">
                         Tentang {{ birdep.nama }}
                     </a>
+                    
                     <a href="{% url 'birdep:birdep_program' birdep.slug %}" 
-                       class="px-6 py-3 rounded-full text-sm font-medium transition-all duration-300 {% if current_tab == 'program' %}bg-[#8BC34A] text-white{% else %}bg-gray-200 text-gray-600 hover:bg-gray-300{% endif %}">
+                       class="px-8 py-2.5 rounded-full text-base font-semibold transition-all duration-300 {% if current_tab == 'program' %}bg-[#A6CE39] text-gray-900 border-2 border-gray-800 shadow-sm{% else %}bg-[#E3EFC2] text-gray-800 border-2 border-[#2E6B34] hover:bg-[#d5e8a6]{% endif %}">
                         Program
                     </a>
+                    
                     <a href="{% url 'birdep:birdep_fungsionaris' birdep.slug %}" 
-                       class="px-6 py-3 rounded-full text-sm font-medium transition-all duration-300 {% if current_tab == 'fungsionaris' %}bg-[#8BC34A] text-white{% else %}bg-gray-200 text-gray-600 hover:bg-gray-300{% endif %}">
+                       class="px-8 py-2.5 rounded-full text-base font-semibold transition-all duration-300 {% if current_tab == 'fungsionaris' %}bg-[#A6CE39] text-gray-900 border-2 border-gray-800 shadow-sm{% else %}bg-[#E3EFC2] text-gray-800 border-2 border-[#2E6B34] hover:bg-[#d5e8a6]{% endif %}">
                         Fungsionaris
                     </a>
                 </div>
@@ -40,29 +43,19 @@
             <!-- Fungsionaris Grid -->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
                 {% for fungsionaris in fungsionaris_list %}
-                <div class="bg-white rounded-2xl p-6 text-center shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-2 border-2 border-gray-800">
-                    <div class="w-32 h-32 bg-gray-200 rounded-lg mx-auto mb-4 flex items-center justify-center overflow-hidden">
+                <div class="bg-[#4678B5] text-white rounded-2xl p-6 text-center shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-2 border-2 border-gray-800">
+                    <div class="w-32 h-32 bg-white rounded-lg mx-auto mb-4 flex items-center justify-center overflow-hidden border-2 border-gray-800">
                         {% if fungsionaris.foto %}
                             <img src="{{ fungsionaris.foto.url }}" alt="{{ fungsionaris.nama }}" class="w-full h-full object-cover">
                         {% else %}
                             <span class="text-4xl text-gray-400">👤</span>
                         {% endif %}
                     </div>
-                    <h3 class="font-bold text-gray-800 mb-2">{{ fungsionaris.nama }}</h3>
-                    <p class="text-gray-600 mb-3">{{ fungsionaris.jabatan }}</p>
+                    <h3 class="font-bold text-xl mb-2">{{ fungsionaris.nama }}</h3>
+                    <p class="opacity-90">{{ fungsionaris.jabatan }}</p>
                 </div>
                 {% empty %}
-                <!-- Default placeholder cards -->
-                {% for i in "123456" %}
-                <div class="bg-white rounded-2xl p-6 text-center shadow-lg border-2 border-gray-800">
-                    <div class="w-32 h-32 bg-gray-200 rounded-lg mx-auto mb-4 flex items-center justify-center">
-                        <span class="text-4xl text-gray-400">👤</span>
-                    </div>
-                    <h3 class="font-bold text-gray-800 mb-2">[Nama Fungsionaris]</h3>
-                    <p class="text-gray-600 mb-3">[Nama Fungsionaris]</p>
-                    <p class="text-gray-500 text-sm">Deskripsi Jabatan</p>
-                </div>
-                {% endfor %}
+                <p class="text-center text-gray-500 italic py-8 col-span-full">Belum ada fungsionaris yang ditambahkan.</p>
                 {% endfor %}
             </div>
         </div>
