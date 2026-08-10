@@ -6,7 +6,7 @@
 
 {% block content %}
     <!-- Include header template -->
-    {% include 'header.html' with page_title="Our Team" %}
+    {% include 'header.html' with page_title="Biro & Departemen" %}
     
     <!-- Main content area -->
     <div class="relative w-full min-h-screen bg-[#F6FAEB] overflow-hidden">
@@ -17,21 +17,24 @@
             </div>
 
             <!-- Tab Navigation -->
-            <div class="flex justify-center gap-2 mb-8 flex-wrap">
-                <div class="flex items-center gap-2">
-                    <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-                        <span class="text-white text-sm">⋮⋮</span>
-                    </div>
+            <div class="flex justify-center mb-12 flex-wrap">
+                <div class="flex items-center gap-4">
+                    <a href="{% url 'birdep:team_list' %}" class="w-10 h-10 bg-[#32679A] rounded-full flex items-center justify-center text-white border-2 border-gray-800 hover:bg-[#25527d] transition-colors shadow-sm">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M4 4h4v4H4V4zm6 0h4v4h-4V4zm6 0h4v4h-4V4zM4 10h4v4H4v-4zm6 0h4v4h-4v-4zm6 0h4v4h-4v-4zM4 16h4v4H4v-4zm6 0h4v4h-4v-4zm6 0h4v4h-4v-4z"/></svg>
+                    </a>
+                    
                     <a href="{% url 'birdep:birdep_tentang' birdep.slug %}" 
-                       class="px-6 py-3 rounded-full text-sm font-medium transition-all duration-300 {% if current_tab == 'tentang' %}bg-[#8BC34A] text-white{% else %}bg-gray-200 text-gray-600 hover:bg-gray-300{% endif %}">
+                       class="px-8 py-2.5 rounded-full text-base font-semibold transition-all duration-300 {% if current_tab == 'tentang' %}bg-[#A6CE39] text-gray-900 border-2 border-gray-800 shadow-sm{% else %}bg-[#E3EFC2] text-gray-800 border-2 border-[#2E6B34] hover:bg-[#d5e8a6]{% endif %}">
                         Tentang {{ birdep.nama }}
                     </a>
+                    
                     <a href="{% url 'birdep:birdep_program' birdep.slug %}" 
-                       class="px-6 py-3 rounded-full text-sm font-medium transition-all duration-300 {% if current_tab == 'program' %}bg-[#8BC34A] text-white{% else %}bg-gray-200 text-gray-600 hover:bg-gray-300{% endif %}">
+                       class="px-8 py-2.5 rounded-full text-base font-semibold transition-all duration-300 {% if current_tab == 'program' %}bg-[#A6CE39] text-gray-900 border-2 border-gray-800 shadow-sm{% else %}bg-[#E3EFC2] text-gray-800 border-2 border-[#2E6B34] hover:bg-[#d5e8a6]{% endif %}">
                         Program
                     </a>
+                    
                     <a href="{% url 'birdep:birdep_fungsionaris' birdep.slug %}" 
-                       class="px-6 py-3 rounded-full text-sm font-medium transition-all duration-300 {% if current_tab == 'fungsionaris' %}bg-[#8BC34A] text-white{% else %}bg-gray-200 text-gray-600 hover:bg-gray-300{% endif %}">
+                       class="px-8 py-2.5 rounded-full text-base font-semibold transition-all duration-300 {% if current_tab == 'fungsionaris' %}bg-[#A6CE39] text-gray-900 border-2 border-gray-800 shadow-sm{% else %}bg-[#E3EFC2] text-gray-800 border-2 border-[#2E6B34] hover:bg-[#d5e8a6]{% endif %}">
                         Fungsionaris
                     </a>
                 </div>
@@ -40,24 +43,12 @@
             <!-- Program List -->
             <div class="max-w-4xl mx-auto space-y-6">
                 {% for program in programs %}
-                <div class="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300">
+                <div class="bg-[#4678B5] text-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-gray-800">
                     <h3 class="text-2xl font-bold mb-4">{{ program.judul }}</h3>
                     <p class="leading-relaxed opacity-90">{{ program.deskripsi|linebreaks }}</p>
                 </div>
                 {% empty %}
-                <!-- Default placeholder cards -->
-                <div class="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-2xl p-8 shadow-lg">
-                    <h3 class="text-2xl font-bold mb-4">Card Title</h3>
-                    <p class="leading-relaxed opacity-90">Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
-                </div>
-                <div class="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-2xl p-8 shadow-lg">
-                    <h3 class="text-2xl font-bold mb-4">Card Title</h3>
-                    <p class="leading-relaxed opacity-90">Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
-                </div>
-                <div class="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-2xl p-8 shadow-lg">
-                    <h3 class="text-2xl font-bold mb-4">Card Title</h3>
-                    <p class="leading-relaxed opacity-90">Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
-                </div>
+                <p class="text-center text-gray-500 italic py-8">Belum ada program kerja yang ditambahkan.</p>
                 {% endfor %}
             </div>
         </div>
