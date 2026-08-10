@@ -1,0 +1,358 @@
+name: Deploy via VPN
+description: Connects to OpenVPN, writes .env from secrets, deploys via SSH
+
+inputs:
+  image_tag: {required: true}
+  compose_file: {required: true}
+  nginx_conf: {required: true}
+  deploy_path: {required: true}
+  container_prefix: {required: true}
+  run_migration: {required: true}
+  health_port:
+    required: false
+    default: "80"
+    description: Host port this environment's nginx is published on (80 = production, 8080 = staging)
+  backup_before_migrate:
+    required: false
+    default: "true"
+    description: pg_dump the database before running migrations
+
+  ovpn_config: {required: true}
+  ssh_host: {required: true}
+  ssh_user: {required: true}
+  ssh_key: {required: true}
+  ssh_known_hosts:
+    required: false
+    default: ""
+    description: >-
+      Pinned SSH host key line(s) for the VPS (output of `ssh-keyscan <host>`).
+      If empty, the host key is accepted on first use (TOFU) and a warning is printed.
+
+  django_secret: {required: true}
+  db_name: {required: true}
+  db_user: {required: true}
+  db_password: {required: true}
+  allowed_hosts: {required: true}
+  debug: {required: true}
+  ghcr_token: {required: true}
+
+runs:
+  using: composite
+  steps:
+    - name: Install OpenVPN
+      shell: bash
+      run: sudo apt-get update && sudo apt-get install -y openvpn
+
+    # The config is written via a *quoted* heredoc so bash never expands `$`,
+    # backticks or backslashes that appear inside the secret.
+    - name: Connect to VPN
+      shell: bash
+      env:
+        OVPN_CONFIG: ${{ inputs.ovpn_config }}
+      run: |
+        set -euo pipefail
+        printf '%s\n' "$OVPN_CONFIG" > client.ovpn
+        sudo openvpn --config client.ovpn --daemon --log vpn.log
+
+        for i in $(seq 1 30); do
+          if ip addr show tun0 >/dev/null 2>&1; then
+            echo "VPN connected after ~$((i * 2))s"
+            exit 0
+          fi
+          sleep 2
+        done
+
+        echo "::error::VPN failed to come up (tun0 never appeared after 60s)"
+        echo "--- openvpn log ---"
+        sudo cat vpn.log || true
+        exit 1
+
+    - name: Setup SSH
+      shell: bash
+      env:
+        SSH_KEY: ${{ inputs.ssh_key }}
+        SSH_HOST: ${{ inputs.ssh_host }}
+        SSH_USER: ${{ inputs.ssh_user }}
+        SSH_KNOWN_HOSTS: ${{ inputs.ssh_known_hosts }}
+      run: |
+        set -euo pipefail
+        mkdir -p ~/.ssh
+        chmod 700 ~/.ssh
+
+        # printf guarantees the trailing newline OpenSSH requires on key files.
+        printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+        chmod 600 ~/.ssh/deploy_key
+
+        if [ -n "$SSH_KNOWN_HOSTS" ]; then
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          STRICT=yes
+        else
+          echo "::warning::SSH_KNOWN_HOSTS is not set - the VPS host key is trusted on first use, leaving this deploy open to a man-in-the-middle on the VPN. Run 'ssh-keyscan <vps-ip>' and store the output as the SSH_KNOWN_HOSTS secret."
+          : > ~/.ssh/known_hosts
+          STRICT=accept-new
+        fi
+        chmod 600 ~/.ssh/known_hosts
+
+        # One alias so every later step is just `ssh deploy-target` / `scp ... deploy-target:`
+        # and no secret ever lands in a command line.
+        printf '%s\n' \
+          'Host deploy-target' \
+          "  HostName $SSH_HOST" \
+          "  User $SSH_USER" \
+          '  IdentityFile ~/.ssh/deploy_key' \
+          '  IdentitiesOnly yes' \
+          "  StrictHostKeyChecking $STRICT" \
+          '  UserKnownHostsFile ~/.ssh/known_hosts' \
+          '  BatchMode yes' \
+          '  ConnectTimeout 20' \
+          '  ServerAliveInterval 15' \
+          > ~/.ssh/config
+        chmod 600 ~/.ssh/config
+
+        ssh deploy-target 'echo "SSH OK on $(hostname)"'
+
+    # Two files on purpose:
+    #   .env     - read by Compose for ${...} interpolation in docker-compose.yml.
+    #              Compose expands $ references here, so these values are validated.
+    #   app.env  - passed verbatim to the web container via `env_file`.
+    #              DJANGO_SECRET lives only here, so Compose never interprets it.
+    #
+    # Both are written by python rather than an unquoted shell heredoc: the old
+    # `<< EOF` form let bash expand `$`, backticks and `$(...)` inside a secret,
+    # which silently corrupted the value (and would execute it on the runner).
+    - name: Generate env files from secrets
+      shell: bash
+      env:
+        IMAGE_TAG: ${{ inputs.image_tag }}
+        DEBUG: ${{ inputs.debug }}
+        DJANGO_SECRET: ${{ inputs.django_secret }}
+        ALLOWED_HOSTS: ${{ inputs.allowed_hosts }}
+        DB_NAME: ${{ inputs.db_name }}
+        DB_USER: ${{ inputs.db_user }}
+        DB_PASSWORD: ${{ inputs.db_password }}
+      run: |
+        set -euo pipefail
+        umask 077
+
+        python3 - << 'PY'
+        import os, pathlib, re, sys
+
+        def get(name, required=True):
+            v = os.environ.get(name, "")
+            if required and not v:
+                sys.exit(f"::error::required secret {name} is empty or not set")
+            if "\n" in v or "\r" in v:
+                sys.exit(f"::error::secret {name} contains a newline; an env file cannot represent it")
+            return v
+
+        # These three are consumed through Compose interpolation (${DB_PASSWORD} in
+        # docker-compose.yml). Compose expands $ inside .env values, and treats an
+        # unquoted '#' as a comment, so those characters would be silently mangled.
+        # Fail loudly here instead of shipping a corrupted password to production.
+        UNSAFE = re.compile(r"[$`#\s\"']")
+        interpolated = {k: get(k) for k in ("IMAGE_TAG", "DB_NAME", "DB_USER", "DB_PASSWORD")}
+        for k, v in interpolated.items():
+            if UNSAFE.search(v):
+                sys.exit(
+                    f"::error::secret {k} contains a character Docker Compose cannot pass "
+                    "through safely ($ ` # quote or whitespace). Rotate it to alphanumerics, "
+                    "'-' and '_' only."
+                )
+
+        app = {
+            "DEBUG": get("DEBUG"),
+            "DJANGO_SECRET": get("DJANGO_SECRET"),
+            "ALLOWED_HOSTS": get("ALLOWED_HOSTS"),
+            "DB_HOST": "db",
+            "DB_PORT": "5432",
+            **{k: interpolated[k] for k in ("DB_NAME", "DB_USER", "DB_PASSWORD")},
+        }
+
+        def write(path, mapping):
+            pathlib.Path(path).write_text(
+                "".join(f"{k}={v}\n" for k, v in mapping.items()), encoding="utf-8"
+            )
+            print(f"{path}: {', '.join(mapping)}")
+
+        write("generated.env", interpolated)
+        write("generated-app.env", app)
+        PY
+
+    - name: Ensure remote directory exists
+      shell: bash
+      env:
+        DEPLOY_PATH: ${{ inputs.deploy_path }}
+      run: |
+        set -euo pipefail
+        ssh deploy-target "mkdir -p '$DEPLOY_PATH/nginx' '$DEPLOY_PATH/backups' && chmod 700 '$DEPLOY_PATH'"
+
+    - name: Upload .env, compose file, and nginx config
+      shell: bash
+      env:
+        DEPLOY_PATH: ${{ inputs.deploy_path }}
+        COMPOSE_FILE: ${{ inputs.compose_file }}
+        NGINX_CONF: ${{ inputs.nginx_conf }}
+      run: |
+        set -euo pipefail
+        scp generated.env      "deploy-target:$DEPLOY_PATH/.env"
+        scp generated-app.env  "deploy-target:$DEPLOY_PATH/app.env"
+        scp "deploy/$COMPOSE_FILE" "deploy-target:$DEPLOY_PATH/docker-compose.yml"
+        scp "deploy/nginx/$NGINX_CONF" "deploy-target:$DEPLOY_PATH/nginx/default.conf"
+
+        # scp writes 0644 by default. On this shared faculty VPS that would leave
+        # DJANGO_SECRET and DB_PASSWORD readable by every other user on the box.
+        ssh deploy-target "chmod 600 '$DEPLOY_PATH/.env' '$DEPLOY_PATH/app.env'"
+
+    # The token goes over stdin, never into the remote argv, where any user on the
+    # shared VPS could read it out of `ps aux`.
+    - name: Login to GHCR on server
+      shell: bash
+      env:
+        GHCR_TOKEN: ${{ inputs.ghcr_token }}
+      run: |
+        set -euo pipefail
+        printf '%s' "$GHCR_TOKEN" \
+          | ssh deploy-target 'docker login ghcr.io -u x-access-token --password-stdin'
+
+    - name: Pull image & restart containers
+      shell: bash
+      env:
+        DEPLOY_PATH: ${{ inputs.deploy_path }}
+      run: |
+        set -euo pipefail
+        ssh deploy-target "DEPLOY_PATH='$DEPLOY_PATH' bash -s" << 'REMOTE'
+        set -euo pipefail
+        cd "$DEPLOY_PATH"
+        docker compose pull
+        docker compose up -d --remove-orphans
+        REMOTE
+
+    - name: Wait for database to accept connections
+      shell: bash
+      env:
+        DEPLOY_PATH: ${{ inputs.deploy_path }}
+        CONTAINER_PREFIX: ${{ inputs.container_prefix }}
+      run: |
+        set -euo pipefail
+        ssh deploy-target "DEPLOY_PATH='$DEPLOY_PATH' PREFIX='$CONTAINER_PREFIX' bash -s" << 'REMOTE'
+        set -euo pipefail
+        for i in $(seq 1 30); do
+          if docker exec "${PREFIX}_db" pg_isready -U "$(docker exec "${PREFIX}_db" printenv POSTGRES_USER)" >/dev/null 2>&1; then
+            echo "database ready after ~$((i * 2))s"
+            exit 0
+          fi
+          sleep 2
+        done
+        echo "database never became ready"
+        docker logs --tail 50 "${PREFIX}_db" || true
+        exit 1
+        REMOTE
+
+    # Runs before migrate so a destructive migration is recoverable. Keeps the
+    # last 10 dumps; they live in $DEPLOY_PATH/backups (0700, owned by the deploy user).
+    - name: Backup database
+      if: inputs.backup_before_migrate == 'true'
+      shell: bash
+      env:
+        DEPLOY_PATH: ${{ inputs.deploy_path }}
+        CONTAINER_PREFIX: ${{ inputs.container_prefix }}
+        IMAGE_TAG: ${{ inputs.image_tag }}
+      run: |
+        set -euo pipefail
+        ssh deploy-target "DEPLOY_PATH='$DEPLOY_PATH' PREFIX='$CONTAINER_PREFIX' TAG='$IMAGE_TAG' bash -s" << 'REMOTE'
+        set -euo pipefail
+        mkdir -p "$DEPLOY_PATH/backups"
+        OUT="$DEPLOY_PATH/backups/$(date -u +%Y%m%dT%H%M%SZ)-${TAG}.sql.gz"
+
+        # Creds are read from the container's own env so they never hit the command line.
+        docker exec "${PREFIX}_db" sh -c \
+          'pg_dump --clean --if-exists -U "$POSTGRES_USER" "$POSTGRES_DB"' \
+          | gzip > "$OUT"
+
+        chmod 600 "$OUT"
+        echo "backup written: $OUT ($(du -h "$OUT" | cut -f1))"
+
+        # Keep the 10 most recent dumps.
+        ls -1t "$DEPLOY_PATH"/backups/*.sql.gz 2>/dev/null | tail -n +11 | xargs -r rm -f
+        REMOTE
+
+    - name: Run migration
+      if: inputs.run_migration == 'true'
+      shell: bash
+      env:
+        CONTAINER_PREFIX: ${{ inputs.container_prefix }}
+      run: |
+        set -euo pipefail
+        ssh deploy-target "PREFIX='$CONTAINER_PREFIX' bash -s" << 'REMOTE'
+        set -euo pipefail
+        docker exec "${PREFIX}_web" python manage.py migrate --noinput
+        REMOTE
+
+    # `docker compose up -d` returns as soon as the container is *running* - which
+    # is while entrypoint.sh is still doing collectstatic and gunicorn has not bound
+    # its port yet. Without this retry the health check races the app and goes red
+    # on perfectly good deploys.
+    - name: Health check
+      shell: bash
+      env:
+        HEALTH_PORT: ${{ inputs.health_port }}
+        CONTAINER_PREFIX: ${{ inputs.container_prefix }}
+      run: |
+        set -euo pipefail
+        ssh deploy-target "PORT='$HEALTH_PORT' PREFIX='$CONTAINER_PREFIX' bash -s" << 'REMOTE'
+        set -euo pipefail
+        for i in $(seq 1 30); do
+          if curl -fsS -m 5 "http://localhost:${PORT}/health/" >/dev/null 2>&1; then
+            echo "health check passed after ~$((i * 4))s"
+            exit 0
+          fi
+          sleep 4
+        done
+
+        echo "health check failed against http://localhost:${PORT}/health/"
+        echo "--- ${PREFIX}_web ---";   docker logs --tail 80 "${PREFIX}_web"   || true
+        echo "--- ${PREFIX}_nginx ---"; docker logs --tail 30 "${PREFIX}_nginx" || true
+        docker ps -a --filter "name=${PREFIX}_" || true
+        exit 1
+        REMOTE
+
+    # Immutable branch-sha tags mean every deploy leaves the previous image behind,
+    # and the disk is shared with staging on a small VPS.
+    #
+    # Scoped deliberately to this repository's own images. `docker image prune -af`
+    # would delete ANY image not currently referenced by a container - including
+    # those of other projects sharing this faculty VPS whose containers happen to
+    # be stopped or removed. Do not widen this back out.
+    - name: Prune old images for this repository
+      if: always()
+      shell: bash
+      env:
+        IMAGE_TAG: ${{ inputs.image_tag }}
+      run: |
+        set -euo pipefail
+        ssh deploy-target "TAG='$IMAGE_TAG' bash -s" << 'REMOTE'
+        set -uo pipefail
+        REPO="ghcr.io/fuki-fasilkom/web-fuki"
+
+        # Images referenced by any container, running or stopped.
+        IN_USE="$(docker ps -a --format '{{.Image}}' | sort -u)"
+
+        docker images "$REPO" --format '{{.Repository}}:{{.Tag}}' \
+          | grep -v '<none>' \
+          | while read -r img; do
+              # never remove what this deploy just installed, or anything a
+              # container still points at (staging's image included)
+              [ "$img" = "${REPO}:${TAG}" ] && continue
+              printf '%s\n' "$IN_USE" | grep -qxF "$img" && continue
+              echo "removing $img"
+              docker rmi "$img" >/dev/null 2>&1 || true
+            done
+
+        # Dangling layers only - untagged leftovers of our own rebuilds.
+        docker image prune -f
+        REMOTE
+
+    - name: Log out of GHCR
+      if: always()
+      shell: bash
+      run: ssh deploy-target 'docker logout ghcr.io' || true

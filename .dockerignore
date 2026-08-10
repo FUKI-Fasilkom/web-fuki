@@ -1,0 +1,30 @@
+# `COPY . .` runs against the Actions checkout, which includes a full .git
+# directory -- that was being baked into every image published to GHCR.
+.git
+.gitignore
+.github
+
+.venv
+venv
+env
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+
+.env
+*.sqlite3
+db.sqlite3
+
+media/
+staticfiles/
+
+.idea
+.vscode
+.DS_Store
+
+*.md
+deploy/
+docker-compose.yml
+Dockerfile
+.dockerignore

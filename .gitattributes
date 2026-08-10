@@ -1,0 +1,11 @@
+# These files are executed inside Linux containers or on the Actions runner.
+# A CRLF entrypoint.sh fails at runtime with the misleading `/entrypoint.sh: not
+# found`. core.autocrlf currently normalises this, but that is per-developer
+# config -- pin it in the repo so a contributor with autocrlf=false cannot break
+# the image.
+*.sh            text eol=lf
+entrypoint.sh   text eol=lf
+Dockerfile      text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
+*.conf          text eol=lf

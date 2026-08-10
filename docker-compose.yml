@@ -1,3 +1,5 @@
+# TODO: evaluate whether this local dev compose is still needed — CI/CD uses deploy/ compose files.
+# Consider removing or updating to match the new architecture (private gunicorn, env-driven config).
 version: "3.9"
 
 services:
