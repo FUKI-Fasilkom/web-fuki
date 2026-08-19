@@ -1,6 +1,9 @@
-from django.shortcuts import render
+from django.contrib import messages
+from django.contrib.auth import logout as django_logout
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import redirect, render
 
-from .forms import CariKelompokForm
+from .forms import CariKelompokForm, MabaLoginForm
 from .models import (
     FAQMentoring,
     GaleriFoto,
@@ -13,6 +16,7 @@ from .models import (
     SiwakInfo,
     TimelineEvent,
 )
+from .sso import login_or_create_maba
 
 
 # ---------------------------------------------------------------------------
@@ -65,3 +69,33 @@ def kelompok_search(request):
         "info": SiwakInfo.get_solo(),
     }
     return render(request, "siwak/kelompok_search.html", context)
+
+
+# ---------------------------------------------------------------------------
+# 7 — Authentication (dev-mode stand-in untuk SSO UI; lihat siwak/sso.py)
+# ---------------------------------------------------------------------------
+
+def maba_login(request):
+    if request.user.is_authenticated:
+        return redirect(request.GET.get("next") or "siwak:landing")
+
+    form = MabaLoginForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        login_or_create_maba(
+            request,
+            npm=form.cleaned_data["npm"].strip(),
+            nama_lengkap=form.cleaned_data["nama_lengkap"].strip(),
+            jurusan=form.cleaned_data["jurusan"],
+            angkatan=form.cleaned_data["angkatan"].strip(),
+        )
+        messages.success(request, "Berhasil masuk.")
+        return redirect(request.GET.get("next") or "siwak:landing")
+
+    return render(request, "siwak/maba_login.html", {"form": form})
+
+
+@login_required
+def maba_logout(request):
+    django_logout(request)
+    messages.info(request, "Kamu telah keluar.")
+    return redirect("siwak:landing")

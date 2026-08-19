@@ -23,3 +23,19 @@ class CariKelompokForm(forms.Form):
         widget=forms.Select(attrs={"class": INPUT_CLASSES}),
     )
 
+
+class MabaLoginForm(forms.Form):
+    """Login form dipakai sampai integrasi SSO UI resmi terpasang (lihat siwak/sso.py)."""
+
+    npm = forms.CharField(label="NPM", max_length=20, widget=forms.TextInput(attrs={"class": INPUT_CLASSES}))
+    nama_lengkap = forms.CharField(
+        label="Nama Lengkap", max_length=200, widget=forms.TextInput(attrs={"class": INPUT_CLASSES})
+    )
+    jurusan = forms.ChoiceField(
+        label="Jurusan", choices=JURUSAN_CHOICES, widget=forms.Select(attrs={"class": INPUT_CLASSES})
+    )
+    angkatan = forms.CharField(
+        label="Angkatan", max_length=4, required=False,
+        widget=forms.TextInput(attrs={"class": INPUT_CLASSES, "placeholder": "mis. 2026"}),
+    )
+
