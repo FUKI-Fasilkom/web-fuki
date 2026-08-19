@@ -68,3 +68,14 @@ class TugasSubmissionForm(forms.ModelForm):
             raise ValidationError(f"Ukuran file melebihi batas {limit} MB.")
         return f
 
+
+class RSVPForm(forms.ModelForm):
+    class Meta:
+        model = EventRSVP
+        fields = ["catatan"]
+        widgets = {
+            "catatan": forms.Textarea(attrs={
+                "class": INPUT_CLASSES, "rows": 3,
+                "placeholder": "Ada catatan untuk panitia? (opsional)",
+            }),
+        }

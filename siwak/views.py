@@ -1,13 +1,17 @@
 import calendar as pycal
 
 from django.contrib import messages
+from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth import logout as django_logout
 from django.contrib.auth.decorators import login_required
+from django.core import signing
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 
-from .forms import CariKelompokForm, MabaLoginForm, TugasSubmissionForm
+from .forms import CariKelompokForm, MabaLoginForm, RSVPForm, TugasSubmissionForm
 from .models import (
+    EventRSVP,
     FAQMentoring,
     GaleriFoto,
     KetuaSiwak,
@@ -20,11 +24,16 @@ from .models import (
     TimelineEvent,
     Tugas,
 )
+from .services.qrcode_service import (
+    kupon_qr_data_uri,
+    registrasi_qr_data_uri,
+    unsign_payload,
+)
 from .sso import login_or_create_maba
 
 
 # ---------------------------------------------------------------------------
-# 4.1 / 4.2 — Public informational page (landing) & timeline
+# 4.1 / 4.2 / 4.3 — Public informational page
 # ---------------------------------------------------------------------------
 
 def landing(request):
@@ -42,10 +51,6 @@ def landing(request):
     }
     return render(request, "siwak/landing.html", context)
 
-
-# ---------------------------------------------------------------------------
-# 4.3 — Informasi Kelompok Mentoring (Cari Kelompok)
-# ---------------------------------------------------------------------------
 
 def kelompok_search(request):
     """4.3 — 'Cari Kelompok' search, matches the Figma search + result screens."""
@@ -76,7 +81,7 @@ def kelompok_search(request):
 
 
 # ---------------------------------------------------------------------------
-# 7 — Authentication (dev-mode stand-in untuk SSO UI; lihat siwak/sso.py)
+# 7 — Authentication (dev-mode stand-in for SSO UI; see siwak/sso.py)
 # ---------------------------------------------------------------------------
 
 def maba_login(request):
@@ -95,7 +100,7 @@ def maba_login(request):
         messages.success(request, "Berhasil masuk.")
         return redirect(request.GET.get("next") or "siwak:tugas_list")
 
-    return render(request, "siwak/maba_login.html", {"form": form})
+    return render(request, "siwak/login.html", {"form": form})
 
 
 @login_required
@@ -171,9 +176,7 @@ def tugas_detail(request, pk):
             if submission:
                 submission.file = form.cleaned_data["file"]
             else:
-                submission = tugas.submissions.model(
-                    tugas=tugas, user=request.user, file=form.cleaned_data["file"]
-                )
+                submission = tugas.submissions.model(tugas=tugas, user=request.user, file=form.cleaned_data["file"])
             submission.save()
             messages.success(request, "Tugas berhasil dikirim.")
             return redirect("siwak:tugas_detail", pk=pk)
@@ -185,3 +188,80 @@ def tugas_detail(request, pk):
         "form": form,
     }
     return render(request, "siwak/tugas_detail.html", context)
+
+
+# ---------------------------------------------------------------------------
+# 5.2 / 6 — RSVP + QR Registrasi Ulang & QR Kupon Makan
+# ---------------------------------------------------------------------------
+
+@login_required
+def rsvp_event(request, tipe):
+    event = get_object_or_404(SiwakEvent, tipe=tipe, rsvp_dibuka=True)
+    rsvp = EventRSVP.objects.filter(event=event, user=request.user).first()
+
+    form = RSVPForm()
+    if request.method == "POST" and not rsvp:
+        form = RSVPForm(request.POST)
+        if form.is_valid():
+            rsvp = form.save(commit=False)
+            rsvp.event = event
+            rsvp.user = request.user
+            rsvp.save()
+            messages.success(request, "RSVP berhasil! QR code kamu sudah siap.")
+            return redirect("siwak:rsvp", tipe=tipe)
+
+    context = {"event": event, "rsvp": rsvp, "form": form}
+    if rsvp:
+        context["qr_registrasi"] = registrasi_qr_data_uri(request, rsvp)
+        context["qr_kupon"] = kupon_qr_data_uri(request, rsvp)
+    return render(request, "siwak/rsvp.html", context)
+
+
+@staff_member_required
+def qr_verify(request, signed):
+    """Landing page for a scanned QR (PRD 6.1/6.2). Staff-only, one-time use."""
+    error = None
+    rsvp = None
+    kind = None
+    already = False
+
+    try:
+        payload = unsign_payload(signed)
+        kind = payload["kind"]
+        token = payload["token"]
+    except signing.SignatureExpired:
+        error = "QR sudah kedaluwarsa."
+    except signing.BadSignature:
+        error = "QR tidak valid atau rusak."
+
+    if not error:
+        if kind == "registrasi":
+            rsvp = EventRSVP.objects.filter(qr_registrasi_token=token).select_related("user", "event").first()
+        else:
+            rsvp = EventRSVP.objects.filter(qr_kupon_token=token).select_related("user", "event").first()
+
+        if not rsvp:
+            error = "Data RSVP tidak ditemukan."
+        elif kind == "registrasi":
+            if rsvp.status_kehadiran == "hadir":
+                already = True
+            else:
+                rsvp.status_kehadiran = "hadir"
+                rsvp.checked_in_at = timezone.now()
+                rsvp.save(update_fields=["status_kehadiran", "checked_in_at"])
+        elif kind == "kupon":
+            if rsvp.status_kupon == "redeemed":
+                already = True
+            else:
+                rsvp.status_kupon = "redeemed"
+                rsvp.redeemed_at = timezone.now()
+                rsvp.save(update_fields=["status_kupon", "redeemed_at"])
+
+    context = {"error": error, "rsvp": rsvp, "kind": kind, "already": already}
+    return render(request, "siwak/qr_verify.html", context)
+
+
+@staff_member_required
+def admin_scan(request):
+    """Camera-based scanner UI for panitia (PRD 8 — Scan QR attendance / kupon)."""
+    return render(request, "siwak/admin_scan.html", {})

@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Scan QR Panitia{% endblock %}
+
+{% block content %}
+<div class="bg-[#F8FBEF] min-h-screen">
+  <div class="max-w-md mx-auto px-6 py-10 text-center">
+    <h1 class="text-xl font-bold text-gray-800 mb-1">Scan QR Peserta</h1>
+    <p class="text-sm text-gray-600 mb-6">
+      Arahkan kamera ke QR Registrasi Ulang atau QR Kupon Makan peserta.
+    </p>
+
+    <div id="reader" class="rounded-2xl overflow-hidden border-[3px] border-[#3A3A3A]"></div>
+    <p id="scan-status" class="text-sm text-gray-600 mt-4">Menyiapkan kamera&hellip;</p>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    var statusEl = document.getElementById('scan-status');
+    var scanner = new Html5Qrcode('reader');
+    var handled = false;
+
+    function onScanSuccess(decodedText) {
+      if (handled) return;
+      handled = true;
+      statusEl.textContent = 'QR terbaca, memverifikasi...';
+      // The QR encodes an absolute URL to siwak:qr_verify — navigating there
+      // (in the same authenticated staff session) validates and records the
+      // scan server-side.
+      window.location.href = decodedText;
+    }
+
+    Html5Qrcode.getCameras().then(function (cameras) {
+      if (!cameras || cameras.length === 0) {
+        statusEl.textContent = 'Kamera tidak ditemukan pada perangkat ini.';
+        return;
+      }
+      var cameraId = cameras[cameras.length - 1].id; // biasanya kamera belakang di HP
+      scanner.start(cameraId, { fps: 10, qrbox: 250 }, onScanSuccess).then(function () {
+        statusEl.textContent = 'Kamera aktif — arahkan ke QR code.';
+      }).catch(function () {
+        statusEl.textContent = 'Gagal mengaktifkan kamera. Periksa izin kamera browser.';
+      });
+    }).catch(function () {
+      statusEl.textContent = 'Tidak bisa mengakses kamera. Periksa izin kamera browser.';
+    });
+  });
+</script>
+{% endblock %}
