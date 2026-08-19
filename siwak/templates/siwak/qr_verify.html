@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Verifikasi QR{% endblock %}
+
+{% block content %}
+<div class="bg-[#F8FBEF] min-h-screen">
+  <div class="max-w-md mx-auto px-6 py-16 text-center">
+    {% if error %}
+    <div class="rounded-3xl bg-red-500 border-[3px] border-[#3A3A3A] p-8 text-white">
+      <h1 class="text-xl font-bold">QR Tidak Valid</h1>
+      <p class="text-sm mt-2">{{ error }}</p>
+    </div>
+    {% else %}
+    <div class="rounded-3xl border-[3px] border-[#3A3A3A] p-8 text-white
+                {% if already %}bg-orange-400{% else %}bg-[#A6CE39] text-gray-800{% endif %}">
+      <h1 class="text-xl font-bold {% if not already %}text-gray-800{% endif %}">
+        {% if kind == 'registrasi' %}
+          {% if already %}Peserta Sudah Check-in Sebelumnya{% else %}Check-in Berhasil{% endif %}
+        {% else %}
+          {% if already %}Kupon Sudah Ditukar Sebelumnya{% else %}Kupon Berhasil Ditukar{% endif %}
+        {% endif %}
+      </h1>
+      <p class="mt-3 font-semibold {% if not already %}text-gray-800{% endif %}">
+        {{ rsvp.user.maba_profile.nama_lengkap|default:rsvp.user.username }}
+      </p>
+      <p class="text-sm {% if not already %}text-gray-700{% endif %}">
+        {{ rsvp.user.maba_profile.npm }} &middot; {{ rsvp.event.judul }}
+      </p>
+    </div>
+    {% endif %}
+
+    <a href="{% url 'siwak:admin_scan' %}" class="inline-block mt-6 px-6 py-2 rounded-full bg-[#417BB1] text-white font-semibold border-[3px] border-[#3A3A3A]">
+      Scan Lagi
+    </a>
+  </div>
+</div>
+{% endblock %}
