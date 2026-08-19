@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Pengumuman Kelompok Mentoring{% endblock %}
+
+{% block content %}
+{% include 'siwak/_messages.html' %}
+
+<div class="bg-[#F8FBEF] min-h-screen">
+  <div class="max-w-2xl mx-auto px-6 py-10">
+    <p class="text-sm text-gray-500 mb-8">
+      <a href="{% url 'siwak:landing' %}" class="hover:text-gray-700">SIWAK_NG</a>
+      <span class="mx-1">&gt;</span>
+      <span class="text-gray-800">Pengumuman Kelompok Mentoring</span>
+    </p>
+
+    <!-- Search card -->
+    <div class="rounded-3xl bg-[#417BB1] border-[3px] border-[#3A3A3A] p-8">
+      <h1 class="text-2xl sm:text-3xl font-bold text-white text-center">Cari Kelompok</h1>
+      <p class="text-white/80 text-sm text-center mt-2 mb-6">Masukkan data dirimu untuk mencari kelompok</p>
+
+      <form method="post" class="space-y-4">
+        {% csrf_token %}
+        <div>
+          <label class="block text-white font-semibold text-sm mb-1">{{ form.nama_lengkap.label }}</label>
+          {{ form.nama_lengkap }}
+          {% for error in form.nama_lengkap.errors %}<p class="text-red-100 text-xs mt-1">{{ error }}</p>{% endfor %}
+        </div>
+        <div>
+          <label class="block text-white font-semibold text-sm mb-1">{{ form.jurusan.label }}</label>
+          {{ form.jurusan }}
+          {% for error in form.jurusan.errors %}<p class="text-red-100 text-xs mt-1">{{ error }}</p>{% endfor %}
+        </div>
+        <div class="flex justify-center pt-2">
+          <button type="submit"
+                  class="px-8 py-3 rounded-full bg-[#A6CE39] text-gray-800 font-semibold border-[3px] border-[#3A3A3A] hover:bg-[#94ba2f] transition">
+            Cari Kelompok
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Results -->
+    {% if result_state == 'not_found' or result_state == 'no_group_yet' %}
+    <div class="mt-8 rounded-3xl bg-[#417BB1] border-[3px] border-[#3A3A3A] p-8 text-center">
+      <h2 class="text-xl sm:text-2xl font-bold text-white">
+        {% if result_state == 'not_found' %}Kelompok tidak ditemukan{% else %}Kelompok belum diumumkan{% endif %}
+      </h2>
+      <p class="text-white/80 text-sm mt-2 max-w-sm mx-auto">
+        {% if result_state == 'not_found' %}
+          Data kamu belum terdaftar di sistem kami. Silakan hubungi CP kami untuk informasi lebih lanjut
+        {% else %}
+          Kamu sudah terdaftar, tapi pembagian kelompok belum diumumkan. Coba cek lagi nanti ya.
+        {% endif %}
+      </p>
+      <div class="flex flex-wrap justify-center gap-3 mt-6">
+        {% if result_state == 'not_found' and info.kontak_cp %}
+        <a href="{{ info.kontak_cp }}" target="_blank" rel="noopener"
+           class="px-6 py-2 rounded-full bg-[#A6CE39] text-gray-800 font-semibold border-[3px] border-[#3A3A3A] hover:bg-[#94ba2f] transition">
+          CP Fakultas
+        </a>
+        {% endif %}
+        <a href="{% url 'siwak:kelompok_search' %}"
+           class="px-6 py-2 rounded-full bg-[#F6FAEB] text-gray-800 font-semibold border-[3px] border-[#3A3A3A] hover:bg-[#d4edbf] transition">
+          Cari lagi
+        </a>
+      </div>
+    </div>
+    {% elif result_state == 'found' %}
+    <div class="mt-8 rounded-3xl bg-[#417BB1] border-[3px] border-[#3A3A3A] p-8 text-center">
+      <h2 class="text-xl sm:text-2xl font-bold text-white">{{ peserta.nama_lengkap }}</h2>
+      <p class="text-white/80 text-sm mt-1">{{ peserta.get_jurusan_display }}</p>
+      <p class="text-white font-bold mt-1">{{ peserta.kelompok.nama_kelompok }}</p>
+
+      {% if peserta.kelompok.mentors.all %}
+      <p class="text-white/80 text-sm mt-6 mb-2">Mentor</p>
+      <div class="flex flex-wrap justify-center gap-3">
+        {% for mentor in peserta.kelompok.mentors.all %}
+        <span class="px-5 py-2 rounded-full bg-[#A6CE39] text-gray-800 font-semibold border-[3px] border-[#3A3A3A] text-sm">
+          {{ mentor.nama }}
+        </span>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% if peserta.kelompok.link_grup %}
+      <a href="{{ peserta.kelompok.link_grup }}" target="_blank" rel="noopener"
+         class="inline-block mt-6 px-6 py-3 rounded-full bg-[#F6FAEB] text-gray-800 font-semibold border-[3px] border-[#3A3A3A] hover:bg-[#d4edbf] transition">
+        Gabung ke Group WhatsApp
+      </a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
