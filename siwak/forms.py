@@ -39,3 +39,32 @@ class MabaLoginForm(forms.Form):
         widget=forms.TextInput(attrs={"class": INPUT_CLASSES, "placeholder": "mis. 2026"}),
     )
 
+
+class TugasSubmissionForm(forms.ModelForm):
+    class Meta:
+        model = TugasSubmission
+        fields = ["file"]
+        widgets = {
+            "file": forms.ClearableFileInput(attrs={
+                "class": "hidden",
+                "accept": ".pdf,.docx,.jpg,.jpeg,.png",
+            }),
+        }
+
+    def __init__(self, *args, tugas: Tugas = None, **kwargs):
+        self.tugas = tugas
+        super().__init__(*args, **kwargs)
+
+    def clean_file(self):
+        f = self.cleaned_data["file"]
+        ext = f.name.rsplit(".", 1)[-1].lower() if "." in f.name else ""
+        if ext not in Tugas.ALLOWED_EXTENSIONS:
+            raise ValidationError(
+                "Format file tidak didukung. Gunakan PDF, DOCX, atau gambar (JPG/PNG)."
+            )
+        max_bytes = (self.tugas.max_file_size_mb if self.tugas else 10) * 1024 * 1024
+        if f.size > max_bytes:
+            limit = self.tugas.max_file_size_mb if self.tugas else 10
+            raise ValidationError(f"Ukuran file melebihi batas {limit} MB.")
+        return f
+
