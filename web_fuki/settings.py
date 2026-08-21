@@ -84,8 +84,8 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024
 
 # 7 — Authentication: where @login_required sends anonymous users, and where
 # they land after logging in.
-LOGIN_URL = 'siwak:login'
-LOGIN_REDIRECT_URL = 'siwak:tugas_list'
+# LOGIN_URL = 'siwak:login'
+# LOGIN_REDIRECT_URL = 'siwak:tugas_list'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -170,7 +170,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Jakarta'
 
 USE_I18N = True
 
