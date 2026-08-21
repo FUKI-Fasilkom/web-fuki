@@ -48,7 +48,7 @@
                         {% if fungsionaris.foto %}
                             <img src="{{ fungsionaris.foto.url }}" alt="{{ fungsionaris.nama }}" class="w-full h-full object-cover">
                         {% else %}
-                            <span class="text-4xl text-gray-400">👤</span>
+                            {% include 'components/avatar_placeholder.html' with size="w-20 h-20" only %}
                         {% endif %}
                     </div>
                     <h3 class="font-bold text-xl mb-2">{{ fungsionaris.nama }}</h3>
