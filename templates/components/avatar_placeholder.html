@@ -1,0 +1,23 @@
+{% comment %}
+Placeholder foto profil -- dipakai kalau `foto` seorang pengurus kosong.
+
+Cara pakai (selalu tambahkan `only` supaya variabel `size`/`label` dari
+template pemanggil tidak bocor tanpa sengaja ke sini):
+
+    {% include 'components/avatar_placeholder.html' with size="w-20 h-20" only %}
+
+Parameter (semuanya opsional):
+  size  -- class ukuran Tailwind untuk lingkarannya. Default "w-10 h-10".
+  label -- teks untuk screen reader. Default "Foto profil belum tersedia".
+{% endcomment %}
+<div
+  class="{{ size|default:'w-10 h-10' }} shrink-0 rounded-full bg-gray-200 text-gray-500 flex items-center justify-center"
+  role="img"
+  aria-label="{{ label|default:'Foto profil belum tersedia' }}"
+>
+  {# Ukuran SVG dibuat relatif (3/5) supaya padding-nya ikut proporsional di ukuran berapa pun. #}
+  <svg class="w-3/5 h-3/5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
+    <path d="M12 12.75a5.25 5.25 0 1 0 0-10.5 5.25 5.25 0 0 0 0 10.5Z" />
+    <path d="M12 14.75c-4.28 0-7.75 2.35-7.75 5.25 0 .55.45 1 1 1h13.5c.55 0 1-.45 1-1 0-2.9-3.47-5.25-7.75-5.25Z" />
+  </svg>
+</div>

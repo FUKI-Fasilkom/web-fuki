@@ -38,7 +38,7 @@
                             {% if pengurus.foto %}
                                 <img src="{{ pengurus.foto.url }}" alt="{{ pengurus.nama }}" class="w-full h-full object-cover">
                             {% else %}
-                                <span class="text-6xl text-gray-400">👤</span>
+                                {% include 'components/avatar_placeholder.html' with size="w-32 h-32" only %}
                             {% endif %}
                         </div>
                         <h3 class="font-bold text-gray-800 text-center">{{ pengurus.nama }}</h3>
