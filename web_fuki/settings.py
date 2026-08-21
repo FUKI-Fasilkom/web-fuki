@@ -73,7 +73,19 @@ INSTALLED_APPS = [
     'birdep',
     'profil',
     'blog_kajian',
+    'siwak',
 ]
+
+# 5.1 (Submission Rules: "File size limit"). Applies to every upload in the
+# project; SIWAK task uploads additionally enforce a per-Tugas limit in
+# siwak/forms.py::TugasSubmissionForm.clean_file.
+DATA_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024  # 20 MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024
+
+# 7 — Authentication: where @login_required sends anonymous users, and where
+# they land after logging in.
+# LOGIN_URL = 'siwak:login'
+# LOGIN_REDIRECT_URL = 'siwak:tugas_list'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -158,7 +170,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Jakarta'
 
 USE_I18N = True
 
