@@ -9,6 +9,7 @@ from django.utils import timezone
 JURUSAN_CHOICES = [
     ("IK", "Ilmu Komputer"),
     ("SI", "Sistem Informasi"),
+    ("KA", "Kecerdasan Artifisial"),
     ("IK-IUP", "Ilmu Komputer (International Undergraduate Program)"),
     ("SI-IUP", "Sistem Informasi (International Undergraduate Program)"),
 ]
