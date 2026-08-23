@@ -14,15 +14,17 @@ class FungsionarisInline(admin.TabularInline):
 
 @admin.register(BirDep)
 class BirDepAdmin(admin.ModelAdmin):
-    list_display = ['nama', 'nama_panjang', 'logo_filename', 'is_active', 'created_at']
+    list_display = ['nama', 'nama_panjang', 'logo_filename', 'urutan', 'is_active', 'created_at']
     list_filter = ['is_active', 'created_at']
     search_fields = ['nama', 'nama_panjang', 'tentang_deskripsi']
+    list_editable = ['urutan', 'is_active']
+    ordering = ['urutan', 'nama']
     prepopulated_fields = {'slug': ('nama',)}
     inlines = [ProgramInline, FungsionarisInline]
     
     fieldsets = (
         ('Informasi Dasar', {
-            'fields': ('nama', 'nama_panjang', 'slug', 'logo_filename', 'is_active')
+            'fields': ('nama', 'nama_panjang', 'slug', 'logo_filename', 'urutan', 'is_active')
         }),
         ('Halaman Tentang', {
             'fields': ('tentang_deskripsi', 'visi', 'misi'),

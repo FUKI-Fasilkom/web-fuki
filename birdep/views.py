@@ -5,7 +5,7 @@ from .models import BirDep, Program, Fungsionaris, PengurusInti
 
 def team_list(request):
     """Halaman utama Our Team - menampilkan PI, KI, MDC, dan seluruh BirDep"""
-    birdeps = BirDep.objects.filter(is_active=True).order_by('nama')
+    birdeps = BirDep.objects.filter(is_active=True).order_by('urutan', 'nama')
 
     context = {
         'birdeps': birdeps,

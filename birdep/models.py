@@ -16,6 +16,7 @@ class BirDep(models.Model):
     tentang_deskripsi = models.TextField(verbose_name="Deskripsi Tentang", blank=True)
     visi = models.TextField(verbose_name="Visi", blank=True, help_text="Visi dari BirDep")
     misi = models.TextField(verbose_name="Misi", blank=True, help_text="Misi dari BirDep")
+    urutan = models.IntegerField(default=0, verbose_name="Urutan Tampilan", help_text="Semakin kecil, semakin awal tampil di halaman Our Team")
     is_active = models.BooleanField(default=True, verbose_name="Aktif")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Dibuat pada")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Diperbarui pada")
@@ -23,7 +24,7 @@ class BirDep(models.Model):
     class Meta:
         verbose_name = "BirDep"
         verbose_name_plural = "BirDeps"
-        ordering = ['nama']
+        ordering = ['urutan', 'nama']
     
     def __str__(self):
         return self.nama
