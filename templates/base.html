@@ -1,10 +1,53 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{% block title %}FUKI 2026{% endblock %}</title>
+
+  {% comment %}
+    Verifikasi kepemilikan domain untuk Google Search Console. Jangan dihapus:
+    Google mengecek ulang tag ini secara berkala, bukan sekali saja.
+  {% endcomment %}
+  <meta name="google-site-verification" content="{{ GOOGLE_SITE_VERIFICATION }}" />
+
+  {% comment %}
+    JUDUL & DESKRIPSI
+    Halaman biasa cukup menimpa blok "title" dan "meta_description"; sufiks nama
+    situs ditambahkan otomatis. Halaman yang butuh judul persis (mis. beranda)
+    menimpa blok "page_title" sehingga sufiks itu dilewati.
+  {% endcomment %}
+  <title>{% block page_title %}{% block title %}{{ SITE_NAME }}{% endblock %} | {{ SITE_NAME }}{% endblock %}</title>
+  <meta name="description" content="{% block meta_description %}{{ SITE_DESCRIPTION }}{% endblock %}" />
+
+  {% comment %}
+    "canonical_path" boleh diisi dari view (lihat main/views.py::beranda); tanpa itu
+    dipakai request.path. Gunanya mencegah Google memperlakukan "/" dan "/beranda"
+    sebagai dua halaman berbeda yang saling menggerus peringkat.
+  {% endcomment %}
+  <link rel="canonical" href="{{ SITE_URL }}{{ canonical_path|default:request.path }}" />
+  <meta name="robots" content="{% block meta_robots %}index, follow, max-image-preview:large, max-snippet:-1{% endblock %}" />
+
+  {% comment %}Pratinjau saat tautan dibagikan (WhatsApp, Instagram, X, dsb.).{% endcomment %}
+  <meta property="og:type" content="{% block og_type %}website{% endblock %}" />
+  <meta property="og:site_name" content="{{ SITE_NAME }}" />
+  <meta property="og:locale" content="id_ID" />
+  <meta property="og:url" content="{{ SITE_URL }}{{ canonical_path|default:request.path }}" />
+  <meta property="og:title" content="{% block og_title %}{{ SITE_TITLE }}{% endblock %}" />
+  <meta property="og:description" content="{% block og_description %}{{ SITE_DESCRIPTION }}{% endblock %}" />
+  <meta property="og:image" content="{% block og_image %}{{ SITE_OG_IMAGE }}{% endblock %}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@fukifasilkom" />
+
+  <link rel="icon" href="{% static 'images/Logo-FUKI.png' %}" type="image/png" />
+  <link rel="apple-touch-icon" href="{% static 'images/Logo-FUKI.png' %}" />
+
+  {% comment %}
+    preconnect memangkas satu putaran handshake ke Google Fonts. Kecepatan muat
+    ikut menentukan peringkat, jadi ini bukan sekadar kosmetik.
+  {% endcomment %}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
@@ -13,6 +56,52 @@
       font-family: 'Poppins', sans-serif;
     }
   </style>
+
+  {% comment %}
+    DATA TERSTRUKTUR (JSON-LD)
+    Bagian yang membuat Google mengenali "FUKI" sebagai sebuah entitas, bukan
+    sekadar kata di halaman. "alternateName" mendaftarkan singkatan dan ejaan
+    lain, "sameAs" menghubungkan situs ini dengan akun resmi yang sudah dikenal
+    Google. Semua nilai dilewatkan escapejs agar tanda kutip tidak merusak JSON.
+  {% endcomment %}
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": "{{ SITE_URL|escapejs }}/#organization",
+        "name": "{{ SITE_NAME|escapejs }}",
+        "alternateName": ["FUKI", "Forum Ukhuwah dan Kajian Islam", "FUKI Fasilkom", "LDK Fasilkom UI"],
+        "url": "{{ SITE_URL|escapejs }}/",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "{{ SITE_OG_IMAGE|escapejs }}"
+        },
+        "description": "{{ SITE_DESCRIPTION|escapejs }}",
+        "parentOrganization": {
+          "@type": "CollegeOrUniversity",
+          "name": "Fakultas Ilmu Komputer Universitas Indonesia",
+          "url": "https://cs.ui.ac.id/"
+        },
+        "areaServed": "Depok, Jawa Barat, Indonesia",
+        "sameAs": [{% for profil in SITE_SOCIAL_PROFILES %}"{{ profil|escapejs }}"{% if not forloop.last %}, {% endif %}{% endfor %}]
+      },
+      {
+        "@type": "WebSite",
+        "@id": "{{ SITE_URL|escapejs }}/#website",
+        "url": "{{ SITE_URL|escapejs }}/",
+        "name": "{{ SITE_NAME|escapejs }}",
+        "alternateName": "FUKI",
+        "description": "{{ SITE_DESCRIPTION|escapejs }}",
+        "inLanguage": "id-ID",
+        "publisher": { "@id": "{{ SITE_URL|escapejs }}/#organization" }
+      }
+    ]
+  }
+  </script>
+
+  {% block extra_head %}{% endblock %}
 </head>
 <body>
 
