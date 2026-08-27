@@ -1,0 +1,7 @@
+# https://fuki.cs.ui.ac.id/robots.txt
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /health/
+
+Sitemap: {{ SITE_URL }}/sitemap.xml
