@@ -339,14 +339,22 @@ runs:
         }
 
         check_exec() {
+          LAST_ERR=""
           for i in $(seq 1 30); do
-            if docker exec "${PREFIX}_nginx" wget -q -O /dev/null http://localhost/health/ 2>/dev/null; then
+            # -4 forces IPv4: containers map `localhost` with precedence to ::1,
+            # while nginx listens only on 0.0.0.0:80, so plain `wget localhost`
+            # fails with "connection refused". -T bounds each attempt; -S prints
+            # the response status, and -O /dev/null avoids dumping the body.
+            OUT="$(docker exec "${PREFIX}_nginx" wget -4 -T 10 -S -O /dev/null http://localhost/health/ 2>&1)" && {
               echo "health check passed after ~$((i * 4))s (mode=exec)"
               exit 0
-            fi
+            }
+            LAST_ERR="$OUT"
             sleep 4
           done
           echo "health check failed via docker exec (mode=exec)"
+          echo "--- last wget output ---"
+          printf '%s\n' "$LAST_ERR"
           echo "--- ${PREFIX}_web ---";   docker logs --tail 80 "${PREFIX}_web"   || true
           echo "--- ${PREFIX}_nginx ---"; docker logs --tail 30 "${PREFIX}_nginx" || true
           docker ps -a --filter "name=${PREFIX}_" || true
