@@ -43,6 +43,12 @@ inputs:
       How to hit the health endpoint. 'port' curls http://localhost:<health_port>/health/
       (production — Apache shoots this port). 'exec' runs docker exec inside the nginx
       container (staging — no published port after Phase 8).
+  discord_webhook_url:
+    required: false
+    default: ""
+  discord_role_id:
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -139,6 +145,8 @@ runs:
         DB_NAME: ${{ inputs.db_name }}
         DB_USER: ${{ inputs.db_user }}
         DB_PASSWORD: ${{ inputs.db_password }}
+        DISCORD_WEBHOOK_URL: ${{ inputs.discord_webhook_url }}
+        DISCORD_ROLE_ID: ${{ inputs.discord_role_id }}
       run: |
         set -euo pipefail
         umask 077
@@ -175,6 +183,8 @@ runs:
             "SITE_URL": get("SITE_URL"),
             "DB_HOST": "db",
             "DB_PORT": "5432",
+            "DISCORD_WEBHOOK_URL": get("DISCORD_WEBHOOK_URL", required=False),
+            "DISCORD_ROLE_ID": get("DISCORD_ROLE_ID", required=False),
             **{k: interpolated[k] for k in ("DB_NAME", "DB_USER", "DB_PASSWORD")},
         }
 

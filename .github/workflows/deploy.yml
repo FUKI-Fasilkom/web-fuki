@@ -138,6 +138,8 @@ jobs:
           allowed_hosts: ${{ secrets.ALLOWED_HOSTS }}
           debug: ${{ secrets.DEBUG }}
           site_url: https://staging-fuki.cs.ui.ac.id
+          discord_webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          discord_role_id: ${{ secrets.DISCORD_ROLE_ID }}
 
   deploy-production:
     # Reached by merging a PR into main (the merge is a push), or by pushing to
@@ -175,3 +177,5 @@ jobs:
           allowed_hosts: ${{ secrets.ALLOWED_HOSTS }}
           debug: ${{ secrets.DEBUG }}
           site_url: https://fuki.cs.ui.ac.id
+          discord_webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          discord_role_id: ${{ secrets.DISCORD_ROLE_ID }}
