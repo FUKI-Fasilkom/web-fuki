@@ -59,9 +59,8 @@
                  @keydown.enter.prevent="revealed = !revealed"
                  @keydown.space.prevent="revealed = !revealed"
                  :aria-expanded="revealed.toString()" tabindex="0" role="button"
-                 class="group relative min-h-[170px] sm:min-h-[220px] overflow-hidden rounded-md sm:rounded-lg
-                        border-2 border-[#3A3A3A]/70 bg-[#D9D9D9]
-                        shadow-[0_5px_14px_rgba(58,58,58,0.12)] cursor-pointer focus:outline-none
+                 class="group relative overflow-hidden rounded-md sm:rounded-lg bg-[#D9D9D9]
+                        shadow-[0_5px_14px_rgba(58,58,58,0.14)] cursor-pointer focus:outline-none
                         focus-visible:ring-4 focus-visible:ring-[#A6CE39]/70">
           {% if event.gambar %}
           <img src="{{ event.gambar.url }}" alt="" loading="lazy"
@@ -76,28 +75,28 @@
                       transition-opacity duration-300"
                :class="revealed ? 'opacity-80' : 'opacity-70'"></div>
 
-          <div class="absolute inset-x-0 bottom-0 p-5 sm:p-6 transition-all duration-300 ease-out
-                      group-hover:translate-y-3 group-hover:opacity-0"
-               :class="revealed ? 'translate-y-3 opacity-0' : 'translate-y-0 opacity-100'">
-            <h3 class="text-2xl sm:text-[32px] leading-tight font-bold text-[#3A3A3A]">{{ event.judul }}</h3>
-          </div>
+          <div class="relative grid transition-[grid-template-rows] duration-500 ease-in-out"
+               :class="revealed ? 'grid-rows-[minmax(150px,auto)_1fr] sm:grid-rows-[minmax(190px,auto)_1fr]' : 'grid-rows-[minmax(150px,auto)_0fr] sm:grid-rows-[minmax(190px,auto)_0fr]'">
+            <div class="flex items-end p-5 sm:p-6">
+              <h3 class="text-2xl sm:text-[32px] leading-tight font-bold text-[#3A3A3A]">{{ event.judul }}</h3>
+            </div>
 
-          <div class="absolute inset-0 flex flex-col justify-end overflow-y-auto p-5 sm:p-6 bg-[#D9D9D9]/90 backdrop-blur-[1px]
-                      translate-y-full opacity-0 transition-all duration-500 ease-out
-                      group-hover:translate-y-0 group-hover:opacity-100"
-               :class="revealed ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'">
-            <h3 class="text-2xl sm:text-[32px] leading-tight font-bold text-[#3A3A3A]">{{ event.judul }}</h3>
-            {% if event.deskripsi %}
-            <p class="mt-1.5 text-xs sm:text-sm leading-relaxed text-[#3A3A3A]">{{ event.deskripsi }}</p>
-            {% endif %}
-            {% if event.tanggal or event.lokasi %}
-            <p class="mt-3 text-[11px] sm:text-xs font-medium text-gray-700">
-              {% if event.tanggal %}{{ event.tanggal|date:"j F Y" }}{% endif %}
-              {% if event.tanggal and event.lokasi %}<span aria-hidden="true"> &middot; </span>{% endif %}
-              {% if event.lokasi %}{{ event.lokasi }}{% endif %}
-            </p>
-            {% endif %}
-            <span class="mt-2 text-[10px] text-gray-600 sm:hidden">Ketuk untuk menutup</span>
+            <div class="min-h-0 overflow-hidden transition-opacity duration-300 ease-out"
+                 :class="revealed ? 'opacity-100 delay-150' : 'opacity-0 delay-0'">
+              <div class="px-5 pb-5 sm:px-6 sm:pb-6">
+                {% if event.deskripsi %}
+                <p class="text-xs sm:text-base leading-relaxed text-[#3A3A3A]">{{ event.deskripsi }}</p>
+                {% endif %}
+                {% if event.tanggal or event.lokasi %}
+                <p class="mt-3 text-[11px] sm:text-sm font-medium text-gray-700">
+                  {% if event.tanggal %}{{ event.tanggal|date:"j F Y" }}{% endif %}
+                  {% if event.tanggal and event.lokasi %}<span aria-hidden="true"> &middot; </span>{% endif %}
+                  {% if event.lokasi %}{{ event.lokasi }}{% endif %}
+                </p>
+                {% endif %}
+                <span class="mt-2 block text-[10px] text-gray-600 sm:hidden">Ketuk untuk menutup</span>
+              </div>
+            </div>
           </div>
         </article>
 
@@ -376,15 +375,16 @@
       </h2>
 
       <div class="relative max-w-5xl mx-auto">
-        {% if timeline_list|length > 1 %}
-        <div class="absolute top-4 bottom-7 left-3 sm:left-1/2 w-1 sm:w-[6px] bg-[#417BB1] sm:-translate-x-1/2"></div>
-        {% endif %}
-
         <div class="flex flex-col gap-9 sm:gap-14">
           {% for item in timeline_list %}
           {% cycle 'left' 'right' as timeline_side silent %}
           <div class="relative grid grid-cols-[28px_minmax(0,1fr)] sm:grid-cols-[minmax(0,1fr)_48px_minmax(0,1fr)] items-start">
-            <div class="col-start-1 sm:col-start-2 row-start-1 z-10 flex justify-center pt-1.5">
+            {% if not forloop.last %}
+            <div class="absolute z-0 left-[11px] sm:left-1/2 top-3 bottom-[-48px] sm:top-[14px] sm:bottom-[-70px]
+                        w-[6px] sm:w-2 bg-[#417BB1] sm:-translate-x-1/2"></div>
+            {% endif %}
+
+            <div class="col-start-1 sm:col-start-2 row-start-1 z-10 flex justify-center pt-[3px] sm:pt-1">
               <span class="block w-[18px] h-[18px] sm:w-5 sm:h-5 rounded-full border-2 border-[#3A3A3A] bg-[#A6CE39]"
                     role="img" aria-label="Status: {{ item.status_label }}">
               </span>
@@ -401,20 +401,20 @@
 
             <div class="col-start-2 sm:row-start-1
                         {% if timeline_side == 'left' %}sm:col-start-3 sm:pl-6{% else %}sm:col-start-1 sm:pr-6 sm:text-right{% endif %}">
-              <span class="sm:hidden inline-block px-4 py-1.5 mb-3 rounded-full bg-[#F8FBEF]
-                           border-2 border-[#3A3A3A] text-[10px] font-semibold text-gray-800">
-                {{ item.tanggal_mulai|date:"j F Y" }}{% if item.tanggal_selesai %} &ndash; {{ item.tanggal_selesai|date:"j F Y" }}{% endif %}
-              </span>
-              <h3 class="mb-2 font-medium text-xs sm:text-sm text-gray-800">{{ item.judul }}</h3>
+              <h3 class="mb-2 text-base sm:text-lg leading-6 sm:leading-7 font-bold text-gray-800">{{ item.judul }}</h3>
               {% if item.deskripsi %}
               <div class="min-h-[88px] flex items-center rounded-[20px] sm:rounded-[24px] bg-[#F8FBEF]
                           border-2 border-[#3A3A3A] px-4 sm:px-6 py-4 sm:py-5
-                          shadow-[0_6px_14px_rgba(58,58,58,0.12)]">
-                <p class="w-full text-[11px] sm:text-xs leading-relaxed text-gray-600 {% if timeline_side == 'right' %}sm:text-right{% endif %}">
+                          {% if item.status == 'ongoing' %}ring-[3px] ring-[#A6CE39] shadow-[0_6px_18px_rgba(115,145,28,0.35)]{% else %}shadow-[0_6px_14px_rgba(58,58,58,0.12)]{% endif %}">
+                <p class="w-full text-sm sm:text-base leading-relaxed text-gray-700 {% if timeline_side == 'right' %}sm:text-right{% endif %}">
                   {{ item.deskripsi }}
                 </p>
               </div>
               {% endif %}
+              <span class="sm:hidden inline-block px-4 py-1.5 mt-3 rounded-full bg-[#F8FBEF]
+                           border-2 border-[#3A3A3A] text-xs font-semibold text-gray-800">
+                {{ item.tanggal_mulai|date:"j F Y" }}{% if item.tanggal_selesai %} &ndash; {{ item.tanggal_selesai|date:"j F Y" }}{% endif %}
+              </span>
             </div>
           </div>
           {% endfor %}
