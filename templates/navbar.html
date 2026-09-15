@@ -1,29 +1,63 @@
 {% load static %}
 
-<nav x-data="{ open: false }" class="bg-[#F8FBEF] border-b border-gray-700">
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
-    <div class="flex items-center space-x-3">
-      <img src="{% static 'images/Logo-FUKI.png' %}" alt="FUKI Logo" class="w-8 h-8 sm:w-10 sm:h-10 object-contain" />
-      <span class="font-bold text-gray-800 text-sm sm:text-lg">FUKI FASILKOM UI</span>
+{% comment %}
+  Beranda ditautkan sebagai "/" literal, bukan {% url 'beranda' %}: main/urls.py
+  mendaftarkan nama 'beranda' dua kali sehingga reverse() mengembalikan
+  '/beranda', bukan '/'. Alasan yang sama didokumentasikan di web_fuki/sitemaps.py.
+{% endcomment %}
+
+<nav x-data="{ open: false, kegiatan: false }" class="bg-[#FDFBF4] sticky top-0 z-50 shadow-sm">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
+
+    <a href="/" class="flex items-center space-x-2 shrink-0">
+      <img src="{% static 'images/Logo-FUKI-Biru.png' %}" alt="Logo FUKI"
+           class="w-7 h-7 sm:w-9 sm:h-9 object-contain" />
+      <span class="font-bold text-navy text-sm sm:text-base whitespace-nowrap">FUKI FASILKOM UI</span>
+    </a>
+
+    <div class="hidden lg:flex items-center gap-6 text-sm">
+      <a href="/" class="text-navy hover:text-navy-600 transition">Beranda</a>
+      <a href="{% url 'profil' %}" class="text-navy hover:text-navy-600 transition">Profil</a>
+      <a href="{% url 'birdep:team_list' %}" class="text-navy hover:text-navy-600 transition">Biro &amp; Departemen</a>
+
+      <div class="relative" @click.outside="kegiatan = false">
+        <button @click="kegiatan = !kegiatan"
+                class="flex items-center gap-1 text-navy hover:text-navy-600 transition">
+          Kegiatan
+          <svg class="w-4 h-4 transition-transform" :class="kegiatan && 'rotate-180'"
+               fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        <div x-show="kegiatan" x-transition x-cloak
+             class="absolute left-0 mt-2 w-44 bg-white rounded-xl shadow-lg ring-1 ring-navy/10 py-2">
+          <a href="{% url 'kegiatan:home' %}" class="block px-4 py-2 text-navy hover:bg-cream transition">Kegiatan</a>
+          <a href="{% url 'blog_kajian' %}" class="block px-4 py-2 text-navy hover:bg-cream transition">Kajian</a>
+        </div>
+      </div>
+
+      <a href="{% url 'siwak:landing' %}" class="text-navy hover:text-navy-600 transition">SIWAK-NG</a>
+      <a href="{% url 'hubungi_kami' %}" class="text-navy hover:text-navy-600 transition">Hubungi Kami</a>
     </div>
 
-    <div class="hidden md:flex space-x-6 text-sm sm:text-base">
-      <a href="/" class="text-gray-800 hover:text-green-700">Beranda</a>
-      <a href="/profil" class="text-gray-800 hover:text-green-700">Profil</a>
-      <a href="/team" class="text-gray-800 hover:text-green-700">Biro & Departemen</a>
-      <a href="/kegiatan/" class="text-gray-800 hover:text-green-700">Kegiatan</a>
-      <a href="/siwak/" class="text-gray-800 hover:text-green-700">SIWAK-NG</a>
-      <a href="/hubungi_kami" class="text-gray-800 hover:text-green-700">Hubungi Kami</a>
-    </div>
+    {% comment %}
+      Tombol SSO masih placeholder: proyek belum punya backend autentikasi sama
+      sekali. Arahkan href ke URL login begitu SSO UI tersedia.
+    {% endcomment %}
+    <a href="#"
+       class="hidden lg:inline-block bg-navy text-white text-sm font-semibold px-5 py-2 rounded-lg hover:bg-navy-700 transition shrink-0">
+      Login with SSO
+    </a>
 
-    <div class="md:hidden">
-      <button @click="open = !open" class="text-gray-800 focus:outline-none">
-        <svg x-show="!open" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none"
+    <div class="lg:hidden">
+      <button @click="open = !open" :aria-expanded="open" aria-label="Buka menu"
+              class="text-navy focus:outline-none focus-visible:ring-2 focus-visible:ring-navy rounded">
+        <svg x-show="!open" xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none"
              viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M4 6h16M4 12h16M4 18h16"/>
         </svg>
-        <svg x-show="open" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none"
+        <svg x-show="open" x-cloak xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none"
              viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M6 18L18 6M6 6l12 12"/>
@@ -32,12 +66,17 @@
     </div>
   </div>
 
-  <div x-show="open" x-transition class="md:hidden px-4 pb-4 space-y-2 text-sm sm:text-base">
-    <a href="/" class="block text-gray-800 hover:text-green-700">Beranda</a>
-    <a href="/profil" class="block text-gray-800 hover:text-green-700">Profil</a>
-    <a href="/team" class="block text-gray-800 hover:text-green-700">Biro & Departemen</a>
-    <a href="/kegiatan/" class="block text-gray-800 hover:text-green-700">Kegiatan</a>
-    <a href="/siwak/" class="block text-gray-800 hover:text-green-700">SIWAK-NG</a>
-    <a href="/hubungi_kami" class="block text-gray-800 hover:text-green-700">Hubungi Kami</a>
+  <div x-show="open" x-transition x-cloak class="lg:hidden px-4 pb-4 space-y-1 text-sm border-t border-navy/10 pt-3">
+    <a href="/" class="block py-2 text-navy hover:text-navy-600">Beranda</a>
+    <a href="{% url 'profil' %}" class="block py-2 text-navy hover:text-navy-600">Profil</a>
+    <a href="{% url 'birdep:team_list' %}" class="block py-2 text-navy hover:text-navy-600">Biro &amp; Departemen</a>
+    <p class="pt-2 pb-1 text-xs font-semibold uppercase tracking-wide text-navy-400">Kegiatan</p>
+    <a href="{% url 'kegiatan:home' %}" class="block py-2 pl-3 text-navy hover:text-navy-600">Kegiatan</a>
+    <a href="{% url 'blog_kajian' %}" class="block py-2 pl-3 text-navy hover:text-navy-600">Kajian</a>
+    <a href="{% url 'siwak:landing' %}" class="block py-2 text-navy hover:text-navy-600">SIWAK-NG</a>
+    <a href="{% url 'hubungi_kami' %}" class="block py-2 text-navy hover:text-navy-600">Hubungi Kami</a>
+    <a href="#" class="block mt-3 bg-navy text-white text-center font-semibold px-5 py-2.5 rounded-lg hover:bg-navy-700 transition">
+      Login with SSO
+    </a>
   </div>
 </nav>
