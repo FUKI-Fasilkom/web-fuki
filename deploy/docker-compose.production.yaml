@@ -50,11 +50,13 @@ services:
       - production_media:/app/media:ro
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on: [web]
-    networks: [production_net]
+    networks: [production_net, web_net]
     restart: unless-stopped
 
 networks:
   production_net:
+  web_net:
+    external: true
 
 volumes:
   production_pgdata:

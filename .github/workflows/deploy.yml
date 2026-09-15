@@ -47,6 +47,13 @@ jobs:
           ALLOWED_HOSTS: localhost
         run: python manage.py check --deploy --fail-level ERROR
 
+      - name: Validate nginx configs
+        run: |
+          for f in deploy/nginx/*.conf; do
+            docker run --rm -v "$PWD/$f:/etc/nginx/conf.d/default.conf:ro" \
+              nginx:1.27-alpine nginx -t
+          done
+
   build-and-push:
     # Pull requests stop at `checks`. Nothing is published to GHCR until the
     # commit is actually on staging or main.
@@ -114,7 +121,7 @@ jobs:
           deploy_path: /home/fuki/web-fuki/staging
           container_prefix: staging
           run_migration: "true"
-          health_port: "8080"          # staging nginx; port 80 is production
+          health_mode: exec
           backup_before_migrate: "true"
 
           ovpn_config: ${{ secrets.OVPN_CONFIG }}
@@ -130,6 +137,7 @@ jobs:
           ghcr_token: ${{ secrets.GHCR_READ_TOKEN }}
           allowed_hosts: ${{ secrets.ALLOWED_HOSTS }}
           debug: ${{ secrets.DEBUG }}
+          site_url: https://staging-fuki.cs.ui.ac.id
 
   deploy-production:
     # Reached by merging a PR into main (the merge is a push), or by pushing to
@@ -166,3 +174,4 @@ jobs:
           ghcr_token: ${{ secrets.GHCR_READ_TOKEN }}
           allowed_hosts: ${{ secrets.ALLOWED_HOSTS }}
           debug: ${{ secrets.DEBUG }}
+          site_url: https://fuki.cs.ui.ac.id
