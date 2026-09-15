@@ -35,8 +35,8 @@ class StaticViewSitemap(Sitemap):
             (reverse('birdep:pi_list'), 0.6),
             (reverse('birdep:ki_list'), 0.6),
             (reverse('birdep:mdc_list'), 0.6),
-            (reverse('siwak:landing'), 0.7),
-            (reverse('siwak:kelompok_search'), 0.5),
+            # (reverse('siwak:landing'), 0.7),           # Aktifkan bersamaan saat siwak/ kembali di-urlconf
+            # (reverse('siwak:kelompok_search'), 0.5),   # (lihat web_fuki/urls.py)
             (reverse('hubungi_kami'), 0.6),
         ]
 

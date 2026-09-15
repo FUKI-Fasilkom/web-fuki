@@ -30,7 +30,7 @@ urlpatterns = [
     path('team/', include('birdep.urls')),
     path('profil/', include('profil.urls')),
     path('kajian/', include('blog_kajian.urls')),
-    # path('siwak/', include('siwak.urls')),
+    path('siwak/', include('siwak.urls')),
 
     # SEO: dua berkas yang dicari perayap di akar domain.
     path(
