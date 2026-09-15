@@ -121,7 +121,8 @@ jobs:
           deploy_path: /home/fuki/web-fuki/staging
           container_prefix: staging
           run_migration: "true"
-          health_mode: exec
+          health_mode: port
+          health_port: "8080"       # port 8080 still published until Phase 8; exec mode switches at Phase 8
           backup_before_migrate: "true"
 
           ovpn_config: ${{ secrets.OVPN_CONFIG }}
