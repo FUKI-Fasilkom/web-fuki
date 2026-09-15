@@ -130,6 +130,8 @@ jobs:
           ghcr_token: ${{ secrets.GHCR_READ_TOKEN }}
           allowed_hosts: ${{ secrets.ALLOWED_HOSTS }}
           debug: ${{ secrets.DEBUG }}
+          discord_webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          discord_role_id: ${{ secrets.DISCORD_ROLE_ID }}
 
   deploy-production:
     # Reached by merging a PR into main (the merge is a push), or by pushing to
@@ -166,3 +168,5 @@ jobs:
           ghcr_token: ${{ secrets.GHCR_READ_TOKEN }}
           allowed_hosts: ${{ secrets.ALLOWED_HOSTS }}
           debug: ${{ secrets.DEBUG }}
+          discord_webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          discord_role_id: ${{ secrets.DISCORD_ROLE_ID }}
