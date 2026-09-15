@@ -68,6 +68,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.sitemaps',
     'main',
     'kegiatan',
     'birdep',
@@ -113,6 +114,10 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                # Menyuplai SITE_NAME/SITE_URL/SEO_* ke setiap template supaya
+                # base.html bisa menyusun <title>, canonical, Open Graph, dan JSON-LD
+                # dari satu sumber saja.
+                'main.context_processors.seo',
             ],
         },
     },
@@ -215,3 +220,47 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+
+# ---------------------------------------------------------------------------
+# SEO
+# ---------------------------------------------------------------------------
+# Satu-satunya sumber kebenaran untuk metadata situs. Dipakai oleh
+# main/context_processors.py (untuk <title>, meta description, canonical,
+# Open Graph, dan JSON-LD di templates/base.html) serta oleh
+# web_fuki/sitemaps.py. Ubah di sini, bukan di masing-masing template.
+
+SITE_NAME = 'FUKI Fasilkom UI'
+
+# Dipakai untuk menyusun URL absolut (canonical, og:image, JSON-LD, sitemap).
+# Harus tanpa garis miring di akhir.
+SITE_URL = os.getenv('SITE_URL', 'https://fuki.cs.ui.ac.id').rstrip('/')
+
+# Judul halaman depan. Sengaja tidak memakai sufiks " | FUKI Fasilkom UI"
+# karena nama merek sudah ada di depan.
+SITE_TITLE = 'FUKI Fasilkom UI — Forum Ukhuwah dan Kajian Islam'
+
+# Meta description bawaan. Dijaga di bawah ~160 karakter supaya tidak
+# dipotong Google di halaman hasil pencarian.
+SITE_DESCRIPTION = (
+    'FUKI Fasilkom UI, Forum Ukhuwah dan Kajian Islam, adalah Lembaga Dakwah '
+    'Kampus Fakultas Ilmu Komputer Universitas Indonesia. Info kajian, '
+    'kegiatan, dan mentoring.'
+)
+
+# Gambar bawaan untuk pratinjau saat tautan dibagikan (Open Graph / Twitter).
+SITE_OG_IMAGE = 'images/Logo-FUKI.png'
+
+# Akun resmi. Masuk ke properti `sameAs` pada JSON-LD Organization — inilah
+# yang dipakai Google untuk mengaitkan situs ini dengan entitas "FUKI".
+SITE_SOCIAL_PROFILES = [
+    'https://www.instagram.com/fukifasilkom/',
+    'https://www.youtube.com/@fukifasilkomui',
+    'https://x.com/fukifasilkom',
+]
+
+# Token verifikasi kepemilikan domain dari Google Search Console.
+GOOGLE_SITE_VERIFICATION = os.getenv(
+    'GOOGLE_SITE_VERIFICATION',
+    'lCewhFlHG9UyyEKQPRpfzDkunjEQRLb1J0Bc9FgL3Xo',
+)

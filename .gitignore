@@ -139,3 +139,6 @@ GitHub.sublime-settings
 .history
 # collectstatic output (STATIC_ROOT)
 staticfiles/
+
+# data fungsionaris
+/data
