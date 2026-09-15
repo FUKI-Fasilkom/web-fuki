@@ -378,7 +378,8 @@
         <div class="flex flex-col gap-9 sm:gap-14">
           {% for item in timeline_list %}
           {% cycle 'left' 'right' as timeline_side silent %}
-          <div class="relative grid grid-cols-[28px_minmax(0,1fr)] sm:grid-cols-[minmax(0,1fr)_48px_minmax(0,1fr)] items-start">
+          <div class="relative grid grid-cols-[28px_minmax(0,1fr)] sm:grid-cols-[minmax(0,1fr)_48px_minmax(0,1fr)] items-start
+                      {% if item.status == 'completed' %}opacity-60{% endif %}">
             {% if not forloop.last %}
             <div class="absolute z-0 left-[11px] sm:left-1/2 top-3 bottom-[-48px] sm:top-[14px] sm:bottom-[-70px]
                         w-[6px] sm:w-2 bg-[#417BB1] sm:-translate-x-1/2"></div>
