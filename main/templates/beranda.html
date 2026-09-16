@@ -84,42 +84,7 @@
 {% block content %}
 
 {# ============================ HERO ============================ #}
-<section class="relative isolate w-full overflow-hidden pt-10 pb-20 lg:pt-[130px] lg:pb-[160px]">
-  {% comment %}
-    1. DASAR GOLD — memberi variasi warna melintang hero.
-  {% endcomment %}
-  <div class="absolute inset-0 pointer-events-none"
-       style="background: linear-gradient(118deg, #B5A777 0%, #D3C793 20%, #F4EEDA 39%, #C6B984 58%, #EAE2BC 77%, #B5A777 100%);"></div>
-
-  {% comment %}
-    2. TEKSTUR SATIN — foto asli dari Figma, masih hitam-putih.
-    Diwarnai jadi gold lewat mix-blend-mode: multiply di atas lapisan dasar,
-    sama seperti foto ditumpuk di atas isian gold di Figma. Multiply dipilih
-    karena fotonya bernada sangat terang (bayangan ±#D8D8D8, sorot putih):
-    lipatan gelapnya menggelapkan gold, area putihnya membiarkan gold apa
-    adanya. Blend 'overlay'/'soft-light' justru memucatkan gold di sini.
-    contrast() mengangkat lipatan yang aslinya nyaris rata.
-  {% endcomment %}
-  <div class="absolute inset-0 bg-cover bg-center pointer-events-none"
-       style="background-image: url('{% static 'images/satin.jpg' %}'); mix-blend-mode: multiply; filter: contrast(1.45);"></div>
-
-  {% comment %}
-    3. PUDAR KE PUTIH di tepi bawah. Harus berada SETELAH lapisan tekstur
-    supaya tidak ikut ter-multiply. Tingginya sengaja lebih kecil dari padding
-    bawah section (144 < 160) supaya gradasi tidak pernah menyentuh logo.
-  {% endcomment %}
-  <div class="absolute inset-x-0 bottom-0 h-24 lg:h-36 pointer-events-none"
-       style="background: linear-gradient(to bottom, rgba(255,255,255,0), #ffffff);"></div>
-
-  <div class="relative mx-auto w-full max-w-[1118px] px-6 h-[170px] sm:h-[260px] lg:h-[406px] flex items-center justify-between gap-6">
-    <div>
-      <h1 class="text-3xl sm:text-5xl lg:text-[64px] font-bold text-navy leading-none">FUKI 2026</h1>
-      <p class="mt-2 sm:mt-3 text-xs sm:text-lg lg:text-xl font-semibold italic text-navy">#UnitePurposeAccelerateImpact</p>
-    </div>
-    <img src="{% static 'images/Logo-FUKI-Biru.png' %}" alt="Logo FUKI"
-         class="w-[110px] sm:w-[200px] lg:w-[330px] h-auto object-contain shrink-0" />
-  </div>
-</section>
+{% include 'hero_gold.html' with page_title="FUKI 2026" subtitle="#UnitePurposeAccelerateImpact" judul_besar=True %}
 
 {# ======================== APA ITU FUKI ======================== #}
 <section class="w-full bg-white py-14 sm:py-20">
