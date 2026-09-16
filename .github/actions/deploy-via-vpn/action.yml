@@ -35,6 +35,20 @@ inputs:
   allowed_hosts: {required: true}
   debug: {required: true}
   ghcr_token: {required: true}
+  site_url: {required: true}
+  health_mode:
+    required: false
+    default: "port"
+    description: >-
+      How to hit the health endpoint. 'port' curls http://localhost:<health_port>/health/
+      (production — Apache shoots this port). 'exec' runs docker exec inside the nginx
+      container (staging — no published port after Phase 8).
+  discord_webhook_url:
+    required: false
+    default: ""
+  discord_role_id:
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -127,9 +141,12 @@ runs:
         DEBUG: ${{ inputs.debug }}
         DJANGO_SECRET: ${{ inputs.django_secret }}
         ALLOWED_HOSTS: ${{ inputs.allowed_hosts }}
+        SITE_URL: ${{ inputs.site_url }}
         DB_NAME: ${{ inputs.db_name }}
         DB_USER: ${{ inputs.db_user }}
         DB_PASSWORD: ${{ inputs.db_password }}
+        DISCORD_WEBHOOK_URL: ${{ inputs.discord_webhook_url }}
+        DISCORD_ROLE_ID: ${{ inputs.discord_role_id }}
       run: |
         set -euo pipefail
         umask 077
@@ -163,8 +180,11 @@ runs:
             "DEBUG": get("DEBUG"),
             "DJANGO_SECRET": get("DJANGO_SECRET"),
             "ALLOWED_HOSTS": get("ALLOWED_HOSTS"),
+            "SITE_URL": get("SITE_URL"),
             "DB_HOST": "db",
             "DB_PORT": "5432",
+            "DISCORD_WEBHOOK_URL": get("DISCORD_WEBHOOK_URL", required=False),
+            "DISCORD_ROLE_ID": get("DISCORD_ROLE_ID", required=False),
             **{k: interpolated[k] for k in ("DB_NAME", "DB_USER", "DB_PASSWORD")},
         }
 
@@ -296,24 +316,56 @@ runs:
       shell: bash
       env:
         HEALTH_PORT: ${{ inputs.health_port }}
+        HEALTH_MODE: ${{ inputs.health_mode }}
         CONTAINER_PREFIX: ${{ inputs.container_prefix }}
       run: |
         set -euo pipefail
-        ssh deploy-target "PORT='$HEALTH_PORT' PREFIX='$CONTAINER_PREFIX' bash -s" << 'REMOTE'
+        ssh deploy-target "PORT='$HEALTH_PORT' MODE='$HEALTH_MODE' PREFIX='$CONTAINER_PREFIX' bash -s" << 'REMOTE'
         set -euo pipefail
-        for i in $(seq 1 30); do
-          if curl -fsS -m 5 "http://localhost:${PORT}/health/" >/dev/null 2>&1; then
-            echo "health check passed after ~$((i * 4))s"
-            exit 0
-          fi
-          sleep 4
-        done
 
-        echo "health check failed against http://localhost:${PORT}/health/"
-        echo "--- ${PREFIX}_web ---";   docker logs --tail 80 "${PREFIX}_web"   || true
-        echo "--- ${PREFIX}_nginx ---"; docker logs --tail 30 "${PREFIX}_nginx" || true
-        docker ps -a --filter "name=${PREFIX}_" || true
-        exit 1
+        check_port() {
+          for i in $(seq 1 30); do
+            if curl -fsS -m 5 "http://localhost:${PORT}/health/" >/dev/null 2>&1; then
+              echo "health check passed after ~$((i * 4))s (mode=port, port=${PORT})"
+              exit 0
+            fi
+            sleep 4
+          done
+          echo "health check failed against http://localhost:${PORT}/health/"
+          echo "--- ${PREFIX}_web ---";   docker logs --tail 80 "${PREFIX}_web"   || true
+          echo "--- ${PREFIX}_nginx ---"; docker logs --tail 30 "${PREFIX}_nginx" || true
+          docker ps -a --filter "name=${PREFIX}_" || true
+          exit 1
+        }
+
+        check_exec() {
+          LAST_ERR=""
+          for i in $(seq 1 30); do
+            # -4 forces IPv4: containers map `localhost` with precedence to ::1,
+            # while nginx listens only on 0.0.0.0:80, so plain `wget localhost`
+            # fails with "connection refused". -T bounds each attempt; -S prints
+            # the response status, and -O /dev/null avoids dumping the body.
+            OUT="$(docker exec "${PREFIX}_nginx" wget -4 -T 10 -S -O /dev/null http://localhost/health/ 2>&1)" && {
+              echo "health check passed after ~$((i * 4))s (mode=exec)"
+              exit 0
+            }
+            LAST_ERR="$OUT"
+            sleep 4
+          done
+          echo "health check failed via docker exec (mode=exec)"
+          echo "--- last wget output ---"
+          printf '%s\n' "$LAST_ERR"
+          echo "--- ${PREFIX}_web ---";   docker logs --tail 80 "${PREFIX}_web"   || true
+          echo "--- ${PREFIX}_nginx ---"; docker logs --tail 30 "${PREFIX}_nginx" || true
+          docker ps -a --filter "name=${PREFIX}_" || true
+          exit 1
+        }
+
+        case "$MODE" in
+          port) check_port ;;
+          exec) check_exec ;;
+          *)    echo "::error::unknown health_mode: $MODE"; exit 1 ;;
+        esac
         REMOTE
 
     # Immutable branch-sha tags mean every deploy leaves the previous image behind,

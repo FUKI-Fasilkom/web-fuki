@@ -1,7 +1,9 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Beranda{% endblock %}
+{% block page_title %}{{ SITE_TITLE }}{% endblock %}
+{% block meta_description %}FUKI Fasilkom UI (Forum Ukhuwah dan Kajian Islam) adalah Lembaga Dakwah Kampus Fakultas Ilmu Komputer Universitas Indonesia. Kajian, kegiatan, dan mentoring untuk Muslim Fasilkom UI.{% endblock %}
+{% block og_title %}{{ SITE_TITLE }}{% endblock %}
 
 {% block content %}
     <div class="relative w-full h-screen bg-gradient-to-b from-[#D6E8A4] to-[#F6FAEB] overflow-hidden flex items-center justify-center">

@@ -43,6 +43,10 @@ class SiwakEventAdmin(admin.ModelAdmin):
     list_display = ["judul", "tipe", "tanggal", "rsvp_dibuka", "urutan"]
     list_editable = ["rsvp_dibuka", "urutan"]
     list_filter = ["tipe", "rsvp_dibuka"]
+    list_display = ["judul", "tanggal", "lokasi", "rsvp_dibuka", "urutan"]
+    list_editable = ["urutan"]
+    list_filter = ["rsvp_dibuka", "tanggal"]
+    search_fields = ["judul", "deskripsi", "lokasi"]
 
 
 @admin.register(TimelineEvent)

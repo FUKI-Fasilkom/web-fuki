@@ -9,6 +9,7 @@ from django.utils import timezone
 JURUSAN_CHOICES = [
     ("IK", "Ilmu Komputer"),
     ("SI", "Sistem Informasi"),
+    ("KA", "Kecerdasan Artifisial"),
     ("IK-IUP", "Ilmu Komputer (International Undergraduate Program)"),
     ("SI-IUP", "Sistem Informasi (International Undergraduate Program)"),
 ]
@@ -78,16 +79,11 @@ class SiwakInfo(models.Model):
 
 
 class SiwakEvent(models.Model):
-    """Pre-Event & Main Event SIWAK (PRD 4.1 'SIWAK Events' dan 5.2 RSVP)."""
+    """Event SIWAK yang ditampilkan di landing page dan dapat menerima RSVP."""
 
-    TIPE_CHOICES = [
-        ("pre_event", "Pre-Event SIWAK"),
-        ("main_event", "Main Event SIWAK"),
-    ]
-
-    tipe = models.CharField(max_length=20, choices=TIPE_CHOICES, unique=True)
     judul = models.CharField(max_length=200)
     deskripsi = models.TextField(blank=True)
+    gambar = models.ImageField(upload_to="siwak/events/", blank=True, null=True)
     tanggal = models.DateField(null=True, blank=True)
     lokasi = models.CharField(max_length=200, blank=True)
     rsvp_dibuka = models.BooleanField(default=True, verbose_name="RSVP dibuka")

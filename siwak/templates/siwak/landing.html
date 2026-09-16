@@ -8,18 +8,18 @@
 
 <!-- Hero -->
 <div class="relative w-full bg-gradient-to-b from-[#D6E8A4] to-[#F8FBEF] overflow-hidden">
-  <div class="max-w-7xl mx-auto px-6 sm:px-12 py-16 sm:py-24">
-    <h1 class="text-4xl sm:text-6xl font-bold text-gray-800">{{ info.hero_judul }}</h1>
-    <p class="mt-4 max-w-xl text-gray-700 text-sm sm:text-base">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 sm:px-[104px] py-8 sm:py-[60px]">
+    <h1 class="text-[28px] sm:text-[64px] font-bold text-gray-800">{{ info.hero_judul }}</h1>
+    <p class="mt-3 sm:mt-4 max-w-xl text-gray-700 text-sm sm:text-base leading-relaxed">
       {{ info.hero_deskripsi|default:"Pusat informasi dan pendaftaran mentoring SIWAK-NG FUKI Fasilkom UI." }}
     </p>
     <a href="#apa-itu"
-       class="inline-block mt-8 px-8 py-3 rounded-full bg-[#A6CE39] font-semibold text-gray-800
-              border-[3px] border-[#3A3A3A] shadow-md hover:bg-[#94ba2f] transition">
+       class="inline-block mt-5 sm:mt-8 px-5 sm:px-8 py-2 sm:py-3 rounded-full bg-[#A6CE39] font-semibold text-gray-800
+              border-[2px] sm:border-[3px] border-[#3A3A3A] shadow-md hover:bg-[#94ba2f] transition text-sm sm:text-base">
       See More
     </a>
   </div>
-  <div class="flex justify-center gap-2 pb-6">
+  <div class="flex justify-center gap-2 pb-4 sm:pb-6">
     <span class="w-2 h-2 rounded-full bg-[#3A3A3A]"></span>
     <span class="w-2 h-2 rounded-full bg-[#3A3A3A]/30"></span>
     <span class="w-2 h-2 rounded-full bg-[#3A3A3A]/30"></span>
@@ -27,155 +27,340 @@
 </div>
 
 <div class="bg-[#F8FBEF]">
-  <div class="max-w-5xl mx-auto px-6 py-16 sm:py-20">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 sm:px-[104px] py-8 sm:py-[60px]">
 
     <!-- Apa itu SIWAK-NG -->
     <section id="apa-itu" class="scroll-mt-20">
-      <h2 class="text-2xl sm:text-3xl font-bold text-gray-800 text-center mb-10">Apa itu SIWAK-NG?</h2>
-      <div class="flex flex-col sm:flex-row items-center gap-6 max-w-3xl mx-auto">
+      <h2 class="text-[26px] sm:text-[64px] font-bold text-gray-800 text-center mb-8 sm:mb-12">Apa itu SIWAK-NG?</h2>
+
+      <div class="flex flex-col sm:flex-row items-center gap-6 sm:gap-12 max-w-4xl mx-auto">
         {% if info.apa_itu_gambar %}
         <img src="{{ info.apa_itu_gambar.url }}" alt="SIWAK-NG"
-             class="w-24 h-24 rounded-full object-cover border-[3px] border-[#3A3A3A] shrink-0">
+             class="w-[82px] h-[82px] sm:w-[256px] sm:h-[256px] rounded-full object-cover shrink-0">
         {% else %}
-        <div class="w-24 h-24 rounded-full bg-gray-300 border-[3px] border-[#3A3A3A] shrink-0"></div>
+        <div class="w-[82px] h-[82px] sm:w-[256px] sm:h-[256px] rounded-full bg-gray-300 shrink-0"></div>
         {% endif %}
-        <p class="text-gray-700 text-sm sm:text-base text-center sm:text-left">
+
+        <p class="text-gray-700 text-xs sm:text-base leading-relaxed text-center sm:text-left max-w-md">
           {{ info.apa_itu_deskripsi|default:"Informasi tentang SIWAK-NG akan segera hadir." }}
         </p>
       </div>
     </section>
 
-    <!-- SIWAK Events -->
-    <section class="mt-20">
-      <h2 class="text-2xl sm:text-3xl font-bold text-gray-800 text-center mb-8">SIWAK Events</h2>
-      <div class="space-y-6 max-w-3xl mx-auto">
+    <!-- SIWAK Events — Accordion -->
+    <section class="mt-10 sm:mt-[60px]">
+      <h2 class="text-[26px] sm:text-[64px] font-bold text-gray-800 text-center mb-8 sm:mb-12">SIWAK Events</h2>
+
+      <div class="max-w-4xl mx-auto flex flex-col gap-3 sm:gap-4">
         {% for event in events %}
-        <div class="rounded-2xl bg-[#417BB1] border-[3px] border-[#3A3A3A] p-6 sm:p-8 text-white
-                    flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <p class="font-bold text-xl sm:text-2xl">{{ event.judul }}</p>
-            {% if event.deskripsi %}<p class="mt-1 text-sm opacity-90">{{ event.deskripsi }}</p>{% endif %}
-            {% if event.tanggal %}<p class="mt-2 text-sm">{{ event.tanggal|date:"j F Y" }}{% if event.lokasi %} &middot; {{ event.lokasi }}{% endif %}</p>{% endif %}
-          </div>
-          {% if event.rsvp_dibuka %}
-          <a href="{% if request.user.is_authenticated %}{% url 'siwak:rsvp' tipe=event.tipe %}{% else %}{% url 'siwak:login' %}?next={% url 'siwak:rsvp' tipe=event.tipe %}{% endif %}"
-             class="shrink-0 text-center px-6 py-2 rounded-full bg-[#F6FAEB] text-gray-800 font-medium
-                    border-[3px] border-[#3A3A3A] hover:bg-[#d4edbf] transition">
-            RSVP
-          </a>
+        <article x-data="{ revealed: false }"
+                 @mouseenter="revealed = true" @mouseleave="revealed = false"
+                 @click="revealed = !revealed"
+                 @keydown.enter.prevent="revealed = !revealed"
+                 @keydown.space.prevent="revealed = !revealed"
+                 :aria-expanded="revealed.toString()" tabindex="0" role="button"
+                 class="group relative overflow-hidden rounded-md sm:rounded-lg bg-[#D9D9D9]
+                        shadow-[0_5px_14px_rgba(58,58,58,0.14)] cursor-pointer focus:outline-none
+                        focus-visible:ring-4 focus-visible:ring-[#A6CE39]/70">
+          {% if event.gambar %}
+          <img src="{{ event.gambar.url }}" alt="" loading="lazy"
+               class="absolute inset-0 w-full h-full object-cover grayscale opacity-50 transition duration-500 ease-out
+                      group-hover:scale-105"
+               :class="revealed ? 'scale-105' : 'scale-100'">
+          {% else %}
+          <div class="absolute inset-0 bg-[#D9D9D9]"></div>
           {% endif %}
-        </div>
+
+          <div class="absolute inset-0 bg-[#D9D9D9]/65
+                      transition-opacity duration-300"
+               :class="revealed ? 'opacity-80' : 'opacity-70'"></div>
+
+          <div class="relative grid transition-[grid-template-rows] duration-500 ease-in-out"
+               :class="revealed ? 'grid-rows-[minmax(150px,auto)_1fr] sm:grid-rows-[minmax(190px,auto)_1fr]' : 'grid-rows-[minmax(150px,auto)_0fr] sm:grid-rows-[minmax(190px,auto)_0fr]'">
+            <div class="flex items-end p-5 sm:p-6">
+              <h3 class="text-2xl sm:text-[32px] leading-tight font-bold text-[#3A3A3A]">{{ event.judul }}</h3>
+            </div>
+
+            <div class="min-h-0 overflow-hidden transition-opacity duration-300 ease-out"
+                 :class="revealed ? 'opacity-100 delay-150' : 'opacity-0 delay-0'">
+              <div class="px-5 pb-5 sm:px-6 sm:pb-6">
+                {% if event.deskripsi %}
+                <p class="text-xs sm:text-base leading-relaxed text-[#3A3A3A]">{{ event.deskripsi }}</p>
+                {% endif %}
+                {% if event.tanggal or event.lokasi %}
+                <p class="mt-3 text-[11px] sm:text-sm font-medium text-gray-700">
+                  {% if event.tanggal %}{{ event.tanggal|date:"j F Y" }}{% endif %}
+                  {% if event.tanggal and event.lokasi %}<span aria-hidden="true"> &middot; </span>{% endif %}
+                  {% if event.lokasi %}{{ event.lokasi }}{% endif %}
+                </p>
+                {% endif %}
+                <span class="mt-2 block text-[10px] text-gray-600 sm:hidden">Ketuk untuk menutup</span>
+              </div>
+            </div>
+          </div>
+        </article>
+
         {% empty %}
-        <p class="text-center text-gray-600">Jadwal event akan diumumkan segera.</p>
+        <p class="sm:col-span-2 text-center text-gray-600 text-sm sm:text-base">
+          Jadwal event akan diumumkan segera.
+        </p>
         {% endfor %}
       </div>
     </section>
 
     <!-- Apa itu Mentoring -->
-    <section class="mt-20">
-      <h2 class="text-2xl sm:text-3xl font-bold text-gray-800 text-center mb-4">Apa itu Mentoring?</h2>
-      <p class="text-center text-gray-700 text-sm sm:text-base max-w-2xl mx-auto mb-10">
+    <section class="mt-10 sm:mt-[60px]">
+      <h2 class="text-[26px] sm:text-[64px] font-bold text-gray-800 text-center mb-6 sm:mb-12">
+        Apa itu Mentoring?
+      </h2>
+
+      <p class="text-center text-gray-700 text-xs sm:text-base leading-relaxed
+                max-w-3xl mx-auto mb-8 sm:mb-12">
         {{ info.mentoring_deskripsi|default:"Mentoring adalah sesi pemaparan materi keagamaan dengan membuat kelompok bersama mentor-mentor berpengalaman." }}
       </p>
 
-      <div class="flex justify-center mb-6">
-        <span class="px-6 py-2 rounded-full bg-[#417BB1] text-white font-semibold border-[3px] border-[#3A3A3A]">Tujuan Mentoring</span>
+      <!-- Tujuan Mentoring -->
+      <div class="flex justify-center mb-6 sm:mb-8">
+        <span class="px-5 sm:px-8 py-1.5 sm:py-2 rounded-full bg-[#417BB1] text-white font-semibold
+                     border-[2px] sm:border-[3px] border-[#3A3A3A] text-xs sm:text-base">
+          Tujuan Mentoring
+        </span>
       </div>
-      <div class="grid sm:grid-cols-2 gap-4 max-w-3xl mx-auto">
+
+      <!-- Daftar Tujuan Mentoring -->
+      <div class="flex flex-col gap-4 sm:gap-5 max-w-5xl mx-auto">
         {% for tujuan in tujuan_list %}
-        <div class="flex flex-col gap-2">
-          <span class="self-start px-5 py-2 rounded-full bg-white text-gray-800 font-semibold border-[3px] border-[#3A3A3A] text-sm">
-            {{ tujuan.judul }}
-          </span>
-          <p class="rounded-2xl bg-[#E3EFC2] border-[3px] border-[#3A3A3A] px-5 py-4 text-sm text-gray-700">
-            {{ tujuan.deskripsi }}
-          </p>
+
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-5">
+
+          <!-- Label Tujuan -->
+          <div class="col-span-1 sm:col-span-1 min-h-[68px] sm:min-h-[85px]
+                      flex items-center justify-center
+                      px-2 sm:px-5 py-3 sm:py-4
+                      rounded-[20px] sm:rounded-[28px]
+                      bg-[#F6FAEB]
+                      border-[2px] sm:border-[3px] border-[#3A3A3A]
+                      shadow-[0_5px_14px_rgba(58,58,58,0.15)]">
+
+            <span class="font-bold text-[11px] sm:text-base text-gray-800 text-center leading-tight">
+              {{ tujuan.judul }}
+            </span>
+
+          </div>
+
+          <!-- Isi Tujuan -->
+          <div class="col-span-1 sm:col-span-3 min-h-[68px] sm:min-h-[85px]
+                      flex items-center justify-center
+                      px-3 sm:px-8 py-3 sm:py-5
+                      rounded-[20px] sm:rounded-[28px]
+                      bg-[#F6FAEB]
+                      border-[2px] sm:border-[3px] border-[#3A3A3A]
+                      shadow-[0_5px_14px_rgba(58,58,58,0.15)]">
+
+            <p class="text-[10px] sm:text-base text-gray-700 text-center leading-relaxed">
+              {{ tujuan.deskripsi }}
+            </p>
+
+          </div>
+
         </div>
+
         {% empty %}
-        <p class="col-span-2 text-center text-gray-600 text-sm">Tujuan mentoring akan segera diumumkan.</p>
+        <p class="text-center text-gray-600 text-sm sm:text-base">
+          Tujuan mentoring akan segera diumumkan.
+        </p>
         {% endfor %}
       </div>
 
-      <div class="flex justify-center mt-14 mb-6">
-        <span class="px-6 py-2 rounded-full bg-[#417BB1] text-white font-semibold border-[3px] border-[#3A3A3A]">Benefit</span>
+      <!-- Benefit -->
+      <div class="flex justify-center mt-10 sm:mt-[60px] mb-6 sm:mb-8">
+        <span class="px-5 sm:px-6 py-1.5 sm:py-2 rounded-full bg-[#417BB1] text-white font-semibold
+                     border-[2px] sm:border-[3px] border-[#3A3A3A] text-xs sm:text-base">
+          Benefit
+        </span>
       </div>
-      <div class="grid sm:grid-cols-2 gap-4 max-w-3xl mx-auto">
+
+      <div class="grid grid-cols-2 gap-3 sm:gap-6 max-w-4xl mx-auto">
         {% for benefit in benefit_list %}
-        <div class="rounded-2xl bg-white border-[3px] border-[#3A3A3A] p-5 text-center">
-          <span class="inline-block px-5 py-2 mb-3 rounded-full bg-[#A6CE39] text-gray-800 font-semibold border-[3px] border-[#3A3A3A] text-sm">
+
+        <div class="flex flex-col gap-2">
+
+          <span class="self-stretch text-center px-2 sm:px-5 py-2 sm:py-3
+                       rounded-xl sm:rounded-2xl
+                       bg-[#A6CE39] text-gray-800 font-bold
+                       border-[2px] sm:border-[3px] border-[#3A3A3A]
+                       text-[10px] sm:text-base
+                       shadow-[0_5px_14px_rgba(58,58,58,0.15)]">
             {{ benefit.judul }}
           </span>
-          <p class="text-sm text-gray-700">{{ benefit.deskripsi }}</p>
+
+          <div class="rounded-xl sm:rounded-2xl bg-[#F6FAEB]
+                      border-[2px] sm:border-[3px] border-[#3A3A3A]
+                      p-3 sm:p-5 flex-1
+                      shadow-[0_5px_14px_rgba(58,58,58,0.15)]">
+
+            <p class="text-[10px] sm:text-base text-gray-700 text-center leading-relaxed">
+              {{ benefit.deskripsi }}
+            </p>
+
+          </div>
+
         </div>
+
         {% empty %}
-        <p class="col-span-2 text-center text-gray-600 text-sm">Benefit mentoring akan segera diumumkan.</p>
+        <p class="col-span-2 text-center text-gray-600 text-sm sm:text-base">
+          Benefit mentoring akan segera diumumkan.
+        </p>
         {% endfor %}
       </div>
 
-      <div class="flex justify-center mt-14 mb-6">
-        <span class="px-6 py-2 rounded-full bg-[#417BB1] text-white font-semibold border-[3px] border-[#3A3A3A]">Sistem Mentoring</span>
+      <!-- Sistem Mentoring -->
+      <div class="flex justify-center mt-10 sm:mt-[60px] mb-6 sm:mb-8">
+        <span class="px-5 sm:px-6 py-1.5 sm:py-2 rounded-full bg-[#417BB1] text-white font-semibold
+                     border-[2px] sm:border-[3px] border-[#3A3A3A] text-xs sm:text-base">
+          Sistem Mentoring
+        </span>
       </div>
 
       {% if sistem_list %}
-      <!-- Desktop: grid -->
+
       <div class="hidden md:grid md:grid-cols-3 gap-4 max-w-4xl mx-auto">
         {% for sistem in sistem_list %}
-        <div class="rounded-2xl bg-white border-[3px] border-[#3A3A3A] p-5 text-sm text-gray-700 text-center">
+        <div class="rounded-2xl bg-[#F6FAEB] border-[3px] border-[#3A3A3A]
+                    p-5 text-base text-gray-700 text-center
+                    shadow-[0_8px_20px_rgba(58,58,58,0.18)]">
           {{ sistem.deskripsi }}
         </div>
         {% endfor %}
       </div>
-      <!-- Mobile: simple carousel -->
-      <div x-data="{ slide: 0, total: {{ sistem_list|length }} }" class="md:hidden max-w-sm mx-auto">
+
+      <div x-data="{ slide: 0 }" class="md:hidden max-w-[220px] mx-auto">
+
         {% for sistem in sistem_list %}
         <div x-show="slide === {{ forloop.counter0 }}"
-             class="rounded-2xl bg-white border-[3px] border-[#3A3A3A] p-5 text-sm text-gray-700 text-center">
+             class="rounded-[20px] bg-[#F6FAEB]
+                    border-[2px] border-[#3A3A3A]
+                    min-h-[110px]
+                    p-4 text-[10px] text-gray-700 text-center
+                    leading-relaxed
+                    shadow-[0_5px_14px_rgba(58,58,58,0.15)]">
           {{ sistem.deskripsi }}
         </div>
         {% endfor %}
-        <div class="flex justify-center gap-2 mt-4">
+
+        <div class="flex justify-center gap-2 mt-3">
           {% for sistem in sistem_list %}
           <button @click="slide = {{ forloop.counter0 }}"
                   :class="slide === {{ forloop.counter0 }} ? 'bg-[#A6CE39]' : 'bg-[#3A3A3A]/30'"
-                  class="w-2 h-2 rounded-full"></button>
+                  class="w-1.5 h-1.5 rounded-full">
+          </button>
           {% endfor %}
         </div>
+
       </div>
+
       {% else %}
-      <p class="text-center text-gray-600 text-sm">Penjelasan sistem mentoring akan segera diumumkan.</p>
+      <p class="text-center text-gray-600 text-sm sm:text-base">
+        Penjelasan sistem mentoring akan segera diumumkan.
+      </p>
       {% endif %}
     </section>
 
     <!-- Galeri -->
     {% if galeri_list %}
-    <section class="mt-20">
-      <h2 class="text-2xl sm:text-3xl font-bold text-gray-800 text-center mb-2">Galeri</h2>
-      <p class="text-center text-gray-600 text-sm mb-8">Dokumentasi kegiatan SIWAK-NG.</p>
-      <div class="grid grid-cols-3 grid-rows-2 gap-2 h-[320px] max-w-3xl mx-auto">
+    <section class="mt-10 sm:mt-[60px]">
+
+      <h2 class="text-[26px] sm:text-[64px] font-bold text-gray-800 text-center mb-3 sm:mb-4">
+        Galeri
+      </h2>
+
+      <p class="text-center text-gray-600 text-xs sm:text-base mb-8 sm:mb-12">
+        Dokumentasi kegiatan SIWAK-NG.
+      </p>
+
+      <div class="max-w-4xl mx-auto space-y-2">
+
         {% for foto in galeri_list %}
+
+        {% if forloop.first %}
+        <div class="grid grid-cols-3 grid-rows-3 gap-1.5 sm:gap-2 h-[300px] sm:h-[465px]">
+
+        {% elif forloop.counter0|divisibleby:"5" %}
+        <div class="grid grid-cols-3 grid-rows-3 gap-1.5 sm:gap-2 h-[300px] sm:h-[465px]">
+
+        {% endif %}
+
+        {% if forloop.counter|add:"-1"|divisibleby:"5" %}
+
         <img src="{{ foto.gambar.url }}" alt="{{ foto.caption }}"
-             class="w-full h-full object-cover rounded-xl
-                    {% if forloop.first %}col-span-2 row-span-2{% endif %}">
+             class="w-full h-full object-cover rounded-md sm:rounded-xl col-start-1 row-start-1 row-span-3">
+
+        {% elif forloop.counter|add:"-2"|divisibleby:"5" %}
+
+        <img src="{{ foto.gambar.url }}" alt="{{ foto.caption }}"
+             class="w-full h-full object-cover rounded-md sm:rounded-xl col-start-2 row-start-1">
+
+        {% elif forloop.counter|add:"-3"|divisibleby:"5" %}
+
+        <img src="{{ foto.gambar.url }}" alt="{{ foto.caption }}"
+             class="w-full h-full object-cover rounded-md sm:rounded-xl col-start-2 row-start-2">
+
+        {% elif forloop.counter|add:"-4"|divisibleby:"5" %}
+
+        <img src="{{ foto.gambar.url }}" alt="{{ foto.caption }}"
+             class="w-full h-full object-cover rounded-md sm:rounded-xl col-start-3 row-start-1 row-span-2">
+
+        {% elif forloop.counter|add:"-5"|divisibleby:"5" %}
+
+        <img src="{{ foto.gambar.url }}" alt="{{ foto.caption }}"
+             class="w-full h-full object-cover rounded-md sm:rounded-xl col-start-2 col-span-2 row-start-3">
+
+        {% endif %}
+
+        {% if forloop.counter|divisibleby:"5" or forloop.last %}
+        </div>
+        {% endif %}
+
         {% endfor %}
+
       </div>
     </section>
     {% endif %}
 
     <!-- Ketua SIWAK-NG -->
     {% if ketua_list %}
-    <section class="mt-20">
-      <h2 class="text-2xl sm:text-3xl font-bold text-gray-800 text-center mb-8">Ketua SIWAK-NG dari Tahun ke Tahun</h2>
-      <div class="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory px-2">
+    <section class="mt-10 sm:mt-[60px]">
+
+      <h2 class="text-[26px] sm:text-[64px] font-bold text-gray-800 text-center mb-8 sm:mb-12">
+        Ketua SIWAK-NG dari Tahun ke Tahun
+      </h2>
+
+      <div class="flex gap-3 sm:gap-4 overflow-x-auto pb-4 snap-x snap-mandatory px-1">
+
         {% for ketua in ketua_list %}
-        <div class="snap-center shrink-0 w-40 rounded-2xl bg-white border-[3px] border-[#3A3A3A] p-4 text-center">
+
+        <div class="snap-center shrink-0 w-[140px] sm:w-40 rounded-2xl bg-white
+                    border-[2px] sm:border-[3px] border-[#3A3A3A]
+                    p-3 sm:p-4 text-center">
+
           {% if ketua.foto %}
-          <img src="{{ ketua.foto.url }}" alt="{{ ketua.nama }}" class="w-full h-32 object-cover rounded-xl mb-3">
+          <img src="{{ ketua.foto.url }}"
+               alt="{{ ketua.nama }}"
+               class="w-full h-28 sm:h-32 object-cover rounded-xl mb-3">
           {% else %}
-          <div class="w-full h-32 bg-gray-300 rounded-xl mb-3"></div>
+          <div class="w-full h-28 sm:h-32 bg-gray-300 rounded-xl mb-3"></div>
           {% endif %}
-          <p class="font-semibold text-sm text-gray-800">{{ ketua.nama }}</p>
-          <p class="text-xs text-gray-600">{{ ketua.tahun }}</p>
+
+          <p class="font-semibold text-[11px] sm:text-base text-gray-800">
+            {{ ketua.nama }}
+          </p>
+
+          <p class="text-[10px] sm:text-sm text-gray-600">
+            {{ ketua.tahun }}
+          </p>
+
         </div>
+
         {% endfor %}
       </div>
     </section>
@@ -183,33 +368,55 @@
 
     <!-- Kalender / Timeline -->
     {% if timeline_list %}
-    <section class="mt-20">
-      <h2 class="text-2xl sm:text-3xl font-bold text-gray-800 text-center mb-10">Kalender</h2>
-      <div class="relative max-w-3xl mx-auto">
-        <div class="absolute left-1/2 top-0 bottom-0 w-[3px] bg-[#417BB1] -translate-x-1/2"></div>
-        <div class="flex flex-col gap-8">
+    <section class="mt-10 sm:mt-[60px]">
+
+      <h2 class="text-[26px] sm:text-[64px] font-bold text-gray-800 text-center mb-8 sm:mb-12">
+        Kalender
+      </h2>
+
+      <div class="relative max-w-5xl mx-auto">
+        <div class="flex flex-col gap-9 sm:gap-14">
           {% for item in timeline_list %}
-          <div class="relative flex items-center gap-4 {% cycle '' 'flex-row-reverse' %}">
-            <div class="w-1/2 {% cycle 'text-right pr-6' 'text-left pl-6' %}">
-              <span class="inline-block px-4 py-1.5 rounded-full bg-white border-[3px] border-[#3A3A3A] text-sm font-semibold text-gray-800">
-                {{ item.tanggal_mulai|date:"j F Y" }}
+          {% cycle 'left' 'right' as timeline_side silent %}
+          <div class="relative grid grid-cols-[28px_minmax(0,1fr)] sm:grid-cols-[minmax(0,1fr)_48px_minmax(0,1fr)] items-start">
+            {% if not forloop.last %}
+            <div class="absolute z-0 left-[11px] sm:left-1/2 top-3 bottom-[-48px] sm:top-[14px] sm:bottom-[-70px]
+                        w-[6px] sm:w-2 bg-[#417BB1] sm:-translate-x-1/2"></div>
+            {% endif %}
+
+            <div class="col-start-1 sm:col-start-2 row-start-1 z-10 flex justify-center pt-[3px] sm:pt-1">
+              <span class="block w-[18px] h-[18px] sm:w-5 sm:h-5 rounded-full border-2 border-[#3A3A3A] bg-[#A6CE39]"
+                    role="img" aria-label="Status: {{ item.status_label }}">
               </span>
             </div>
-            <div class="absolute left-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-[3px] border-[#3A3A3A]
-                        {% if item.status == 'completed' %}bg-[#A6CE39]{% elif item.status == 'ongoing' %}bg-[#417BB1]{% else %}bg-white{% endif %}"></div>
-            <div class="w-1/2 {% cycle 'text-left pl-6' 'text-right pr-6' %}">
-              <div class="inline-block text-left rounded-2xl bg-[#E3EFC2] border-[3px] border-[#3A3A3A] px-4 py-3 max-w-xs">
-                <div class="flex items-center gap-2 mb-1">
-                  <span class="text-xs font-bold px-2 py-0.5 rounded-full
-                              {% if item.status == 'completed' %}bg-[#A6CE39] text-gray-800
-                              {% elif item.status == 'ongoing' %}bg-[#417BB1] text-white
-                              {% else %}bg-white text-gray-800 border border-[#3A3A3A]{% endif %}">
-                    {{ item.status_label }}
-                  </span>
-                </div>
-                <p class="font-semibold text-sm text-gray-800">{{ item.judul }}</p>
-                {% if item.deskripsi %}<p class="text-xs text-gray-600 mt-1">{{ item.deskripsi }}</p>{% endif %}
+
+            <div class="hidden sm:flex row-start-1 items-start
+                        {% if timeline_side == 'left' %}col-start-1 justify-end pr-6{% else %}col-start-3 justify-start pl-6{% endif %}
+                        {% if item.status == 'completed' %}opacity-60{% endif %}">
+              <span class="inline-block min-w-[160px] px-6 py-2 rounded-full bg-[#F8FBEF]
+                           border-2 border-[#3A3A3A] shadow-[0_5px_12px_rgba(58,58,58,0.13)]
+                           text-center text-xs font-semibold text-gray-800">
+                {{ item.tanggal_mulai|date:"j F Y" }}{% if item.tanggal_selesai %} &ndash; {{ item.tanggal_selesai|date:"j F Y" }}{% endif %}
+              </span>
+            </div>
+
+            <div class="col-start-2 sm:row-start-1
+                        {% if timeline_side == 'left' %}sm:col-start-3 sm:pl-6{% else %}sm:col-start-1 sm:pr-6 sm:text-right{% endif %}
+                        {% if item.status == 'completed' %}opacity-60{% endif %}">
+              <h3 class="mb-2 text-base sm:text-lg leading-6 sm:leading-7 font-bold text-gray-800">{{ item.judul }}</h3>
+              {% if item.deskripsi %}
+              <div class="min-h-[88px] flex items-center rounded-[20px] sm:rounded-[24px] bg-[#F8FBEF]
+                          border-2 border-[#3A3A3A] px-4 sm:px-6 py-4 sm:py-5
+                          {% if item.status == 'ongoing' %}ring-[3px] ring-[#A6CE39] shadow-[0_6px_18px_rgba(115,145,28,0.35)]{% else %}shadow-[0_6px_14px_rgba(58,58,58,0.12)]{% endif %}">
+                <p class="w-full text-sm sm:text-base leading-relaxed text-gray-700 {% if timeline_side == 'right' %}sm:text-right{% endif %}">
+                  {{ item.deskripsi }}
+                </p>
               </div>
+              {% endif %}
+              <span class="sm:hidden inline-block px-4 py-1.5 mt-3 rounded-full bg-[#F8FBEF]
+                           border-2 border-[#3A3A3A] text-xs font-semibold text-gray-800">
+                {{ item.tanggal_mulai|date:"j F Y" }}{% if item.tanggal_selesai %} &ndash; {{ item.tanggal_selesai|date:"j F Y" }}{% endif %}
+              </span>
             </div>
           </div>
           {% endfor %}
@@ -220,41 +427,102 @@
 
     <!-- FAQ -->
     {% if faq_list %}
-    <section class="mt-20">
-      <h2 class="text-2xl sm:text-3xl font-bold text-gray-800 text-center mb-8">FAQ Mentoring</h2>
-      <div x-data="{ open: null }" class="max-w-2xl mx-auto space-y-3">
+    <section class="mt-10 sm:mt-[60px]">
+
+      <h2 class="text-[26px] sm:text-[64px] font-bold text-gray-800 text-center mb-8 sm:mb-12">
+        FAQ Mentoring
+      </h2>
+
+      <div x-data="{ open: null }" class="max-w-4xl mx-auto space-y-2.5 sm:space-y-3">
+
         {% for faq in faq_list %}
-        <div class="rounded-2xl border-[3px] border-[#3A3A3A] overflow-hidden">
+
+        <div class="rounded-xl sm:rounded-2xl
+                    border-[2px] sm:border-[3px] border-[#3A3A3A]
+                    overflow-hidden
+                    shadow-[0_5px_14px_rgba(58,58,58,0.15)]"
+             :class="open === {{ forloop.counter0 }} ? 'bg-[#F6FAEB]' : 'bg-[#A6CE39]'">
+
           <button @click="open = open === {{ forloop.counter0 }} ? null : {{ forloop.counter0 }}"
-                  :class="open === {{ forloop.counter0 }} ? 'bg-[#A6CE39]' : 'bg-[#F6FAEB]'"
-                  class="w-full flex items-center justify-between px-5 py-4 font-semibold text-gray-800 text-left transition">
-            <span>{{ faq.pertanyaan }}</span>
-            <svg class="w-5 h-5 shrink-0 transition-transform" :class="open === {{ forloop.counter0 }} ? 'rotate-180' : ''"
-                 fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                  class="w-full flex items-center justify-between
+                         px-4 sm:px-5 py-3 sm:py-4
+                         font-semibold text-gray-800
+                         text-left transition bg-transparent">
+
+            <span class="text-[10px] sm:text-base">
+              {{ faq.pertanyaan }}
+            </span>
+
+            <svg class="w-4 h-4 sm:w-5 sm:h-5 shrink-0 transition-transform"
+                 :class="open === {{ forloop.counter0 }} ? 'rotate-180' : ''"
+                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                    stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+
           </button>
-          <div x-show="open === {{ forloop.counter0 }}" x-transition class="bg-[#F6FAEB] px-5 py-4 text-sm text-gray-700">
+
+          <div x-show="open === {{ forloop.counter0 }}" x-transition
+               class="px-4 sm:px-5 pb-3 sm:pb-4
+                      text-[10px] sm:text-base text-gray-700 bg-transparent">
             {{ faq.jawaban }}
           </div>
+
         </div>
+
         {% endfor %}
+
       </div>
     </section>
     {% endif %}
 
   </div>
+</div>
 
-  <!-- CTA -->
-  <div class="max-w-4xl mx-auto px-6 pb-20">
-    <div class="rounded-3xl bg-[#E3EFC2] border-[3px] border-[#3A3A3A] px-8 py-10 flex flex-col sm:flex-row items-center justify-between gap-6">
-      <div class="text-center sm:text-left">
-        <h3 class="text-xl sm:text-2xl font-bold text-gray-800">Yuk Mentoring!</h3>
-        <p class="text-sm text-gray-600 mt-1">Cari tahu kelompok mentoring dan mentormu.</p>
+<!-- Sesi Mentoring -->
+<section class="bg-gradient-to-b from-[#F8FBEF] via-[#E3EFC2] to-[#C5DF6A]">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 sm:px-[104px] py-12 sm:py-[100px]">
+
+    <!-- Judul -->
+    <h2 class="text-[28px] sm:text-[64px] font-bold text-gray-800 text-center mb-12 sm:mb-16">
+      Mentoring
+    </h2>
+
+    <!-- Konten Mentoring -->
+    <div class="max-w-2xl mx-auto grid grid-cols-2 gap-5 sm:gap-24 items-end">
+
+      <!-- Kiri -->
+      <div class="flex flex-col items-start text-left">
+
+        <h3 class="text-[18px] sm:text-[36px] font-bold text-gray-800">
+          Yuk Mentoring!
+        </h3>
+
+        <a href="{{ info.cta_mentoring_link|default:'/siwak/kelompok/' }}"
+           class="mt-3 sm:mt-5 px-4 sm:px-7 py-2 sm:py-3
+                  rounded-full bg-[#A6CE39]
+                  text-gray-800 font-semibold
+                  border-[2px] sm:border-[3px] border-[#3A3A3A]
+                  shadow-[0_5px_12px_rgba(58,58,58,0.18)]
+                  hover:bg-[#94ba2f] transition
+                  text-[9px] sm:text-base whitespace-nowrap">
+
+          Lihat Kelompok Mentoring
+
+        </a>
       </div>
-      <a href="{{ info.cta_mentoring_link|default:'/siwak/kelompok/' }}"
-         class="shrink-0 px-6 py-3 rounded-full bg-[#A6CE39] text-gray-800 font-semibold border-[3px] border-[#3A3A3A] hover:bg-[#94ba2f] transition">
-        Lihat Kelompok Mentoring
-      </a>
+
+      <!-- Kanan -->
+      <div class="text-left pb-1">
+
+        <p class="text-[10px] sm:text-lg text-gray-700 leading-relaxed max-w-xl">
+          Cari tahu kelompok mentoring dan mentormu.
+        </p>
+
+      </div>
+
     </div>
   </div>
-</div>
+</section>
+
 {% endblock %}

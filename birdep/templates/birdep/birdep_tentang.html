@@ -6,7 +6,7 @@
 
 {% block content %}
     <!-- Include header template -->
-    {% include 'header.html' with page_title="Our Team" %}
+    {% include 'header.html' with page_title="Biro & Departemen" %}
     
     <!-- Main content area -->
     <div class="relative w-full min-h-screen bg-[#F6FAEB] overflow-hidden">
@@ -16,74 +16,75 @@
             </div>
 
             <!-- Tab Navigation -->
-            <div class="flex justify-center gap-2 mb-8 flex-wrap">
-                <div class="flex items-center gap-2">
-                    <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-                        <span class="text-white text-sm">⋮⋮</span>
-                    </div>
+            <div class="flex justify-center mb-12 flex-wrap">
+                <div class="flex items-center gap-4">
+                    <a href="{% url 'birdep:team_list' %}" class="w-10 h-10 bg-[#32679A] rounded-full flex items-center justify-center text-white border-2 border-gray-800 hover:bg-[#25527d] transition-colors shadow-sm">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M4 4h4v4H4V4zm6 0h4v4h-4V4zm6 0h4v4h-4V4zM4 10h4v4H4v-4zm6 0h4v4h-4v-4zm6 0h4v4h-4v-4zM4 16h4v4H4v-4zm6 0h4v4h-4v-4zm6 0h4v4h-4v-4z"/></svg>
+                    </a>
+                    
                     <a href="{% url 'birdep:birdep_tentang' birdep.slug %}" 
-                       class="px-6 py-3 rounded-full text-sm font-medium transition-all duration-300 {% if current_tab == 'tentang' %}bg-[#8BC34A] text-white{% else %}bg-gray-200 text-gray-600 hover:bg-gray-300{% endif %}">
+                       class="px-8 py-2.5 rounded-full text-base font-semibold transition-all duration-300 {% if current_tab == 'tentang' %}bg-[#A6CE39] text-gray-900 border-2 border-gray-800 shadow-sm{% else %}bg-[#E3EFC2] text-gray-800 border-2 border-[#2E6B34] hover:bg-[#d5e8a6]{% endif %}">
                         Tentang {{ birdep.nama }}
                     </a>
+                    
                     <a href="{% url 'birdep:birdep_program' birdep.slug %}" 
-                       class="px-6 py-3 rounded-full text-sm font-medium transition-all duration-300 {% if current_tab == 'program' %}bg-[#8BC34A] text-white{% else %}bg-gray-200 text-gray-600 hover:bg-gray-300{% endif %}">
+                       class="px-8 py-2.5 rounded-full text-base font-semibold transition-all duration-300 {% if current_tab == 'program' %}bg-[#A6CE39] text-gray-900 border-2 border-gray-800 shadow-sm{% else %}bg-[#E3EFC2] text-gray-800 border-2 border-[#2E6B34] hover:bg-[#d5e8a6]{% endif %}">
                         Program
                     </a>
+                    
                     <a href="{% url 'birdep:birdep_fungsionaris' birdep.slug %}" 
-                       class="px-6 py-3 rounded-full text-sm font-medium transition-all duration-300 {% if current_tab == 'fungsionaris' %}bg-[#8BC34A] text-white{% else %}bg-gray-200 text-gray-600 hover:bg-gray-300{% endif %}">
+                       class="px-8 py-2.5 rounded-full text-base font-semibold transition-all duration-300 {% if current_tab == 'fungsionaris' %}bg-[#A6CE39] text-gray-900 border-2 border-gray-800 shadow-sm{% else %}bg-[#E3EFC2] text-gray-800 border-2 border-[#2E6B34] hover:bg-[#d5e8a6]{% endif %}">
                         Fungsionaris
                     </a>
                 </div>
             </div>
 
-            <!-- Content Card -->
-            <div class="bg-white rounded-2xl p-8 shadow-lg max-w-4xl mx-auto">
+            <!-- Content Area -->
+            <div class="max-w-4xl mx-auto px-4">
                 <!-- Content Sections -->
-                <div class="flex items-start gap-8">
+                <div class="flex flex-col md:flex-row items-center justify-center gap-8 mb-12">
                     <!-- Logo BirDep di kiri -->
-                    <div class="w-24 h-24 bg-[#8BC34A] rounded-2xl flex items-center justify-center flex-shrink-0">
+                    <div class="w-40 h-40 flex items-center justify-center flex-shrink-0">
                         {% if birdep.logo_filename %}
-                            <img src="{% static birdep.logo_url %}" alt="{{ birdep.nama }}" class="w-20 h-20 object-contain">
+                            <img src="{% static birdep.logo_url %}" alt="{{ birdep.nama }}" class="w-full h-full object-contain">
                         {% else %}
-                            <span class="text-white text-4xl">💚</span>
+                            <div class="w-full h-full bg-[#8BC34A] rounded-full flex items-center justify-center border-4 border-gray-800">
+                                <span class="text-white text-6xl">💚</span>
+                            </div>
                         {% endif %}
                     </div>
 
                     <!-- Text Content -->
-                    <div class="flex-1">
-                        {% if birdep.tentang_deskripsi %}
-                        <div class="mb-8">
-                            <p class="text-gray-600 leading-relaxed">{{ birdep.tentang_deskripsi|linebreaks }}</p>
+                    <div class="max-w-md mt-4 md:mt-0 text-center md:text-left">
+                        <div class="">
+                            {% if birdep.tentang_deskripsi %}
+                                <p class="text-gray-800 text-lg leading-relaxed">{{ birdep.tentang_deskripsi|linebreaks }}</p>
+                            {% else %}
+                                <p class="text-gray-500 italic">Deskripsi belum tersedia.</p>
+                            {% endif %}
                         </div>
-                        {% else %}
-                        <div class="mb-8">
-                            <p class="text-gray-600 leading-relaxed">Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
-                        </div>
-                        {% endif %}
                     </div>
                 </div>
 
-                {% if birdep.visi or not birdep.tentang_deskripsi %}
-                <div class="mb-8">
-                    <h3 class="text-2xl font-bold text-gray-800 mb-4">Visi</h3>
-                    {% if birdep.visi %}
-                        <p class="text-gray-600 leading-relaxed">{{ birdep.visi|linebreaks }}</p>
-                    {% else %}
-                        <p class="text-gray-600 leading-relaxed">Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
-                    {% endif %}
-                </div>
-                {% endif %}
+                <div class="space-y-10">
+                    <div class="mb-8">
+                        <h3 class="text-xl font-bold text-gray-900 mb-3">Tugas / Visi</h3>
+                        {% if birdep.visi %}
+                            <div class="text-gray-800 leading-relaxed">{{ birdep.visi|linebreaks }}</div>
+                        {% else %}
+                            <p class="text-gray-500 italic">Visi belum tersedia.</p>
+                        {% endif %}
+                    </div>
 
-                {% if birdep.misi or not birdep.tentang_deskripsi %}
-                <div class="mb-8">
-                    <h3 class="text-2xl font-bold text-gray-800 mb-4">Misi</h3>
-                    {% if birdep.misi %}
-                        <p class="text-gray-600 leading-relaxed">{{ birdep.misi|linebreaks }}</p>
-                    {% else %}
-                        <p class="text-gray-600 leading-relaxed">Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
-                    {% endif %}
+                    <div class="mb-8">
+                        <h3 class="text-xl font-bold text-gray-900 mb-3">Tanggung Jawab / Misi</h3>
+                        {% if birdep.misi %}
+                            <div class="text-gray-800 leading-relaxed">{{ birdep.misi|linebreaks }}</div>
+                        {% else %}
+                            <p class="text-gray-500 italic">Misi belum tersedia.</p>
+                        {% endif %}
+                    </div>
                 </div>
-                {% endif %}
             </div>
         </div>
     </div>
