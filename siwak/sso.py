@@ -16,7 +16,7 @@ redirect to sso.ui.ac.id. That keeps the swap to real SSO a small, isolated
 change instead of a rewrite. See the bottom of this file for that swap.
 """
 
-from django.contrib.auth import get_user_model, login as django_login
+from django.contrib.auth import get_user_model
 from django.db import transaction
 
 from .models import MabaProfile, PesertaMentoring
@@ -93,34 +93,6 @@ def get_attribute(attributes, key):
 
     return str(value).strip()
 
-
-def login_or_create_maba(request, npm: str, nama_lengkap: str, jurusan: str, angkatan: str = "") -> MabaProfile:
-    """Dev-mode stand-in for a successful SSO UI assertion.
-
-    Given the identity attributes SSO UI would normally assert about the
-    user (NPM, nama, jurusan), get-or-create the matching Django User +
-    MabaProfile and log them in. Idempotent: logging in twice with the same
-    NPM reuses the same account instead of duplicating it.
-    """
-    user, _created = User.objects.get_or_create(
-        username=npm,
-        defaults={"first_name": nama_lengkap[:150]},
-    )
-    profile = sync_maba_profile(
-        user=user,
-        npm=npm,
-        nama_lengkap=nama_lengkap,
-        jurusan=jurusan,
-        angkatan=angkatan
-    )
-
-    django_login(request, user, backend="django.contrib.auth.backends.ModelBackend")
-
-    # Link any pre-imported PesertaMentoring row (from the admin's kelompok
-    # upload) to this account, matched by NPM, so Tugas/RSVP can find their
-    # kelompok without asking them to search again.
-    
-    return profile
 
 
 # ---------------------------------------------------------------------------

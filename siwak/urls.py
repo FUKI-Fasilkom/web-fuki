@@ -10,9 +10,7 @@ urlpatterns = [
     path("", views.landing, name="landing"),
     path("kelompok/", views.kelompok_search, name="kelompok_search"),
 
-    # 7 — Authentication (dev-mode; see siwak/sso.py)
-    path("login/", views.maba_login, name="login"),
-    path("logout/", views.maba_logout, name="logout"),
+    # 7 — Authentication (with sso ui cas2)
     path("sso-login/", cas_views.LoginView.as_view(), name="cas_ng_login"),
     path("sso-logout/", cas_views.LogoutView.as_view(), name="cas_ng_logout"),
 
