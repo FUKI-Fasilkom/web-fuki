@@ -101,6 +101,8 @@ CAS_LOGOUT_URL_NAME = "siwak:cas_ng_logout"
 
 LOGIN_URL = "siwak:cas_ng_login"
 CAS_REDIRECT_URL = "siwak:tugas_list"
+CAS_IGNORE_REFERER = True
+CAS_LOGOUT_NEXT_PAGE = "/"
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
