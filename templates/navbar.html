@@ -45,14 +45,20 @@
       <a href="{% url 'hubungi_kami' %}" class="text-navy hover:text-navy-600 transition">Hubungi Kami</a>
     </div>
 
-    {% comment %}
-      Tombol SSO masih placeholder: proyek belum punya backend autentikasi sama
-      sekali. Arahkan href ke URL login begitu SSO UI tersedia.
+    {% comment %} 
+      SSO UI sudah tersedia 
     {% endcomment %}
-    <a href="#"
-       class="hidden lg:inline-block bg-navy text-white text-sm xl:text-base font-semibold px-5 py-2 rounded-lg hover:bg-navy-700 transition shrink-0">
-      Login with SSO
-    </a>
+    {% if user.is_authenticated %}
+      <a href="{% url 'siwak:cas_ng_logout' %}"
+        class="hidden lg:inline-block bg-navy text-white text-sm xl:text-base font-semibold px-5 py-2 rounded-lg hover:bg-navy-700 transition shrink-0">
+        Logout
+      </a>
+    {% else %}
+      <a href="{% url 'siwak:cas_ng_login' %}"
+        class="hidden lg:inline-block bg-navy text-white text-sm xl:text-base font-semibold px-5 py-2 rounded-lg hover:bg-navy-700 transition shrink-0">
+        Login with SSO
+      </a>
+    {% endif %}
 
     <div class="lg:hidden">
       <button @click="open = !open" :aria-expanded="open" aria-label="Buka menu"
@@ -80,8 +86,14 @@
     <a href="{% url 'blog_kajian' %}" class="block py-2 pl-3 text-navy hover:text-navy-600">Kajian</a>
     <a href="{% url 'siwak:landing' %}" class="block py-2 text-navy hover:text-navy-600">SIWAK-NG</a>
     <a href="{% url 'hubungi_kami' %}" class="block py-2 text-navy hover:text-navy-600">Hubungi Kami</a>
-    <a href="#" class="block mt-3 bg-navy text-white text-center font-semibold px-5 py-2.5 rounded-lg hover:bg-navy-700 transition">
-      Login with SSO
-    </a>
+    {% if user.is_authenticated %}
+      <a href="{% url 'siwak:cas_ng_logout' %}" class="block mt-3 bg-navy text-white text-center font-semibold px-5 py-2.5 rounded-lg hover:bg-navy-700 transition">
+        Logout
+      </a>
+    {% else %}
+      <a href="{% url 'siwak:cas_ng_login' %}" class="block mt-3 bg-navy text-white text-center font-semibold px-5 py-2.5 rounded-lg hover:bg-navy-700 transition">
+        Login with SSO
+      </a>
+    {% endif %}
   </div>
 </nav>
