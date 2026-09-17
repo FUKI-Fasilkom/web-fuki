@@ -1,11 +1,16 @@
-from datetime import datetime, timezone
+# `date` diimpor eksplisit, bukan lewat `import datetime`: lapor_submit memakai
+# nama `datetime` untuk class-nya, sehingga `datetime.date.today()` gaya modul
+# tidak lagi bisa dipakai di file ini.
+from datetime import date, datetime, timezone
 import json
 import os
 
 import requests
-from django.shortcuts import render
 from django.http import JsonResponse
+from django.shortcuts import render
 from django.views.decorators.http import require_POST
+
+from kegiatan.models import Kegiatan
 
 def health_check(request):
     return JsonResponse({"status": "ok"})
@@ -14,7 +19,20 @@ def beranda(request):
     # Beranda dilayani dari dua URL ("/" dan "/beranda"). canonical_path menyatakan
     # ke Google bahwa "/" adalah versi resminya, supaya keduanya tidak dihitung
     # sebagai dua halaman yang saling menggerus peringkat.
-    return render(request, 'beranda.html', {'canonical_path': '/'})
+    #
+    # "Apa Itu Fuki" di-hardcode di template, sedangkan section Our Activity,
+    # Podcast, dan Company Profile dikomentari karena isinya belum ditentukan.
+    # Saat diaktifkan lagi, tambahkan 'activities', 'podcasts', dan
+    # 'company_profiles' ke context di bawah.
+    today = date.today()
+    context = {
+        'canonical_path': '/',
+        # Dibatasi 6: tab kategori disaring di sisi klien, jadi semua kartu ikut
+        # dirender sekaligus dan daftar panjang akan memberatkan halaman.
+        'kegiatan_upcoming': Kegiatan.objects.filter(tanggal__gte=today)[:6],
+        'kategori_choices': Kegiatan.KATEGORI_CHOICES,
+    }
+    return render(request, 'beranda.html', context)
 
 def hubungi_kami(request):
     return render(request, 'hubungi_kami.html')
