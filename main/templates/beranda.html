@@ -7,11 +7,15 @@
 
 {% block extra_head %}
 {% comment %}
+  NONAKTIF bersama section "Our Activity" — aktifkan keduanya bersamaan dengan
+  menghapus pasangan comment/endcomment yang membungkus script di bawah.
+
   Carousel "Our Activity": scrollbar bawaan disembunyikan (kelas .no-scrollbar)
   dan diganti track buatan sendiri agar sesuai mockup. Didaftarkan lewat
   Alpine.data() — bukan atribut x-data inline — karena logikanya sudah terlalu
   panjang untuk ditulis di dalam HTML.
 {% endcomment %}
+{% comment %}
 <script>
   document.addEventListener('alpine:init', () => {
     Alpine.data('carousel', () => ({
@@ -79,6 +83,7 @@
     }));
   });
 </script>
+{% endcomment %}
 {% endblock %}
 
 {% block content %}
@@ -88,37 +93,42 @@
 
 {# ======================== APA ITU FUKI ======================== #}
 <section class="w-full bg-white py-14 sm:py-20">
-  {% comment %}
-    Tanpa foto, grid dua kolom akan menyisakan separuh ruang menganga di kanan.
-    Karena itu kolomnya bersyarat: satu kolom rata tengah saat mosaik kosong.
-  {% endcomment %}
-  <div class="mx-auto w-full max-w-[1118px] px-6 grid gap-10 items-center{% if tentang_gambar %} lg:grid-cols-2 lg:gap-16{% endif %}">
+  <div class="mx-auto w-full max-w-[1118px] px-6 grid gap-10 items-center lg:grid-cols-2 lg:gap-16">
 
-    <div class="text-center{% if tentang_gambar %} lg:text-left{% endif %}">
-      <h2 class="text-2xl sm:text-4xl font-bold text-navy-700">{{ tentang.judul }}</h2>
-      <p class="mt-4 text-sm sm:text-base leading-relaxed text-navy-400 max-w-md mx-auto{% if tentang_gambar %} lg:mx-0{% endif %}">
-        {{ tentang.deskripsi|default:"Fuki adalah wadah untuk mempererat ukhuwah dan meningkatkan kualitas Islam agar dapat menjadi muslim yang bermanfaat bagi sekitar." }}
+    <div class="text-center lg:text-left">
+      <h2 class="text-2xl sm:text-4xl font-bold text-navy-700">Apa Itu Fuki?</h2>
+      <p class="mt-4 text-sm sm:text-base leading-relaxed text-navy-400 max-w-md mx-auto lg:mx-0">
+        Fuki adalah wadah untuk mempererat ukhuwah dan meningkatkan kualitas Islam agar dapat menjadi muslim yang bermanfaat bagi sekitar.
       </p>
     </div>
 
     {% comment %}
-      Mosaik 5 ubin. Rasio & rentang kolom tiap ubin ditentukan dari urutannya
-      supaya susunannya berubah bentuk antara mobile dan desktop. Baris tanpa
-      berkas gambar sudah disaring di main/views.py.
+      Mosaik 5 kotak abu-abu: placeholder prototipe sampai fotonya tersedia.
+      Design mobile dan desktop menyusunnya berbeda, jadi tiap kotak diberi nama
+      area (a-e) dan peta areanya saja yang berganti di breakpoint lg:
+
+        mobile        desktop
+        a b b         a a a b b
+        a c c         c c d d d
+        a d e         e e e e e
+
+      Rasio kolom & baris diukur dari Figma. Tinggi mosaik berasal dari
+      aspect-ratio pembungkusnya, lalu dibagi ke tiap baris lewat satuan fr.
+      max-w-md mencegah mosaik membengkak di tablet, saat masih satu kolom.
+      Saat foto siap, isi tiap kotak dengan <img class="w-full h-full object-cover">
+      dan tambahkan overflow-hidden pada kotaknya.
     {% endcomment %}
-    {% if tentang_gambar %}
-    <div class="grid grid-cols-4 gap-3 sm:gap-4">
-      {% for gambar in tentang_gambar %}
-        <div class="rounded-2xl overflow-hidden bg-gray-300
-          {% if forloop.counter == 1 %}col-span-2 row-span-2 aspect-[3/4] lg:row-span-1 lg:aspect-[4/3]
-          {% elif forloop.counter == 2 %}col-span-2 aspect-[4/3]
-          {% elif forloop.counter == 5 %}col-span-4 aspect-[16/6]
-          {% else %}col-span-1 aspect-square lg:col-span-2 lg:aspect-[4/3]{% endif %}">
-          <img src="{{ gambar.gambar.url }}" alt="{{ gambar.alt }}" loading="lazy" class="w-full h-full object-cover" />
-        </div>
-      {% endfor %}
+    <div aria-hidden="true"
+         class="grid w-full max-w-md mx-auto gap-2 aspect-[207/185] grid-cols-[4fr_3fr_3fr] grid-rows-3
+                [grid-template-areas:'a_b_b'_'a_c_c'_'a_d_e']
+                lg:max-w-none lg:gap-2.5 lg:aspect-[382/358] lg:grid-cols-5 lg:grid-rows-[124fr_124fr_97fr]
+                lg:[grid-template-areas:'a_a_a_b_b'_'c_c_d_d_d'_'e_e_e_e_e']">
+      <div class="[grid-area:a] rounded-lg lg:rounded-xl bg-[#D9D9D9]"></div>
+      <div class="[grid-area:b] rounded-lg lg:rounded-xl bg-[#D9D9D9]"></div>
+      <div class="[grid-area:c] rounded-lg lg:rounded-xl bg-[#D9D9D9]"></div>
+      <div class="[grid-area:d] rounded-lg lg:rounded-xl bg-[#D9D9D9]"></div>
+      <div class="[grid-area:e] rounded-lg lg:rounded-xl bg-[#D9D9D9]"></div>
     </div>
-    {% endif %}
   </div>
 </section>
 
@@ -191,18 +201,29 @@
   </div>
 </section>
 
+{% comment %}
+  SECTION NONAKTIF: Our Activity, Podcast, dan Company Profile.
+  Isinya belum ditentukan tim, jadi ketiganya dikomentari alih-alih mengambil
+  data yang pasti kosong. Markup-nya dipertahankan supaya tinggal diaktifkan:
+    1. hapus pasangan comment/endcomment yang membungkus section-nya;
+    2. untuk Our Activity, aktifkan juga script carousel di blok extra_head;
+    3. kirim datanya dari main/views.py:
+         activities       — judul, gambar, deskripsi
+         podcasts         — judul, deskripsi, thumbnail, link
+         company_profiles — judul, deskripsi, thumbnail, link
+  Di dalam blok ini hanya boleh ada komentar satu baris: tag comment Django
+  tidak bisa bersarang, endcomment pertama akan menutup blok pembungkusnya.
+{% endcomment %}
+
 {# ======================== OUR ACTIVITY ======================== #}
+{% comment %}
 {% if activities %}
 <section class="w-full bg-white py-10 sm:py-16 overflow-hidden"
          x-data="carousel" @resize.window="hitung()">
   <div class="mx-auto w-full max-w-[1118px] px-6">
     <h2 class="text-2xl sm:text-4xl font-bold text-navy-700">Our Activity</h2>
 
-    {% comment %}
-      snap-x tanpa snap-mandatory: strictness bawaan Tailwind adalah 'proximity',
-      yang tidak melawan geseran thumb. Dengan 'mandatory' scroll akan terus
-      dipaksa menempel ke kartu terdekat sehingga geseran terasa tersendat.
-    {% endcomment %}
+    {# snap-x saja (proximity), bukan snap-mandatory: mandatory memaksa scroll menempel ke kartu sehingga geseran thumb tersendat. #}
     <div x-ref="track" @scroll="hitung()"
          class="no-scrollbar mt-6 flex gap-5 overflow-x-auto snap-x pb-4">
       {% for activity in activities %}
@@ -243,8 +264,10 @@
   </div>
 </section>
 {% endif %}
+{% endcomment %}
 
 {# ========================== PODCAST =========================== #}
+{% comment %}
 {% if podcasts %}
 <section class="w-full bg-white py-10 sm:py-16">
   <div class="mx-auto w-full max-w-[1118px] px-6">
@@ -275,8 +298,10 @@
   </div>
 </section>
 {% endif %}
+{% endcomment %}
 
 {# ====================== COMPANY PROFILE ======================= #}
+{% comment %}
 {% if company_profiles %}
 <section class="w-full bg-cream py-12 sm:py-16">
   <div class="mx-auto w-full max-w-[1118px] px-6">
@@ -299,5 +324,6 @@
   </div>
 </section>
 {% endif %}
+{% endcomment %}
 
 {% endblock %}
