@@ -18,6 +18,9 @@
                     design beranda menempatkan logo tegak di dalam container.
     latar_krem    — opsional; True bila section di bawah hero berlatar cream-50
                     (birdep), supaya pudar di tepi bawah menyatu dengannya.
+    ringkas       — opsional; True untuk hero pendek (±266px di desktop, bukan
+                    696px) di halaman turunan, supaya judul dan isi halaman
+                    langsung terlihat tanpa scroll.
 
   Pemakaian:
     {% templatetag openblock %} include 'hero_gold.html' with page_title="Profil" {% templatetag closeblock %}
@@ -26,7 +29,8 @@
   belum diredesign — jangan dicampur dengan partial ini.
 {% endcomment %}
 
-<section class="relative isolate w-full overflow-hidden pt-10 pb-20 lg:pt-[130px] lg:pb-[160px]">
+<section class="relative isolate w-full overflow-hidden
+                {% if ringkas %}pt-8 pb-12 lg:pt-10 lg:pb-14{% else %}pt-10 pb-20 lg:pt-[130px] lg:pb-[160px]{% endif %}">
   {% comment %}
     1. DASAR GOLD — memberi variasi warna melintang hero.
   {% endcomment %}
@@ -50,7 +54,8 @@
     supaya tidak ikut ter-multiply. Tingginya sengaja lebih kecil dari padding
     bawah section (144 < 160) supaya gradasi tidak pernah menyentuh logo.
   {% endcomment %}
-  <div class="absolute inset-x-0 bottom-0 h-24 lg:h-36 pointer-events-none bg-gradient-to-b
+  <div class="absolute inset-x-0 bottom-0 pointer-events-none bg-gradient-to-b
+              {% if ringkas %}h-12 lg:h-14{% else %}h-24 lg:h-36{% endif %}
               {% if latar_krem %}from-cream-50/0 to-cream-50{% else %}from-white/0 to-white{% endif %}"></div>
 
   {% if logo_miring %}
@@ -66,11 +71,13 @@
     div konten karena div itu relative (absolute akan menempel ke sana).
   {% endcomment %}
   <img src="{% static 'images/Logo-FUKI-Biru.png' %}" alt="Logo FUKI"
-       class="pointer-events-none absolute right-0 top-1/2 w-[150px] sm:w-[260px] lg:w-[380px] h-auto object-contain
+       class="pointer-events-none absolute right-0 top-1/2 h-auto object-contain
+              {% if ringkas %}w-[100px] sm:w-[160px] lg:w-[200px]{% else %}w-[150px] sm:w-[260px] lg:w-[380px]{% endif %}
               -translate-y-1/2 translate-x-[30%] -rotate-[18deg]" />
   {% endif %}
 
-  <div class="relative mx-auto w-full max-w-[1118px] px-6 h-[170px] sm:h-[260px] lg:h-[406px] flex items-center justify-between gap-6">
+  <div class="relative mx-auto w-full max-w-[1118px] px-6 flex items-center justify-between gap-6
+              {% if ringkas %}h-[110px] sm:h-[150px] lg:h-[170px]{% else %}h-[170px] sm:h-[260px] lg:h-[406px]{% endif %}">
     <div>
       <h1 class="font-bold text-navy {% if judul_baris_2 %}leading-snug sm:leading-snug{% else %}leading-none{% endif %} {% if judul_besar %}text-3xl sm:text-5xl lg:text-[64px]{% else %}text-4xl sm:text-5xl lg:text-[52px]{% endif %}">{{ page_title }}{% if judul_baris_2 %}<br>{{ judul_baris_2 }}{% endif %}</h1>
       {% if subtitle %}

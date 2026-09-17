@@ -12,7 +12,14 @@
 
 {% block content %}
 
-{% include 'hero_gold.html' with page_title="Biro &" judul_baris_2="Departemen" logo_miring=True latar_krem=True %}
+{% comment %}
+  Hero ringkas untuk halaman turunan: begitu sebuah unit diklik, judul dan
+  isinya harus langsung terlihat tanpa scroll. Hanya team_list (pintu masuk)
+  yang menimpa block ini dengan hero penuh.
+{% endcomment %}
+{% block hero %}
+{% include 'hero_gold.html' with page_title="Biro &" judul_baris_2="Departemen" logo_miring=True latar_krem=True ringkas=True %}
+{% endblock %}
 
 <section class="relative isolate w-full overflow-hidden bg-cream-50 pt-2 pb-16 sm:pb-24 lg:pb-56">
   {% comment %}

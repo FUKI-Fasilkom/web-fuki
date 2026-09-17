@@ -8,6 +8,10 @@
   penuh (mis. kartu ke-9 di desktop) tetap berada di tengah.
 {% endcomment %}
 
+{% block hero %}
+{% include 'hero_gold.html' with page_title="Biro &" judul_baris_2="Departemen" logo_miring=True latar_krem=True %}
+{% endblock %}
+
 {% block isi %}
 <h2 class="sr-only">Daftar Biro &amp; Departemen</h2>
 

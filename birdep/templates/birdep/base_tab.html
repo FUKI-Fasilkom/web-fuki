@@ -7,7 +7,10 @@
 {% endcomment %}
 
 {% block isi %}
-<h2 class="text-center text-2xl sm:text-[32px] font-bold text-navy leading-tight">{{ birdep.nama_panjang }}</h2>
+{% url 'birdep:team_list' as kembali %}
+{% include 'birdep/components/tombol_kembali.html' with tautan=kembali only %}
+
+<h2 class="mt-4 text-center text-2xl sm:text-[32px] font-bold text-navy leading-tight">{{ birdep.nama_panjang }}</h2>
 
 <nav aria-label="Bagian {{ birdep.nama }}" class="mt-4 sm:mt-8 flex justify-center gap-1 sm:gap-4">
   <a href="{% url 'birdep:birdep_tentang' birdep.slug %}"
