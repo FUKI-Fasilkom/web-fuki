@@ -39,8 +39,8 @@
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:site" content="@fukifasilkom" />
 
-  <link rel="icon" href="{% static 'images/Logo-FUKI.png' %}" type="image/png" />
-  <link rel="apple-touch-icon" href="{% static 'images/Logo-FUKI.png' %}" />
+  <link rel="icon" href="{% static 'images/Logo-FUKI-Biru.png' %}" type="image/png" />
+  <link rel="apple-touch-icon" href="{% static 'images/Logo-FUKI-Biru.png' %}" />
 
   {% comment %}
     preconnect memangkas satu putaran handshake ke Google Fonts. Kecepatan muat
@@ -50,11 +50,44 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
+
+  {% comment %}
+    PALET WARNA FUKI 2026 (navy + gold + cream)
+    Harus berada SETELAH script CDN Tailwind di atas. Sebelum ini semua warna
+    ditulis sebagai arbitrary value (bg-[#48581A]) dan tersebar di puluhan
+    template; token bernama di sini membuat halaman yang sudah diredesign
+    memakai sumber warna yang sama. Halaman yang belum diredesign masih
+    memakai palet hijau lama lewat arbitrary value dan tidak terpengaruh.
+  {% endcomment %}
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            navy:  { DEFAULT: '#12284C', 900: '#0D1F3D', 700: '#1B3A6E', 600: '#2D4E86', 400: '#4A6FA5' },
+            gold:  { DEFAULT: '#C9B97A', dark: '#7A6425', light: '#E8DCB0' },
+            cream: { DEFAULT: '#FAF3DC', 200: '#F8EFCF', 300: '#F5E9C4' },
+            badge: '#D6E4F5',
+          },
+          fontFamily: { sans: ['Poppins', 'sans-serif'] },
+        },
+      },
+    };
+  </script>
+
   <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
   <style>
     body {
       font-family: 'Poppins', sans-serif;
     }
+    /* Tanpa ini panel Alpine (dropdown navbar) sempat berkedip sebelum Alpine termuat. */
+    [x-cloak] { display: none !important; }
+
+    /* Menyembunyikan scrollbar bawaan pada area yang sudah punya scrollbar
+       buatan sendiri (mis. carousel "Our Activity" di beranda), supaya tidak
+       tampil dua batang sekaligus. Tailwind tidak menyediakan utility ini. */
+    .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
   </style>
 
   {% comment %}
