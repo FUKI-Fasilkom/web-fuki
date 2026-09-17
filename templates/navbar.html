@@ -15,7 +15,12 @@
       <span class="font-bold text-navy text-sm sm:text-base whitespace-nowrap">FUKI FASILKOM UI</span>
     </a>
 
-    <div class="hidden lg:flex items-center gap-6 text-sm">
+    {% comment %}
+      Menu 16px baru dipakai mulai xl (1280px). Di rentang lg (1024-1279px)
+      logo + enam menu + tombol SSO pada 16px butuh ±1030px sehingga menu
+      terlipat dua baris; di situ ukurannya turun ke 14px dan jaraknya dirapatkan.
+    {% endcomment %}
+    <div class="hidden lg:flex items-center gap-4 xl:gap-6 text-sm xl:text-base whitespace-nowrap">
       <a href="/" class="text-navy hover:text-navy-600 transition">Beranda</a>
       <a href="{% url 'profil' %}" class="text-navy hover:text-navy-600 transition">Profil</a>
       <a href="{% url 'birdep:team_list' %}" class="text-navy hover:text-navy-600 transition">Biro &amp; Departemen</a>
@@ -45,7 +50,7 @@
       sekali. Arahkan href ke URL login begitu SSO UI tersedia.
     {% endcomment %}
     <a href="#"
-       class="hidden lg:inline-block bg-navy text-white text-sm font-semibold px-5 py-2 rounded-lg hover:bg-navy-700 transition shrink-0">
+       class="hidden lg:inline-block bg-navy text-white text-sm xl:text-base font-semibold px-5 py-2 rounded-lg hover:bg-navy-700 transition shrink-0">
       Login with SSO
     </a>
 
@@ -66,7 +71,7 @@
     </div>
   </div>
 
-  <div x-show="open" x-transition x-cloak class="lg:hidden px-4 pb-4 space-y-1 text-sm border-t border-navy/10 pt-3">
+  <div x-show="open" x-transition x-cloak class="lg:hidden px-4 pb-4 space-y-1 text-base border-t border-navy/10 pt-3">
     <a href="/" class="block py-2 text-navy hover:text-navy-600">Beranda</a>
     <a href="{% url 'profil' %}" class="block py-2 text-navy hover:text-navy-600">Profil</a>
     <a href="{% url 'birdep:team_list' %}" class="block py-2 text-navy hover:text-navy-600">Biro &amp; Departemen</a>

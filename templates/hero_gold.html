@@ -8,7 +8,7 @@
   Parameter:
     page_title   — teks judul (wajib)
     subtitle     — opsional, hanya beranda yang memakainya
-    judul_besar  — opsional; True untuk judul 64px (beranda), selain itu 40px
+    judul_besar  — opsional; True untuk judul 64px (beranda), selain itu 52px
     logo_miring  — opsional; True membuat logo dimiringkan dan menembus tepi
                    kanan (halaman dalam seperti profil). Beranda TIDAK memakainya:
                    design beranda menempatkan logo tegak di dalam container.
@@ -66,7 +66,7 @@
 
   <div class="relative mx-auto w-full max-w-[1118px] px-6 h-[170px] sm:h-[260px] lg:h-[406px] flex items-center justify-between gap-6">
     <div>
-      <h1 class="text-3xl sm:text-5xl font-bold text-navy leading-none {% if judul_besar %}lg:text-[64px]{% else %}lg:text-[40px]{% endif %}">{{ page_title }}</h1>
+      <h1 class="font-bold text-navy leading-none {% if judul_besar %}text-3xl sm:text-5xl lg:text-[64px]{% else %}text-4xl sm:text-5xl lg:text-[52px]{% endif %}">{{ page_title }}</h1>
       {% if subtitle %}
       <p class="mt-2 sm:mt-3 text-xs sm:text-lg lg:text-xl font-semibold italic text-navy">{{ subtitle }}</p>
       {% endif %}
