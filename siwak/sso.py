@@ -17,6 +17,7 @@ change instead of a rewrite. See the bottom of this file for that swap.
 """
 
 from django.contrib.auth import get_user_model
+from django.contrib import messages
 from django.db import transaction
 
 from .models import MabaProfile, PesertaMentoring
@@ -64,6 +65,10 @@ def handle_cas_login(sender, user, username, attributes, **kwargs):
         jurusan=jurusan,
         angkatan=angkatan
     )
+
+    request = kwargs.get("request")
+    if request:
+        messages.success(request, f"Login berhasil. Selamat datang, {nama_lengkap}.")
 
 
 @transaction.atomic

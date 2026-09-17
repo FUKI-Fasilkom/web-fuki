@@ -98,6 +98,7 @@ CAS_VERSION = 2
 CAS_ADMIN_REDIRECT = False
 CAS_LOGIN_URL_NAME = "siwak:cas_ng_login"
 CAS_LOGOUT_URL_NAME = "siwak:cas_ng_logout"
+CAS_LOGIN_MSG = None
 
 LOGIN_URL = "siwak:cas_ng_login"
 CAS_REDIRECT_URL = "siwak:tugas_list"
