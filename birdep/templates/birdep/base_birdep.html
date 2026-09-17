@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+
+{% comment %}
+  Kerangka bersama seluruh halaman Biro & Departemen: hero gold, latar
+  cream-50, dan riak lingkaran di kanan. Halaman turunan cukup mengisi
+  {% templatetag openblock %} block isi {% templatetag closeblock %}.
+
+  Latarnya sengaja cream-50, bukan putih: riak di design berupa garis putih
+  yang tidak akan terlihat di atas latar putih. Karena itu hero dipanggil
+  dengan latar_krem supaya pudarnya menyatu dengan section ini.
+{% endcomment %}
+
+{% block content %}
+
+{% include 'hero_gold.html' with page_title="Biro &" judul_baris_2="Departemen" logo_miring=True latar_krem=True %}
+
+<section class="relative isolate w-full overflow-hidden bg-cream-50 pt-2 pb-16 sm:pb-24 lg:pb-56">
+  {% comment %}
+    Riak dekoratif. Pusatnya diletakkan tepat di dalam tepi kanan layar
+    (900/2 - 430 = 20px), sama seperti di design. Design HP tidak memuatnya.
+  {% endcomment %}
+  <svg class="pointer-events-none absolute top-0 -right-[430px] -z-10 hidden lg:block w-[900px] h-[900px]"
+       viewBox="0 0 900 900" fill="none" stroke="#ffffff" aria-hidden="true" focusable="false">
+    <circle cx="450" cy="450" r="30" stroke-width="3" />
+    <circle cx="450" cy="450" r="65" stroke-width="10" />
+    <circle cx="450" cy="450" r="105" stroke-width="12" />
+    <circle cx="450" cy="450" r="150" stroke-width="12" />
+    <circle cx="450" cy="450" r="210" stroke-width="10" />
+    <circle cx="450" cy="450" r="280" stroke-width="8" />
+    <circle cx="450" cy="450" r="360" stroke-width="6" />
+    <circle cx="450" cy="450" r="440" stroke-width="4" />
+  </svg>
+
+  {% comment %}
+    Selebar container hero dan profil (1118px), sehingga tepi kiri konten
+    segaris dengan judul hero. Design aslinya lebih lebar (kartu 300px), tapi
+    di layar 1280px kartunya jadi hampir menempel ke tepi layar; kartu dibuat
+    sedikit lebih kecil (±250px) demi ruang kosong di kiri-kanan.
+  {% endcomment %}
+  <div class="mx-auto w-full max-w-[1118px] px-6">
+    {% block isi %}{% endblock %}
+  </div>
+</section>
+
+{% endblock %}

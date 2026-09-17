@@ -1,75 +1,50 @@
-<!-- birdep/templates/birdep/pi_detail.html -->
-{% extends 'base.html' %}
-{% load static %}
+{% extends 'birdep/base_birdep.html' %}
 
 {% block title %}{{ pengurus.jabatan }}{% endblock %}
 
-{% block content %}
-    <!-- Include header template -->
-    {% include 'header.html' with page_title="Biro & Departemen" %}
-    
-    <!-- Main content area -->
-    <div class="relative w-full min-h-screen bg-[#F6FAEB] overflow-hidden">
-        <div class="relative z-20 max-w-screen-xl mx-auto px-6 py-16">
-            <!-- Back Button -->
-            <div class="mb-8">
-                {% if pengurus.kategori == 'ki' %}
-                    <a href="{% url 'birdep:ki_list' %}" class="inline-flex items-center px-4 py-2 bg-[#8BC34A] text-white rounded-full hover:bg-green-600 transition-colors">
-                {% elif pengurus.kategori == 'mdc' %}
-                    <a href="{% url 'birdep:mdc_list' %}" class="inline-flex items-center px-4 py-2 bg-[#8BC34A] text-white rounded-full hover:bg-green-600 transition-colors">
-                {% else %}
-                    <a href="{% url 'birdep:pi_list' %}" class="inline-flex items-center px-4 py-2 bg-[#8BC34A] text-white rounded-full hover:bg-green-600 transition-colors">
-                {% endif %}
-                    ← Kembali
-                </a>
-            </div>
-            
-            <!-- Title -->
-            <div class="text-center mb-12">
-                <h2 class="text-4xl font-bold text-gray-800 mb-4">{{ pengurus.jabatan|upper }}</h2>
-            </div>
-            
-            <!-- Content Layout -->
-            <div class="max-w-6xl mx-auto flex flex-col lg:flex-row gap-12 items-start">
-                <!-- Photo Card -->
-                <div class="lg:w-1/3">
-                    <div class="bg-white rounded-2xl p-6 shadow-lg border-2 border-gray-800">
-                        <div class="w-full h-64 bg-gray-200 rounded-lg mb-4 flex items-center justify-center overflow-hidden">
-                            {% if pengurus.foto %}
-                                <img src="{{ pengurus.foto.url }}" alt="{{ pengurus.nama }}" class="w-full h-full object-cover">
-                            {% else %}
-                                {% include 'components/avatar_placeholder.html' with size="w-32 h-32" only %}
-                            {% endif %}
-                        </div>
-                        <h3 class="font-bold text-gray-800 text-center">{{ pengurus.nama }}</h3>
-                    </div>
-                </div>
-                
-                <!-- Content -->
-                <div class="lg:w-2/3">
-                    <!-- Ikhtisar -- disembunyikan kalo kosong -->
-                    {% if pengurus.ikhtisar.strip %}
-                        <div class="mb-8">
-                            <h3 class="text-2xl font-bold text-gray-800 mb-4">Ikhtisar</h3>
-                            <div class="text-gray-600 leading-relaxed">
-                                {{ pengurus.ikhtisar|linebreaks }}
-                            </div>
-                        </div>
-                    {% endif %}
-                    
-                    <!-- Deskripsi Kerja -->
-                    <div>
-                        <h3 class="text-2xl font-bold text-gray-800 mb-4">Deskripsi Kerja</h3>
-                        {% if pengurus.deskripsi_kerja %}
-                            <div class="text-gray-600 leading-relaxed">
-                                {{ pengurus.deskripsi_kerja|linebreaks }}
-                            </div>
-                        {% else %}
-                            <p class="text-gray-600 leading-relaxed">-</p>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-        </div>
+{% block isi %}
+{% if pengurus.kategori == 'ki' %}
+  {% url 'birdep:ki_list' as kembali %}
+{% elif pengurus.kategori == 'mdc' %}
+  {% url 'birdep:mdc_list' as kembali %}
+{% else %}
+  {% url 'birdep:pi_list' as kembali %}
+{% endif %}
+<a href="{{ kembali }}"
+   class="inline-flex items-center gap-2 text-sm font-semibold text-navy hover:text-navy-600 transition">
+  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M11 17l-5-5 5-5M18 12H6" />
+  </svg>
+  Kembali
+</a>
+
+<h2 class="mt-4 text-center text-2xl sm:text-[32px] font-bold text-navy leading-tight">{{ pengurus.jabatan|upper }}</h2>
+
+<div class="mt-8 sm:mt-12 grid items-start gap-8 lg:grid-cols-[300px_1fr] lg:gap-12">
+  <div class="mx-auto w-full max-w-[300px]">
+    {% include 'birdep/components/kartu_orang.html' with foto=pengurus.foto nama=pengurus.nama judul=pengurus.nama keterangan=pengurus.jabatan only %}
+  </div>
+
+  <div class="space-y-8 sm:space-y-10">
+    {% if pengurus.ikhtisar.strip %}
+    <div>
+      <h3 class="text-sm sm:text-2xl font-bold text-navy-900">Ikhtisar</h3>
+      <div class="mt-2 sm:mt-3 text-xs sm:text-lg leading-relaxed text-navy-900">
+        {{ pengurus.ikhtisar|linebreaks }}
+      </div>
     </div>
+    {% endif %}
+
+    <div>
+      <h3 class="text-sm sm:text-2xl font-bold text-navy-900">Deskripsi Kerja</h3>
+      <div class="mt-2 sm:mt-3 text-xs sm:text-lg leading-relaxed text-navy-900">
+        {% if pengurus.deskripsi_kerja %}
+          {{ pengurus.deskripsi_kerja|linebreaks }}
+        {% else %}
+          <p>-</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}

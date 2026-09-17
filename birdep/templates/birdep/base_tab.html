@@ -1,0 +1,36 @@
+{% extends 'birdep/base_birdep.html' %}
+
+{% comment %}
+  Judul dan navigasi tab untuk tiga halaman satu BirDep (Tentang, Program,
+  Fungsionaris). Halaman turunan mengisi {% templatetag openblock %} block isi_tab {% templatetag closeblock %}
+  dan view-nya wajib mengirim "birdep" serta "current_tab".
+{% endcomment %}
+
+{% block isi %}
+<h2 class="text-center text-2xl sm:text-[32px] font-bold text-navy leading-tight">{{ birdep.nama_panjang }}</h2>
+
+<nav aria-label="Bagian {{ birdep.nama }}" class="mt-4 sm:mt-8 flex justify-center gap-1 sm:gap-4">
+  <a href="{% url 'birdep:birdep_tentang' birdep.slug %}"
+     {% if current_tab == 'tentang' %}aria-current="page"{% endif %}
+     class="rounded-lg px-3 sm:px-7 py-2 sm:py-3 text-xs sm:text-xl font-bold whitespace-nowrap transition
+            {% if current_tab == 'tentang' %}bg-[#EAE4D3] text-navy{% else %}text-gray-400 hover:text-navy-400{% endif %}">
+    Tentang {{ birdep.nama }}
+  </a>
+  <a href="{% url 'birdep:birdep_program' birdep.slug %}"
+     {% if current_tab == 'program' %}aria-current="page"{% endif %}
+     class="rounded-lg px-3 sm:px-7 py-2 sm:py-3 text-xs sm:text-xl font-bold whitespace-nowrap transition
+            {% if current_tab == 'program' %}bg-[#EAE4D3] text-navy{% else %}text-gray-400 hover:text-navy-400{% endif %}">
+    Program
+  </a>
+  <a href="{% url 'birdep:birdep_fungsionaris' birdep.slug %}"
+     {% if current_tab == 'fungsionaris' %}aria-current="page"{% endif %}
+     class="rounded-lg px-3 sm:px-7 py-2 sm:py-3 text-xs sm:text-xl font-bold whitespace-nowrap transition
+            {% if current_tab == 'fungsionaris' %}bg-[#EAE4D3] text-navy{% else %}text-gray-400 hover:text-navy-400{% endif %}">
+    Fungsionaris
+  </a>
+</nav>
+
+<div class="mx-auto mt-8 sm:mt-10 w-full max-w-[944px]">
+  {% block isi_tab %}{% endblock %}
+</div>
+{% endblock %}

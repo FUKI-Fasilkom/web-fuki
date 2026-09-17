@@ -6,12 +6,18 @@
   SATU tempat: kalau foto teksturnya diganti, cukup satu kali edit.
 
   Parameter:
-    page_title   — teks judul (wajib)
-    subtitle     — opsional, hanya beranda yang memakainya
-    judul_besar  — opsional; True untuk judul 64px (beranda), selain itu 52px
-    logo_miring  — opsional; True membuat logo dimiringkan dan menembus tepi
-                   kanan (halaman dalam seperti profil). Beranda TIDAK memakainya:
-                   design beranda menempatkan logo tegak di dalam container.
+    page_title    — teks judul (wajib)
+    judul_baris_2 — opsional; baris kedua judul. Dipisah eksplisit, bukan
+                    lewat lebar maksimum, supaya patahannya sama di semua layar
+                    (birdep: "Biro &" / "Departemen"). sm:leading-snug wajib ada:
+                    sm:text-5xl membawa line-height 1 yang menimpa leading-snug.
+    subtitle      — opsional, hanya beranda yang memakainya
+    judul_besar   — opsional; True untuk judul 64px (beranda), selain itu 52px
+    logo_miring   — opsional; True membuat logo dimiringkan dan menembus tepi
+                    kanan (halaman dalam seperti profil). Beranda TIDAK memakainya:
+                    design beranda menempatkan logo tegak di dalam container.
+    latar_krem    — opsional; True bila section di bawah hero berlatar cream-50
+                    (birdep), supaya pudar di tepi bawah menyatu dengannya.
 
   Pemakaian:
     {% templatetag openblock %} include 'hero_gold.html' with page_title="Profil" {% templatetag closeblock %}
@@ -40,12 +46,12 @@
        style="background-image: url('{% static 'images/satin.jpg' %}'); mix-blend-mode: multiply; filter: contrast(1.45);"></div>
 
   {% comment %}
-    3. PUDAR KE PUTIH di tepi bawah. Harus berada SETELAH lapisan tekstur
+    3. PUDAR KE PUTIH (atau cream-50 bila latar_krem) di tepi bawah. Harus berada SETELAH lapisan tekstur
     supaya tidak ikut ter-multiply. Tingginya sengaja lebih kecil dari padding
     bawah section (144 < 160) supaya gradasi tidak pernah menyentuh logo.
   {% endcomment %}
-  <div class="absolute inset-x-0 bottom-0 h-24 lg:h-36 pointer-events-none"
-       style="background: linear-gradient(to bottom, rgba(255,255,255,0), #ffffff);"></div>
+  <div class="absolute inset-x-0 bottom-0 h-24 lg:h-36 pointer-events-none bg-gradient-to-b
+              {% if latar_krem %}from-cream-50/0 to-cream-50{% else %}from-white/0 to-white{% endif %}"></div>
 
   {% if logo_miring %}
   {% comment %}
@@ -66,7 +72,7 @@
 
   <div class="relative mx-auto w-full max-w-[1118px] px-6 h-[170px] sm:h-[260px] lg:h-[406px] flex items-center justify-between gap-6">
     <div>
-      <h1 class="font-bold text-navy leading-none {% if judul_besar %}text-3xl sm:text-5xl lg:text-[64px]{% else %}text-4xl sm:text-5xl lg:text-[52px]{% endif %}">{{ page_title }}</h1>
+      <h1 class="font-bold text-navy {% if judul_baris_2 %}leading-snug sm:leading-snug{% else %}leading-none{% endif %} {% if judul_besar %}text-3xl sm:text-5xl lg:text-[64px]{% else %}text-4xl sm:text-5xl lg:text-[52px]{% endif %}">{{ page_title }}{% if judul_baris_2 %}<br>{{ judul_baris_2 }}{% endif %}</h1>
       {% if subtitle %}
       <p class="mt-2 sm:mt-3 text-xs sm:text-lg lg:text-xl font-semibold italic text-navy">{{ subtitle }}</p>
       {% endif %}
