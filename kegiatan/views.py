@@ -8,6 +8,8 @@ import datetime
 def kegiatan_page(request):
     today = datetime.date.today()
     active_tab = request.GET.get('tab', 'all')
+    if active_tab not in ('all', 'upcoming', 'past'):
+        active_tab = 'all'
 
     kegiatan_upcoming = []
     kegiatan_past = []
