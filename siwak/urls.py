@@ -3,11 +3,14 @@ from django.urls import path
 from . import views
 from django_cas_ng import views as cas_views
 
+
 app_name = "siwak"
+
 
 urlpatterns = [
     # 4.1 / 4.2 / 4.3 — Public
     path("", views.landing, name="landing"),
+    path("event/<int:pk>/", views.event_detail, name="event_detail"),
     path("kelompok/", views.kelompok_search, name="kelompok_search"),
 
     # 7 — Authentication (with sso ui cas2)
