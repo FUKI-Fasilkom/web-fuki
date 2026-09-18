@@ -1,0 +1,9 @@
+<form action="{% url 'blog_kajian' %}" method="get" role="search" class="w-full lg:max-w-[380px]">
+  <label for="kajian-search" class="sr-only">Cari blog kajian</label>
+  <div class="flex h-14 items-center overflow-hidden rounded-xl border border-[#C9B97A] bg-white shadow-sm focus-within:ring-2 focus-within:ring-[#C9B97A]">
+    <input id="kajian-search" type="search" name="q" value="{{ request.GET.q|default:'' }}" placeholder="Cari blog kajian" class="min-w-0 flex-1 bg-transparent px-5 text-sm text-[#001B3D] placeholder:text-[#6D7E94] focus:outline-none" />
+    <button type="submit" aria-label="Cari kajian" class="flex h-full w-14 shrink-0 items-center justify-center bg-[#001B3D] text-white transition-colors hover:bg-[#264777] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#C9B97A]">
+      <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="m16 16 5 5"/></svg>
+    </button>
+  </div>
+</form>

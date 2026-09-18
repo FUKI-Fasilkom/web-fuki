@@ -2,79 +2,49 @@
 {% load static %}
 
 {% block title %}{{ article.judul }}{% endblock %}
+{% block meta_description %}{{ article.deskripsi|striptags|truncatewords:30 }}{% endblock %}
+{% block og_type %}article{% endblock %}
 
 {% block content %}
-    {% include 'header.html' with page_title="Blog Kajian" %}
+<div class="min-h-screen bg-[#F9F8F5] text-[#001B3D]">
+  {% include 'components/redesign_header.html' with page_title='Blog Kajian' %}
 
-    <div class="px-6 py-8 md:p-[84px] bg-[#F6FAEB] min-h-screen">
-        
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 max-w-[1400px] mx-auto">
-            
-            <!-- LEFT COLUMN (Content) -->
-            <div class="lg:col-span-8 flex flex-col">
-                
-                <div class="mb-8">
-                    <a href="{% url 'blog_kajian' %}" class="inline-block px-8 py-2 rounded-full border border-black bg-[#F2F2F2] text-black font-medium hover:bg-gray-200 transition-colors">
-                        Kembali
-                    </a>
-                </div>
+  <div class="mx-auto max-w-[1244px] px-6 pb-24 pt-8 sm:px-10 lg:pb-32 lg:pt-12">
+    <a href="{% url 'blog_kajian' %}" class="inline-flex items-center gap-2 rounded-xl border border-[#C9B97A] bg-[#FAF3DC] px-5 py-2.5 text-sm font-semibold text-[#001B3D] transition-colors hover:bg-[#E8DCB0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#001B3D]">
+      <span aria-hidden="true">←</span> Semua kajian
+    </a>
 
-                <h1 class="text-4xl md:text-5xl font-bold text-[#3A3A3A] mb-8">
-                    {{ article.judul }}
-                </h1>
-
-                <div class="w-full h-[400px] md:h-[500px] bg-gray-300 rounded-[30px] overflow-hidden mb-6 shadow-sm">
-                    {% if article.image %}
-                        <img src="{{ article.image.url }}" alt="{{ article.judul }}" class="w-full h-full object-cover">
-                    {% else %}
-                        <div class="w-full h-full flex items-center justify-center bg-gray-200 text-gray-400">
-                            No Image Available
-                        </div>
-                    {% endif %}
-                </div>
-
-                <div class="text-[#7D7D7D]  text-[12px] font-medium mb-8">
-                    <span>{{ article.penceramah }}</span>
-                    <br>
-                    <span>{{ article.tanggal|date:"j F Y" }}</span>
-                </div>
-
-                <!-- Menggunakan |safe agar HTML dari text editor (jika ada) ter-render -->
-                <!-- Menggunakan |linebreaks agar enter di text area admin jadi paragraf -->
-                <div class="prose prose-lg max-w-none text-[#3A3A3A] text-[16px] text-justify leading-relaxed">
-                    {{ article.deskripsi|safe|linebreaks }}
-                </div>
-
-            </div>
-
-            <!-- RIGHT COLUMN (Sidebar) -->
-            <div class="lg:col-span-4 flex flex-col gap-12 pt-0 lg:pt-20">
-                
-                <!-- Search Bar Sidebar (Berfungsi) -->
-                <form action="{% url 'blog_kajian' %}" method="GET" class="w-full">
-                     <div class="relative w-full"> 
-                        <input 
-                            type="text" 
-                            name="q"
-                            placeholder="Cari blog kajian" 
-                            class="w-full px-6 py-3 pr-12 rounded-full border-[3px] border-[#3A3A3A] bg-[#F8FBEF00] text-[#3A3A3A] placeholder-[#3A3A3A] focus:outline-none shadow-sm transition-all"
-                        >
-                        <button type="submit" class="absolute right-4 top-1/2 transform -translate-y-1/2 text-[#3A3A3A] hover:text-black transition-colors">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                            </svg>
-                        </button>
-                    </div>
-                </form>
-
-                <div class="flex flex-col gap-8">
-                    {% for kajian in sidebar_list %}
-                        {% include 'kajian_card.html' with kajian=kajian %}
-                    {% endfor %}
-                </div>
-
-            </div>
-
+    <div class="mt-8 grid gap-12 lg:grid-cols-[minmax(0,1fr)_330px] lg:gap-16">
+      <article class="min-w-0">
+        <p class="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-[#7A6425]">Kajian FUKI</p>
+        <h1 class="text-3xl font-bold leading-tight sm:text-4xl lg:text-[42px]">{{ article.judul }}</h1>
+        <div class="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[#49617D]">
+          <span>{{ article.penceramah }}</span><span aria-hidden="true" class="text-[#C9B97A]">•</span><time datetime="{{ article.tanggal|date:'Y-m-d' }}">{{ article.tanggal|date:'j F Y' }}</time>
         </div>
+
+        {% if article.image %}
+          <img src="{{ article.image.url }}" alt="{{ article.judul }}" class="mt-8 aspect-[16/10] w-full rounded-2xl bg-[#E8DCB0] object-cover shadow-[0_12px_32px_rgba(0,27,61,0.10)]" />
+        {% else %}
+          <div class="mt-8 flex aspect-[16/10] w-full items-center justify-center rounded-2xl bg-[#E8DCB0] text-sm font-medium text-[#7A6425]">Kajian FUKI</div>
+        {% endif %}
+
+        <div class="mt-9 max-w-none space-y-5 break-words text-base leading-[1.9] text-[#294363] [&_a]:font-semibold [&_a]:text-[#0048A3] [&_a]:underline [&_h2]:pt-4 [&_h2]:text-2xl [&_h2]:font-bold [&_h3]:text-xl [&_h3]:font-bold [&_li]:ml-5 [&_li]:list-disc [&_p]:mb-5">
+          {{ article.deskripsi|safe|linebreaks }}
+        </div>
+      </article>
+
+      <aside aria-label="Kajian lainnya" class="min-w-0 lg:pt-2">
+        {% include 'components/kajian_search.html' %}
+        {% if sidebar_list %}
+          <h2 class="mt-10 border-b border-[#E8DCB0] pb-4 text-xl font-bold">Kajian lainnya</h2>
+          <div class="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-1">
+            {% for kajian in sidebar_list %}
+              {% include 'kajian_card.html' with kajian=kajian %}
+            {% endfor %}
+          </div>
+        {% endif %}
+      </aside>
     </div>
+  </div>
+</div>
 {% endblock %}
