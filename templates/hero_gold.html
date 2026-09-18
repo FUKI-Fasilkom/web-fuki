@@ -32,10 +32,9 @@
 <section class="relative isolate w-full overflow-hidden
                 {% if ringkas %}pt-8 pb-12 lg:pt-10 lg:pb-14{% else %}pt-10 pb-20 lg:pt-[130px] lg:pb-[160px]{% endif %}">
   {% comment %}
-    1. DASAR GOLD — memberi variasi warna melintang hero.
+    1. DASAR GOLD — warna dasar yang sama dengan hero halaman redesign.
   {% endcomment %}
-  <div class="absolute inset-0 pointer-events-none"
-       style="background: linear-gradient(118deg, #B5A777 0%, #D3C793 20%, #F4EEDA 39%, #C6B984 58%, #EAE2BC 77%, #B5A777 100%);"></div>
+  <div class="absolute inset-0 pointer-events-none bg-[#F2E5BB]"></div>
 
   {% comment %}
     2. TEKSTUR SATIN — foto asli dari Figma, masih hitam-putih.
@@ -44,10 +43,11 @@
     karena fotonya bernada sangat terang (bayangan ±#D8D8D8, sorot putih):
     lipatan gelapnya menggelapkan gold, area putihnya membiarkan gold apa
     adanya. Blend 'overlay'/'soft-light' justru memucatkan gold di sini.
-    contrast() mengangkat lipatan yang aslinya nyaris rata.
+    Tekstur dan warna dasar ini sekarang sama dengan hero halaman Kegiatan,
+    Hubungi Kami, dan Laporkan Masalah.
   {% endcomment %}
   <div class="absolute inset-0 bg-cover bg-center pointer-events-none"
-       style="background-image: url('{% static 'images/satin.jpg' %}'); mix-blend-mode: multiply; filter: contrast(1.45);"></div>
+       style="background-image: url('{% static 'images/redesign/satin.png' %}'); mix-blend-mode: multiply;"></div>
 
   {% comment %}
     3. PUDAR KE PUTIH (atau cream-50 bila latar_krem) di tepi bawah. Harus berada SETELAH lapisan tekstur
@@ -70,10 +70,7 @@
     Harus diletakkan SETELAH lapisan pudar agar tampil di atasnya, dan di luar
     div konten karena div itu relative (absolute akan menempel ke sana).
   {% endcomment %}
-  <img src="{% static 'images/Logo-FUKI-Biru.png' %}" alt="Logo FUKI"
-       class="pointer-events-none absolute right-0 top-1/2 h-auto object-contain
-              {% if ringkas %}w-[100px] sm:w-[160px] lg:w-[200px]{% else %}w-[150px] sm:w-[260px] lg:w-[380px]{% endif %}
-              -translate-y-1/2 translate-x-[30%] -rotate-[18deg]" />
+  {% include 'components/hero_logo.html' with variant='tilted' ringkas=ringkas %}
   {% endif %}
 
   <div class="relative mx-auto w-full max-w-[1118px] px-6 flex items-center justify-between gap-6
@@ -85,8 +82,7 @@
       {% endif %}
     </div>
     {% if not logo_miring %}
-    <img src="{% static 'images/Logo-FUKI-Biru.png' %}" alt="Logo FUKI"
-         class="w-[110px] sm:w-[200px] lg:w-[330px] h-auto object-contain shrink-0" />
+    {% include 'components/hero_logo.html' with variant='upright' %}
     {% endif %}
   </div>
 </section>

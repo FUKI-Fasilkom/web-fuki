@@ -1,7 +1,7 @@
 {% load static %}
 <header class="relative isolate flex h-[326px] items-center overflow-hidden bg-[#F2E5BB] px-[21px] lg:h-[640px] lg:px-12">
   <img src="{% static 'images/redesign/satin.png' %}" alt="" aria-hidden="true" class="pointer-events-none absolute inset-0 -z-20 h-full w-full object-cover mix-blend-multiply lg:inset-auto lg:left-0 lg:top-[-143px] lg:h-[960px]" />
-  <img src="{% static 'images/redesign/fuki-navy.svg' %}" alt="" aria-hidden="true" class="pointer-events-none absolute right-[21px] top-1/2 z-0 h-[72.5px] w-[60.5px] -translate-y-1/2 lg:right-[-118px] lg:top-[128px] lg:-z-10 lg:h-[455px] lg:w-[390px] lg:translate-y-0" />
+  {% include 'components/hero_logo.html' with variant='redesign' %}
   <picture class="pointer-events-none absolute inset-x-0 bottom-0 -z-10" aria-hidden="true">
     <source media="(min-width: 1024px)" srcset="{% static 'images/redesign/header-fade.png' %}" />
     <img src="{% static 'images/redesign/header-fade-mobile.png' %}" alt="" class="h-[326px] w-full object-fill lg:h-[257px]" />
