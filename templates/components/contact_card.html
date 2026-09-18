@@ -1,0 +1,7 @@
+{% load static %}
+<article aria-label="Kontak {{ channel }}" class="flex min-h-[133px] w-[206px] max-w-full flex-col items-center justify-center gap-2 rounded-2xl bg-[linear-gradient(180deg,#FFF6DA_0%,#F2E5BB_116.35%)] p-4 text-center text-[#3A3A3A] shadow-[0_0_16px_#00000026] lg:min-h-[266px] lg:w-[412px] lg:gap-4 lg:p-8 lg:shadow-[0_0_32px_#00000026]">
+  <img src="{% static icon %}" alt="" class="h-[18px] w-[18px] lg:h-9 lg:w-9" />
+  <h2 class="w-full text-[8px] font-bold leading-[1.5] lg:text-base">{{ contact_label }}</h2>
+  <p class="w-full text-[6px] leading-[1.5] lg:text-xs">Silakan hubungi kami melalui {{ channel }} jika Anda memiliki pertanyaan lebih lanjut mengenai FUKI.</p>
+  <a href="{{ contact_url }}" target="_blank" rel="noopener noreferrer" aria-label="Hubungi Kami melalui {{ channel }}" class="inline-flex min-h-5 items-center justify-center rounded-lg bg-[linear-gradient(-31.66deg,#001B3D_21.124%,#0048A3_151.6%)] px-[6px] py-1 text-[8px] leading-[1.5] text-[#F8F9FF] shadow-[0_0_8px_#00000026] transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#113665] lg:min-h-10 lg:px-3 lg:py-2 lg:text-base lg:shadow-[0_0_16px_#00000026]">Hubungi {{ channel }}</a>
+</article>
