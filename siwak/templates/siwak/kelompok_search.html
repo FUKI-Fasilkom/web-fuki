@@ -8,18 +8,22 @@
   #kelompok-search input,
   #kelompok-search select {
     width: 100%;
-    border: 1px solid rgba(0, 27, 61, 0.18) !important;
-    border-radius: 0.75rem !important;
-    background: #fff !important;
-    padding: 0.75rem 1rem !important;
+    border: 1px solid rgba(255, 255, 255, 0.65) !important;
+    border-radius: 0.5rem !important;
+    background: #F6F6F6 !important;
+    padding: 0.625rem 0.75rem !important;
     color: #001B3D !important;
     outline: none;
     transition: border-color 150ms ease, box-shadow 150ms ease;
   }
   #kelompok-search input:focus,
   #kelompok-search select:focus {
-    border-color: #405F90 !important;
-    box-shadow: 0 0 0 3px rgba(64, 95, 144, 0.18) !important;
+    border-color: #E0BE6B !important;
+    box-shadow: 0 0 0 3px rgba(224, 190, 107, 0.32) !important;
+  }
+  .kelompok-card {
+    background: linear-gradient(135deg, #0048A3 0%, #001B3D 74%);
+    box-shadow: 0 14px 30px rgba(0, 27, 61, 0.22);
   }
 </style>
 {% endblock %}
@@ -27,89 +31,89 @@
 {% block content %}
 {% include 'siwak/_messages.html' %}
 
-{% include 'hero_gold.html' with page_title="Cari Kelompok" logo_miring=True %}
-
-<div class="bg-[#F9F8F5] min-h-screen">
-  <div class="max-w-2xl mx-auto px-6 py-12 sm:py-16">
-    <p class="text-xs sm:text-sm text-navy-400 mb-8">
+<div class="min-h-screen bg-gradient-to-b from-[#F9F8F5] via-[#F9F8F5] to-[#EEF4DB]">
+  <div class="mx-auto max-w-[580px] px-6 py-10 sm:py-16">
+    <p class="mb-12 text-xs sm:text-sm text-navy-400">
       <a href="{% url 'siwak:landing' %}" class="hover:text-navy transition">SIWAK-NG</a>
       <span class="mx-2" aria-hidden="true">/</span>
       <span class="text-navy">Pengumuman Kelompok Mentoring</span>
     </p>
 
+    {% if not result_state %}
     <!-- Search card -->
-    <section class="rounded-2xl bg-white shadow-[0_12px_32px_rgba(0,27,61,0.10)] ring-1 ring-navy/10 p-6 sm:p-8">
-      <h1 class="text-2xl sm:text-[32px] sm:leading-[48px] font-bold text-[#001B3D] text-center">Cari Kelompok</h1>
-      <p class="text-navy-400 text-sm sm:text-base text-center mt-2 mb-8">Masukkan data dirimu untuk mencari kelompok mentoring.</p>
+    <section class="kelompok-card rounded-2xl p-5 text-white sm:p-8">
+      <h1 class="text-center text-2xl font-bold sm:text-[32px] sm:leading-[1.25]">Cari Kelompok</h1>
+      <p class="mt-2 mb-6 text-center text-xs leading-relaxed text-white/80 sm:mb-8 sm:text-sm">Masukkan data dirimu untuk mencari kelompok mentoring.</p>
 
-      <form id="kelompok-search" method="post" class="space-y-5">
+      <form id="kelompok-search" method="post" class="space-y-4">
         {% csrf_token %}
         <div>
-          <label for="{{ form.nama_lengkap.id_for_label }}" class="block text-[#001B3D] font-semibold text-sm mb-2">{{ form.nama_lengkap.label }}</label>
+          <label for="{{ form.nama_lengkap.id_for_label }}" class="mb-1.5 block text-xs font-semibold text-white sm:text-sm">{{ form.nama_lengkap.label }}</label>
           {{ form.nama_lengkap }}
-          {% for error in form.nama_lengkap.errors %}<p class="text-red-700 text-xs mt-1.5">{{ error }}</p>{% endfor %}
+          {% for error in form.nama_lengkap.errors %}<p class="mt-1.5 text-xs text-red-200">{{ error }}</p>{% endfor %}
         </div>
         <div>
-          <label for="{{ form.jurusan.id_for_label }}" class="block text-[#001B3D] font-semibold text-sm mb-2">{{ form.jurusan.label }}</label>
+          <label for="{{ form.jurusan.id_for_label }}" class="mb-1.5 block text-xs font-semibold text-white sm:text-sm">{{ form.jurusan.label }}</label>
           {{ form.jurusan }}
-          {% for error in form.jurusan.errors %}<p class="text-red-700 text-xs mt-1.5">{{ error }}</p>{% endfor %}
+          {% for error in form.jurusan.errors %}<p class="mt-1.5 text-xs text-red-200">{{ error }}</p>{% endfor %}
         </div>
-        <div class="flex justify-center pt-3">
+        <div class="flex justify-center pt-2">
           <button type="submit"
-                  class="inline-flex items-center justify-center gap-2 px-7 py-3 rounded-xl bg-[#001B3D] text-white text-sm font-semibold shadow-lg hover:bg-navy-700 focus:outline-none focus-visible:ring-4 focus-visible:ring-gold/60 transition">
+                  class="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#E0BE6B] to-[#C79A3A] px-5 py-2 text-xs font-semibold text-[#281F0C] shadow-lg hover:brightness-105 focus:outline-none focus-visible:ring-4 focus-visible:ring-gold/60 transition sm:text-sm">
             Cari Kelompok
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5-5 5M6 12h12" />
             </svg>
           </button>
         </div>
       </form>
     </section>
+    {% endif %}
 
     <!-- Results -->
     {% if result_state == 'not_found' or result_state == 'no_group_yet' %}
-    <section class="mt-8 rounded-2xl bg-cream-200 shadow-md ring-1 ring-gold/30 p-6 sm:p-8 text-center" aria-live="polite">
-      <div class="mx-auto w-11 h-11 rounded-xl bg-gold-light flex items-center justify-center text-[#7A6425]" aria-hidden="true">
-        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.3 3.8L2.6 17.2A2 2 0 004.3 20h15.4a2 2 0 001.7-2.8L13.7 3.8a2 2 0 00-3.4 0z" />
-        </svg>
-      </div>
-      <h2 class="mt-4 text-xl sm:text-2xl font-bold text-[#001B3D]">
+    <section class="kelompok-card rounded-2xl p-6 text-center text-white sm:p-8" aria-live="polite">
+      <h1 class="text-2xl font-bold sm:text-[32px]">
         {% if result_state == 'not_found' %}Kelompok tidak ditemukan{% else %}Kelompok belum diumumkan{% endif %}
-      </h2>
-      <p class="text-navy-400 text-sm mt-2 max-w-md mx-auto leading-relaxed">
+      </h1>
+      <p class="mx-auto mt-4 max-w-md text-sm leading-relaxed text-white/85 sm:text-base">
         {% if result_state == 'not_found' %}
           Data kamu belum terdaftar di sistem kami. Silakan hubungi CP kami untuk informasi lebih lanjut
         {% else %}
           Kamu sudah terdaftar, tapi pembagian kelompok belum diumumkan. Coba cek lagi nanti ya.
         {% endif %}
       </p>
-      <div class="flex flex-wrap justify-center gap-3 mt-6">
-        {% if result_state == 'not_found' and info.kontak_cp %}
+      <div class="mt-6 flex flex-wrap justify-center gap-3">
+        {% if result_state == 'not_found' %}
+        {% if info.kontak_cp %}
         <a href="{{ info.kontak_cp }}" target="_blank" rel="noopener"
-           class="px-5 py-2.5 rounded-lg bg-[#001B3D] text-white text-sm font-semibold shadow hover:bg-navy-700 focus:outline-none focus-visible:ring-4 focus-visible:ring-gold/60 transition">
+           class="inline-flex min-h-10 items-center justify-center rounded-lg bg-gradient-to-r from-[#E0BE6B] to-[#C79A3A] px-5 py-2 text-sm font-semibold text-[#281F0C] shadow hover:brightness-105 focus:outline-none focus-visible:ring-4 focus-visible:ring-gold/60 transition">
+          CP Fakultas
+        </a>
+        {% else %}
+        <a href="{% url 'hubungi_kami' %}"
+           class="inline-flex min-h-10 items-center justify-center rounded-lg bg-gradient-to-r from-[#E0BE6B] to-[#C79A3A] px-5 py-2 text-sm font-semibold text-[#281F0C] shadow hover:brightness-105 focus:outline-none focus-visible:ring-4 focus-visible:ring-gold/60 transition">
           CP Fakultas
         </a>
         {% endif %}
+        {% endif %}
         <a href="{% url 'siwak:kelompok_search' %}"
-           class="px-5 py-2.5 rounded-lg bg-white text-[#001B3D] text-sm font-semibold ring-1 ring-navy/20 hover:bg-[#F9F8F5] focus:outline-none focus-visible:ring-4 focus-visible:ring-gold/60 transition">
-          Cari lagi
+           class="inline-flex min-h-10 items-center justify-center rounded-lg bg-[#D9E8FF] px-5 py-2 text-sm font-semibold text-[#001B3D] shadow hover:bg-white focus:outline-none focus-visible:ring-4 focus-visible:ring-white/60 transition">
+          Cari Lagi
         </a>
       </div>
     </section>
     {% elif result_state == 'found' %}
-    <section class="mt-8 overflow-hidden rounded-2xl bg-gradient-to-br from-navy-600 to-navy-900 shadow-xl p-6 sm:p-8 text-center" aria-live="polite">
-      <span class="inline-block rounded-full bg-gold-light text-[#281F0C] px-4 py-1.5 text-xs font-semibold">Kelompokmu ditemukan</span>
-      <h2 class="mt-5 text-xl sm:text-2xl font-bold text-white">{{ peserta.nama_lengkap }}</h2>
-      <p class="text-white/70 text-sm mt-1">{{ peserta.get_jurusan_display }}</p>
-      <p class="mt-5 text-xs uppercase tracking-wider text-gold-light/80">Kelompok Mentoring</p>
-      <p class="text-gold-light text-xl sm:text-2xl font-bold mt-1">{{ peserta.kelompok.nama_kelompok }}</p>
+    <section class="kelompok-card rounded-2xl p-6 text-center text-white sm:p-8" aria-live="polite">
+      <h1 class="text-2xl font-bold sm:text-[32px]">{{ peserta.nama_lengkap }}</h1>
+      <p class="mt-3 text-sm text-white/60 sm:text-base">{{ peserta.get_jurusan_display }}</p>
+      <p class="mt-1 text-sm font-semibold text-white">{{ peserta.kelompok.nama_kelompok }}</p>
 
       {% if peserta.kelompok.mentors.all %}
-      <p class="text-white/70 text-sm mt-7 mb-3">Mentor</p>
+      <p class="mt-6 mb-3 text-left text-sm text-white/60">Mentor</p>
       <div class="flex flex-wrap justify-center gap-3">
         {% for mentor in peserta.kelompok.mentors.all %}
-        <span class="px-4 py-2 rounded-lg bg-white/10 text-white font-semibold ring-1 ring-white/20 text-sm">
+        <span class="w-[calc(50%-0.375rem)] min-w-0 rounded-full bg-[#D1BF8A] px-4 py-2 text-sm font-medium text-[#281F0C]">
           {{ mentor.nama }}
         </span>
         {% endfor %}
@@ -118,10 +122,16 @@
 
       {% if peserta.kelompok.link_grup %}
       <a href="{{ peserta.kelompok.link_grup }}" target="_blank" rel="noopener"
-         class="inline-flex items-center justify-center mt-7 px-6 py-3 rounded-xl bg-gradient-to-r from-gold-light via-gold to-[#B49A52] text-navy font-semibold shadow hover:brightness-105 focus:outline-none focus-visible:ring-4 focus-visible:ring-white/60 transition">
+         class="mt-6 inline-flex items-center justify-center rounded-lg bg-gradient-to-r from-[#E0BE6B] to-[#C79A3A] px-5 py-2 text-sm font-semibold text-[#281F0C] shadow hover:brightness-105 focus:outline-none focus-visible:ring-4 focus-visible:ring-white/60 transition">
         Gabung ke Group WhatsApp
       </a>
       {% endif %}
+      <div class="mt-6">
+        <a href="{% url 'siwak:kelompok_search' %}"
+           class="flex min-h-10 w-full items-center justify-center rounded-lg bg-[#D9E8FF] px-5 py-2 text-sm font-semibold text-[#001B3D] shadow hover:bg-white focus:outline-none focus-visible:ring-4 focus-visible:ring-white/60 transition">
+          Cari Lagi
+        </a>
+      </div>
     </section>
     {% endif %}
   </div>
