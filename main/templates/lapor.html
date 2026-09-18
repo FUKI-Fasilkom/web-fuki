@@ -2,144 +2,69 @@
 {% load static %}
 
 {% block title %}Laporkan Masalah{% endblock %}
+{% block meta_description %}Bantu kami memperbaiki website FUKI Fasilkom UI. Laporkan bug atau masalah isi konten melalui formulir ini.{% endblock %}
 
 {% block content %}
-  {% include 'header.html' with page_title="Laporkan Masalah" %}
-
-  <div class="w-full bg-[#F6FAEB] py-16 px-6 sm:px-12">
-    <form
-      x-data="laporForm()"
-      x-on:submit.prevent="submit"
-      class="max-w-2xl mx-auto flex flex-col gap-5"
-      novalidate
-    >
+<div class="overflow-hidden bg-[#F9F8F5]">
+  {% include 'components/redesign_header.html' with page_title='Laporkan Masalah' %}
+  <div class="mx-auto w-full max-w-[1081px] px-6 pb-[120px] min-[390px]:px-[52px] lg:px-12">
+    <form x-data="laporForm()" x-ref="reportForm" x-on:submit.prevent="submit" x-bind:aria-busy="loading" action="{% url 'lapor_submit' %}" method="post" enctype="multipart/form-data" aria-label="Formulir laporan masalah" class="flex flex-col gap-[25px] lg:gap-5" novalidate>
       {% csrf_token %}
-
-      <!-- Email -->
-      <div>
-        <label for="email" class="block mb-2 text-[#3A3A3A]">
-          Email <span class="text-[#3A3A3A]/50 text-sm">(opsional)</span>
+      {% include 'components/report_field.html' with name='email' type='email' label='Email' optional=True autocomplete='email' placeholder='example23@email.com' %}
+      {% include 'components/report_field.html' with name='nama' label='Nama' optional=True autocomplete='name' placeholder='Tulis nama di sini' %}
+      {% include 'components/report_field.html' with name='judul' label='Judul Pelaporan' placeholder='Tulis judul pelaporan di sini' %}
+      <div class="flex flex-col gap-[17px] lg:gap-5">
+        <label for="jenis" class="text-xs leading-[22px] text-[#001B3D] lg:text-base lg:leading-6">Jenis Laporan</label>
+        <select id="jenis" name="jenis" required class="h-[45px] w-full rounded-[30px] border-[3px] border-[#001B3D] bg-[linear-gradient(180deg,#FFF6DA_0%,#F2E5BB_116.35%)] px-6 text-[10px] text-[#001B3D] shadow-[0_0_16px_#00000026] focus:outline-none focus:ring-2 focus:ring-[#6090BD] focus:ring-offset-2 focus:ring-offset-[#F9F8F5] min-[390px]:px-12 lg:h-[54px] lg:text-base">
+          <option value="" disabled selected>Pilih jenis laporan</option>
+          <option value="Bug">Bug</option>
+          <option value="Isi Konten">Isi Konten</option>
+        </select>
+      </div>
+      <div class="flex flex-col gap-[17px] lg:gap-5">
+        <label for="deskripsi" class="text-xs leading-[22px] text-[#001B3D] lg:text-base lg:leading-6">Deskripsi Masalah</label>
+        <textarea id="deskripsi" name="deskripsi" rows="1" required placeholder="Tulis pesan di sini" class="h-[45px] min-h-[45px] w-full resize-y rounded-[30px] border-[3px] border-[#001B3D] bg-[linear-gradient(180deg,#FFF6DA_0%,#F2E5BB_116.35%)] px-6 py-3 text-[10px] leading-[1.5] text-[#001B3D] shadow-[0_0_16px_#00000026] placeholder:text-[#001B3D]/50 focus:outline-none focus:ring-2 focus:ring-[#6090BD] focus:ring-offset-2 focus:ring-offset-[#F9F8F5] min-[390px]:px-12 lg:h-[54px] lg:min-h-[54px] lg:text-base"></textarea>
+      </div>
+      <div class="flex flex-col gap-[31px] lg:gap-5">
+        <label for="attach-image" class="flex w-fit cursor-pointer items-center gap-2 text-xs text-[#001B3D]">
+          <input id="attach-image" type="checkbox" x-model="attachImage" x-on:change="if (!attachImage) clearFile()" aria-controls="report-upload" class="h-5 w-5 accent-[#001B3D]" checked />
+          Ingin menyertakan gambar
         </label>
-        <input id="email" name="email" type="email"
-               placeholder="example23@email.com"
-               class="w-full h-14 px-6 rounded-full border-2 border-[#3A3A3A] bg-[#F6FAEB] text-[#3A3A3A] placeholder-[#3A3A3A]/40 focus:outline-none focus:ring-2 focus:ring-[#B7D66B]" />
-      </div>
-
-      <!-- Nama (opsional) -->
-      <div>
-        <label for="nama" class="block mb-2 text-[#3A3A3A]">
-          Nama <span class="text-[#3A3A3A]/50 text-sm">(opsional)</span>
-        </label>
-        <input id="nama" name="nama" type="text"
-               placeholder="Tulis nama di sini"
-               class="w-full h-14 px-6 rounded-full border-2 border-[#3A3A3A] bg-[#F6FAEB] text-[#3A3A3A] placeholder-[#3A3A3A]/40 focus:outline-none focus:ring-2 focus:ring-[#B7D66B]" />
-      </div>
-
-      <!-- Judul Pelaporan -->
-      <div>
-        <label for="judul" class="block mb-2 text-[#3A3A3A]">Judul Pelaporan</label>
-        <input id="judul" name="judul" type="text" required
-               placeholder="Tulis judul pelaporan di sini"
-               class="w-full h-14 px-6 rounded-full border-2 border-[#3A3A3A] bg-[#F6FAEB] text-[#3A3A3A] placeholder-[#3A3A3A]/40 focus:outline-none focus:ring-2 focus:ring-[#B7D66B]" />
-      </div>
-
-      <!-- Jenis Laporan -->
-      <div>
-        <label for="jenis" class="block mb-2 text-[#3A3A3A]">Jenis Laporan</label>
-        <div class="relative">
-          <select id="jenis" name="jenis" required
-                  class="w-full h-14 pl-6 pr-12 appearance-none rounded-full border-2 border-[#3A3A3A] bg-[#F6FAEB] text-[#3A3A3A] focus:outline-none focus:ring-2 focus:ring-[#B7D66B]">
-            <option value="" disabled selected>Pilih jenis laporan</option>
-            <option value="Bug">Bug</option>
-            <option value="Isi Konten">Isi Konten</option>
-          </select>
-          <svg class="w-5 h-5 absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none" fill="none"
-               stroke="#3A3A3A" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-          </svg>
+        <div id="report-upload" x-show="attachImage" class="w-[183px] max-w-full lg:w-[407px]">
+          <label for="gambar" x-on:dragover.prevent="dragging = true" x-on:dragleave.prevent="dragging = false" x-on:drop.prevent="dragging = false; pickFiles($event.dataTransfer.files)" x-bind:class="dragging && 'ring-4 ring-[#6090BD]'" class="relative flex min-h-[157px] w-full cursor-pointer flex-col items-center justify-center rounded-[30px] border-[3px] border-[#001B3D] bg-[linear-gradient(180deg,#FFF6DA_0%,#F2E5BB_116.35%)] p-3 shadow-[0_0_32px_#00000026] transition-shadow focus-within:ring-2 focus-within:ring-[#6090BD] focus-within:ring-offset-2 lg:min-h-[278px] lg:p-6">
+            <input id="gambar" type="file" accept="image/*" aria-label="Pilih gambar dokumentasi" class="sr-only" x-ref="file" x-on:change="pickFiles($event.target.files)" />
+            <template x-if="!previewUrl">
+              <span class="flex flex-col items-center gap-[10px] text-center text-[#001B3D]/50">
+                <img src="{% static 'images/redesign/report-upload.svg' %}" alt="" class="h-[63px] w-[74px] opacity-50" />
+                <span class="text-[10px] leading-[1.5] lg:text-base">Klik atau seret gambar di sini</span>
+              </span>
+            </template>
+            <template x-if="previewUrl">
+              <span class="flex w-full flex-col items-center gap-3 text-center">
+                <img x-bind:src="previewUrl" alt="Pratinjau dokumentasi" class="max-h-28 max-w-full rounded-2xl object-contain lg:max-h-40" />
+                <span class="max-w-full break-all text-xs text-[#001B3D] lg:text-sm" x-text="fileName"></span>
+              </span>
+            </template>
+          </label>
+          <button type="button" x-show="previewUrl" x-cloak x-on:click="clearFile" class="mt-3 text-xs text-[#001B3D] underline underline-offset-4 lg:text-sm">Hapus gambar</button>
         </div>
       </div>
-
-      <!-- Deskripsi Masalah -->
-      <div>
-        <label for="deskripsi" class="block mb-2 text-[#3A3A3A]">Deskripsi Masalah</label>
-        <textarea id="deskripsi" name="deskripsi" rows="5" required
-                  placeholder="Tulis pesan di sini"
-                  class="w-full px-6 py-4 rounded-[2rem] border-2 border-[#3A3A3A] bg-[#F6FAEB] text-[#3A3A3A] placeholder-[#3A3A3A]/40 resize-none focus:outline-none focus:ring-2 focus:ring-[#B7D66B]"></textarea>
-      </div>
-
-      <!-- Dokumentasi (opsional) -->
-      <div>
-        <label class="block mb-2 text-[#3A3A3A]">
-          Dokumentasi <span class="text-[#3A3A3A]/50 text-sm">(opsional)</span>
-        </label>
-        <label
-          x-on:dragover.prevent="dragging = true"
-          x-on:dragleave.prevent="dragging = false"
-          x-on:drop.prevent="dragging = false; pickFiles($event.dataTransfer.files)"
-          x-bind:class="dragging ? 'bg-[#E6F0CC]' : 'bg-[#F6FAEB]'"
-          class="flex flex-col items-center justify-center w-full max-w-md min-h-[280px] p-6 rounded-3xl border-2 border-[#3A3A3A] cursor-pointer transition-colors"
-        >
-          <input type="file" accept="image/*" class="hidden"
-                 x-ref="file" x-on:change="pickFiles($event.target.files)" />
-
-          <template x-if="!previewUrl">
-            <div class="flex flex-col items-center text-center">
-              <svg class="w-16 h-16 mb-4" fill="none" stroke="#8A8F7A" stroke-width="1.5" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                      d="M3 7.5A1.5 1.5 0 014.5 6h4.19a1.5 1.5 0 011.06.44l1.31 1.31h8.44A1.5 1.5 0 0121 9.25v8.25A1.5 1.5 0 0119.5 19h-15A1.5 1.5 0 013 17.5v-10z" />
-                <path stroke-linecap="round" stroke-linejoin="round" d="M8 13h6m0 0l-2.25-2.25M14 13l-2.25 2.25" />
-              </svg>
-              <span class="text-[#8A8F7A]">Input atau seret gambar di sini</span>
-            </div>
-          </template>
-
-          <template x-if="previewUrl">
-            <div class="flex flex-col items-center text-center gap-3 w-full">
-              <img x-bind:src="previewUrl" alt="Pratinjau dokumentasi"
-                   class="max-h-40 rounded-2xl object-contain" />
-              <span class="text-sm text-[#3A3A3A] break-all" x-text="fileName"></span>
-              <button type="button" x-on:click.prevent.stop="clearFile"
-                      class="text-sm underline text-[#3A3A3A]/70 hover:text-[#3A3A3A]">
-                Hapus gambar
-              </button>
-            </div>
-          </template>
-        </label>
-      </div>
-
-      <!-- Status -->
-      <p x-show="message" x-cloak x-text="message"
-         x-bind:class="error ? 'text-red-600' : 'text-green-700'"
-         class="text-sm"></p>
-
-      <!-- Aksi -->
-      <div class="flex items-center gap-4">
-        <button type="button" x-on:click="reset"
-                class="h-12 px-10 rounded-full border-2 border-[#3A3A3A] bg-transparent text-[#3A3A3A] hover:bg-[#3A3A3A]/5 transition-colors">
-          Batal
-        </button>
-        <button type="submit" x-bind:disabled="loading"
-                class="h-12 px-10 rounded-full border-2 border-[#B7D66B] bg-[#C8E08A] text-[#3A3A3A] hover:brightness-95 disabled:opacity-60 disabled:cursor-not-allowed transition">
+      <p x-show="message" x-cloak x-text="message" role="status" aria-live="polite" x-bind:class="error ? 'text-red-700' : 'text-green-800'" class="text-sm"></p>
+      <div class="flex items-center gap-3">
+        <button type="button" x-on:click="reset" x-bind:disabled="loading" class="h-[35px] min-w-[100px] rounded-[30px] border-[3px] border-[#001B3D] px-5 text-[10px] text-[#001B3D] shadow-[0_0_12px_#00000040] transition-colors hover:bg-[#EAE4D5] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#6090BD] disabled:cursor-not-allowed disabled:opacity-60 lg:h-[54px] lg:px-12 lg:text-base">Batal</button>
+        <button type="submit" x-bind:disabled="loading" class="h-[35px] min-w-[100px] rounded-[30px] border-[3px] border-[#001B3D] bg-[#264777] px-5 text-[10px] text-[#F9F8F5] shadow-[0_0_6px_#00000040] transition-colors hover:bg-[#001B3D] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#6090BD] disabled:cursor-not-allowed disabled:opacity-60 lg:h-[54px] lg:px-12 lg:text-base">
           <span x-show="!loading">Kirim</span>
-          <span x-show="loading" x-cloak class="flex items-center gap-2">
-            <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
-            </svg>
-            Mengirim...
-          </span>
+          <span x-show="loading" x-cloak>Mengirim...</span>
         </button>
       </div>
     </form>
   </div>
-
-  <style>[x-cloak] { display: none !important; }</style>
-
+</div>
   <script>
     function laporForm() {
       return {
         loading: false,
+        attachImage: true,
         dragging: false,
         message: '',
         error: false,
@@ -148,7 +73,15 @@
 
         pickFiles(fileList) {
           const file = fileList && fileList[0];
-          if (!file || !file.type.startsWith('image/')) return;
+          if (!file) return;
+          if (!file.type.startsWith('image/')) {
+            this.clearFile();
+            this.error = true;
+            this.message = 'Pilih file gambar untuk dokumentasi.';
+            return;
+          }
+          this.message = '';
+          this.error = false;
           // Keep the hidden input authoritative so a dropped file is submitted too.
           const transfer = new DataTransfer();
           transfer.items.add(file);
@@ -166,20 +99,22 @@
         },
 
         reset() {
-          this.$el.reset();
+          this.$refs.reportForm.reset();
+          this.attachImage = true;
+          this.dragging = false;
           this.clearFile();
           this.message = '';
           this.error = false;
         },
 
         async submit() {
-          if (!this.$el.reportValidity()) return;
+          if (this.loading || !this.$refs.reportForm.reportValidity()) return;
 
           this.loading = true;
           this.message = '';
           this.error = false;
 
-          const formData = new FormData(this.$el);
+          const formData = new FormData(this.$refs.reportForm);
           const file = this.$refs.file.files[0];
           if (file) formData.append('gambar', file);
 
