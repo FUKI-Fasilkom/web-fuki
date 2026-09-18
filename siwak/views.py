@@ -2,14 +2,13 @@ import calendar as pycal
 
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
-from django.contrib.auth import logout as django_logout
 from django.contrib.auth.decorators import login_required
 from django.core import signing
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 
-from .forms import CariKelompokForm, MabaLoginForm, RSVPForm, TugasSubmissionForm
+from .forms import CariKelompokForm, RSVPForm, TugasSubmissionForm
 from .models import (
     EventRSVP,
     FAQMentoring,
@@ -29,7 +28,6 @@ from .services.qrcode_service import (
     registrasi_qr_data_uri,
     unsign_payload,
 )
-from .sso import login_or_create_maba
 
 
 # ---------------------------------------------------------------------------
@@ -79,35 +77,6 @@ def kelompok_search(request):
     }
     return render(request, "siwak/kelompok_search.html", context)
 
-
-# ---------------------------------------------------------------------------
-# 7 — Authentication (dev-mode stand-in for SSO UI; see siwak/sso.py)
-# ---------------------------------------------------------------------------
-
-def maba_login(request):
-    if request.user.is_authenticated:
-        return redirect(request.GET.get("next") or "siwak:tugas_list")
-
-    form = MabaLoginForm(request.POST or None)
-    if request.method == "POST" and form.is_valid():
-        login_or_create_maba(
-            request,
-            npm=form.cleaned_data["npm"].strip(),
-            nama_lengkap=form.cleaned_data["nama_lengkap"].strip(),
-            jurusan=form.cleaned_data["jurusan"],
-            angkatan=form.cleaned_data["angkatan"].strip(),
-        )
-        messages.success(request, "Berhasil masuk.")
-        return redirect(request.GET.get("next") or "siwak:tugas_list")
-
-    return render(request, "siwak/login.html", {"form": form})
-
-
-@login_required
-def maba_logout(request):
-    django_logout(request)
-    messages.info(request, "Kamu telah keluar.")
-    return redirect("siwak:landing")
 
 
 # ---------------------------------------------------------------------------

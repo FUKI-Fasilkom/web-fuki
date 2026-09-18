@@ -1,64 +1,50 @@
-<!-- birdep/templates/birdep/team_list.html -->
-{% extends 'base.html' %}
-{% load static %}
+{% extends 'birdep/base_birdep.html' %}
 
 {% block title %}Biro & Departemen{% endblock %}
 
-{% block content %}
-    {% include 'header.html' with page_title="Biro & Departemen" %}
+{% comment %}
+  Lebar kartu dihitung dari jumlah per baris dan jarak antarkartu:
+  (100% - (N-1) x gap) / N. Flex dipakai, bukan grid, supaya baris yang tidak
+  penuh (mis. kartu ke-9 di desktop) tetap berada di tengah.
+{% endcomment %}
 
-    <div class="relative w-full min-h-screen bg-[#F6FAEB] overflow-hidden">
-        <div class="relative z-20 max-w-screen-xl mx-auto px-6 py-16">
+{% block hero %}
+{% include 'hero_gold.html' with page_title="Biro &" judul_baris_2="Departemen" logo_miring=True latar_krem=True %}
+{% endblock %}
 
-            <!-- Baris atas: PI, KI, dan MDC.
-                 Ketiganya bukan BirDep, melainkan kategori PengurusInti,
-                 sehingga ditulis langsung di sini. -->
-            <div class="flex flex-wrap justify-center gap-6 mb-8">
-                <a href="{% url 'birdep:pi_list' %}" class="block">
-                    <div class="bg-white rounded-2xl p-6 text-center shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-2 cursor-pointer border-2 border-gray-800 w-48">
-                        <div class="w-24 h-24 rounded-lg mx-auto mb-4 flex items-center justify-center overflow-hidden">
-                            <img src="{% static 'images/Logo-FUKI.png' %}" alt="Logo FUKI" class="w-full h-full object-contain p-2">
-                        </div>
-                        <h3 class="font-semibold text-gray-800">PI</h3>
-                    </div>
-                </a>
+{% block isi %}
+<h2 class="sr-only">Daftar Biro &amp; Departemen</h2>
 
-                <a href="{% url 'birdep:ki_list' %}" class="block">
-                    <div class="bg-white rounded-2xl p-6 text-center shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-2 cursor-pointer border-2 border-gray-800 w-48">
-                        <div class="w-24 h-24 rounded-lg mx-auto mb-4 flex items-center justify-center overflow-hidden">
-                            <img src="{% static 'images/Logo-KI.png' %}" alt="Logo KI" class="w-full h-full object-contain p-2">
-                        </div>
-                        <h3 class="font-semibold text-gray-800">KI</h3>
-                    </div>
-                </a>
+{% comment %}
+  Baris atas: PI, KI, dan MDC. Ketiganya bukan BirDep, melainkan kategori
+  PengurusInti, sehingga ditulis langsung di sini.
+{% endcomment %}
+<div class="flex flex-wrap justify-center gap-3 sm:gap-5 lg:gap-6">
+  <div class="w-[calc((100%_-_1.5rem)/3)] sm:w-[calc((100%_-_2.5rem)/3)] lg:w-[calc((100%_-_4.5rem)/4)]">
+    {% url 'birdep:pi_list' as tautan %}
+    {% include 'birdep/components/kartu_unit.html' with tautan=tautan nama="PI" logo="images/Logo-FUKI-Biru.png" logo_bercahaya=True only %}
+  </div>
+  <div class="w-[calc((100%_-_1.5rem)/3)] sm:w-[calc((100%_-_2.5rem)/3)] lg:w-[calc((100%_-_4.5rem)/4)]">
+    {% url 'birdep:ki_list' as tautan %}
+    {% include 'birdep/components/kartu_unit.html' with tautan=tautan nama="KI" logo="images/Logo-KI.png" only %}
+  </div>
+  <div class="w-[calc((100%_-_1.5rem)/3)] sm:w-[calc((100%_-_2.5rem)/3)] lg:w-[calc((100%_-_4.5rem)/4)]">
+    {% url 'birdep:mdc_list' as tautan %}
+    {% include 'birdep/components/kartu_unit.html' with tautan=tautan nama="MDC" logo="images/Logo-MDC.png" only %}
+  </div>
+</div>
 
-                <a href="{% url 'birdep:mdc_list' %}" class="block">
-                    <div class="bg-white rounded-2xl p-6 text-center shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-2 cursor-pointer border-2 border-gray-800 w-48">
-                        <div class="w-24 h-24 rounded-lg mx-auto mb-4 flex items-center justify-center overflow-hidden">
-                            <img src="{% static 'images/Logo-MDC.png' %}" alt="Logo MDC" class="w-full h-full object-contain p-2">
-                        </div>
-                        <h3 class="font-semibold text-gray-800">MDC</h3>
-                    </div>
-                </a>
-            </div>
-
-            <!-- Baris berikutnya: seluruh BirDep dari database -->
-            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 mb-12">
-                {% for birdep in birdeps %}
-                    <a href="{% url 'birdep:birdep_tentang' birdep.slug %}" class="block">
-                        <div class="bg-white rounded-2xl p-6 text-center shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-2 cursor-pointer border-2 border-gray-800 h-full">
-                            <div class="w-24 h-24 rounded-lg mx-auto mb-4 flex items-center justify-center overflow-hidden">
-                                {% if birdep.logo_filename %}
-                                    <img src="{% static birdep.logo_url %}" alt="{{ birdep.nama }}" class="w-full h-full object-contain p-2">
-                                {% else %}
-                                    <span class="text-green-600 text-2xl font-bold">&lt;/&gt;</span>
-                                {% endif %}
-                            </div>
-                            <h3 class="font-semibold text-gray-800">{{ birdep.nama }}</h3>
-                        </div>
-                    </a>
-                {% endfor %}
-            </div>
-        </div>
-    </div>
+{# Baris berikutnya: seluruh BirDep dari database. #}
+<div class="mt-3 sm:mt-5 lg:mt-6 flex flex-wrap justify-center gap-3 sm:gap-5 lg:gap-6">
+  {% for birdep in birdeps %}
+  <div class="w-[calc((100%_-_1.5rem)/3)] sm:w-[calc((100%_-_2.5rem)/3)] lg:w-[calc((100%_-_4.5rem)/4)]">
+    {% url 'birdep:birdep_tentang' birdep.slug as tautan %}
+    {% if birdep.logo_filename %}
+      {% include 'birdep/components/kartu_unit.html' with tautan=tautan nama=birdep.nama logo=birdep.logo_url only %}
+    {% else %}
+      {% include 'birdep/components/kartu_unit.html' with tautan=tautan nama=birdep.nama only %}
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
 {% endblock %}
