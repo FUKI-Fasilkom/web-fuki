@@ -1,0 +1,11 @@
+{% load static %}
+<header class="relative isolate flex h-[326px] items-center overflow-hidden bg-[#F2E5BB] px-[21px] lg:h-[640px] lg:px-12">
+  <img src="{% static 'images/redesign/satin.png' %}" alt="" aria-hidden="true" class="pointer-events-none absolute inset-0 -z-20 h-full w-full object-cover mix-blend-multiply lg:inset-auto lg:left-0 lg:top-[-143px] lg:h-[960px]" />
+  <img src="{% static 'images/redesign/fuki-navy.svg' %}" alt="" aria-hidden="true" class="pointer-events-none absolute right-[21px] top-1/2 z-0 h-[72.5px] w-[60.5px] -translate-y-1/2 lg:right-[-118px] lg:top-[128px] lg:-z-10 lg:h-[455px] lg:w-[390px] lg:translate-y-0" />
+  <picture class="pointer-events-none absolute inset-x-0 bottom-0 -z-10" aria-hidden="true">
+    <source media="(min-width: 1024px)" srcset="{% static 'images/redesign/header-fade.png' %}" />
+    <img src="{% static 'images/redesign/header-fade-mobile.png' %}" alt="" class="h-[326px] w-full object-fill lg:h-[257px]" />
+  </picture>
+  <div aria-hidden="true" class="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-[linear-gradient(to_bottom,transparent,#F9F8F5_85%)] {% if contact_header %}lg:bg-[linear-gradient(to_bottom,transparent,#F6FAEB_85%)]{% endif %}"></div>
+  <h1 class="max-w-[75%] bg-[linear-gradient(-24.53deg,#001B3D_21.124%,#0048A3_151.6%)] bg-clip-text text-[32px] font-bold leading-[1.5] text-transparent lg:text-5xl lg:leading-[1.5]">{{ page_title }}</h1>
+</header>

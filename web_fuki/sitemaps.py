@@ -11,6 +11,7 @@ from django.urls import reverse
 
 from birdep.models import BirDep, PengurusInti
 from blog_kajian.models import Kajian
+from kegiatan.models import Kegiatan
 
 
 class StaticViewSitemap(Sitemap):
@@ -27,9 +28,6 @@ class StaticViewSitemap(Sitemap):
             ('/', 1.0),
             (reverse('profil'), 0.9),
             (reverse('kegiatan:home'), 0.8),
-            (reverse('kegiatan:kegiatan_all'), 0.7),
-            (reverse('kegiatan:kegiatan_upcoming'), 0.7),
-            (reverse('kegiatan:kegiatan_past'), 0.5),
             (reverse('blog_kajian'), 0.8),
             (reverse('birdep:team_list'), 0.8),
             (reverse('birdep:pi_list'), 0.6),
@@ -60,6 +58,18 @@ class KajianSitemap(Sitemap):
 
     def lastmod(self, obj):
         return obj.updated_at
+
+
+class KegiatanSitemap(Sitemap):
+    changefreq = 'weekly'
+    priority = 0.7
+    protocol = 'https'
+
+    def items(self):
+        return Kegiatan.objects.all()
+
+    def location(self, obj):
+        return reverse('kegiatan:detail', kwargs={'id': obj.id})
 
 
 class BirDepSitemap(Sitemap):
@@ -96,6 +106,7 @@ class PengurusSitemap(Sitemap):
 
 SITEMAPS = {
     'halaman': StaticViewSitemap,
+    'kegiatan': KegiatanSitemap,
     'kajian': KajianSitemap,
     'birdep': BirDepSitemap,
     'pengurus': PengurusSitemap,

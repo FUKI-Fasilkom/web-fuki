@@ -1,63 +1,13 @@
-<!-- birdep/templates/birdep/birdep_fungsionaris.html - UPDATED -->
-{% extends 'base.html' %}
-{% load static %}
+{% extends 'birdep/base_tab.html' %}
 
 {% block title %}{{ birdep.nama_panjang }} - Fungsionaris{% endblock %}
 
-{% block content %}
-    <!-- Include header template -->
-    {% include 'header.html' with page_title="Biro & Departemen" %}
-    
-    <!-- Main content area -->
-    <div class="relative w-full min-h-screen bg-[#F6FAEB] overflow-hidden">
-        <!-- Water ripple background - posisi lebih rendah -->
-            <!-- BirDep Header -->
-            <div class="text-center mb-8">
-                <h2 class="text-3xl font-bold text-gray-800">{{ birdep.nama_panjang }}</h2>
-            </div>
-
-            <!-- Tab Navigation -->
-            <div class="flex justify-center mb-12 flex-wrap">
-                <div class="flex items-center gap-4">
-                    <a href="{% url 'birdep:team_list' %}" class="w-10 h-10 bg-[#32679A] rounded-full flex items-center justify-center text-white border-2 border-gray-800 hover:bg-[#25527d] transition-colors shadow-sm">
-                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M4 4h4v4H4V4zm6 0h4v4h-4V4zm6 0h4v4h-4V4zM4 10h4v4H4v-4zm6 0h4v4h-4v-4zm6 0h4v4h-4v-4zM4 16h4v4H4v-4zm6 0h4v4h-4v-4zm6 0h4v4h-4v-4z"/></svg>
-                    </a>
-                    
-                    <a href="{% url 'birdep:birdep_tentang' birdep.slug %}" 
-                       class="px-8 py-2.5 rounded-full text-base font-semibold transition-all duration-300 {% if current_tab == 'tentang' %}bg-[#A6CE39] text-gray-900 border-2 border-gray-800 shadow-sm{% else %}bg-[#E3EFC2] text-gray-800 border-2 border-[#2E6B34] hover:bg-[#d5e8a6]{% endif %}">
-                        Tentang {{ birdep.nama }}
-                    </a>
-                    
-                    <a href="{% url 'birdep:birdep_program' birdep.slug %}" 
-                       class="px-8 py-2.5 rounded-full text-base font-semibold transition-all duration-300 {% if current_tab == 'program' %}bg-[#A6CE39] text-gray-900 border-2 border-gray-800 shadow-sm{% else %}bg-[#E3EFC2] text-gray-800 border-2 border-[#2E6B34] hover:bg-[#d5e8a6]{% endif %}">
-                        Program
-                    </a>
-                    
-                    <a href="{% url 'birdep:birdep_fungsionaris' birdep.slug %}" 
-                       class="px-8 py-2.5 rounded-full text-base font-semibold transition-all duration-300 {% if current_tab == 'fungsionaris' %}bg-[#A6CE39] text-gray-900 border-2 border-gray-800 shadow-sm{% else %}bg-[#E3EFC2] text-gray-800 border-2 border-[#2E6B34] hover:bg-[#d5e8a6]{% endif %}">
-                        Fungsionaris
-                    </a>
-                </div>
-            </div>
-
-            <!-- Fungsionaris Grid -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
-                {% for fungsionaris in fungsionaris_list %}
-                <div class="bg-[#4678B5] text-white rounded-2xl p-6 text-center shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-2 border-2 border-gray-800">
-                    <div class="w-32 h-32 bg-white rounded-lg mx-auto mb-4 flex items-center justify-center overflow-hidden border-2 border-gray-800">
-                        {% if fungsionaris.foto %}
-                            <img src="{{ fungsionaris.foto.url }}" alt="{{ fungsionaris.nama }}" class="w-full h-full object-cover">
-                        {% else %}
-                            {% include 'components/avatar_placeholder.html' with size="w-20 h-20" only %}
-                        {% endif %}
-                    </div>
-                    <h3 class="font-bold text-xl mb-2">{{ fungsionaris.nama }}</h3>
-                    <p class="opacity-90">{{ fungsionaris.jabatan }}</p>
-                </div>
-                {% empty %}
-                <p class="text-center text-gray-500 italic py-8 col-span-full">Belum ada fungsionaris yang ditambahkan.</p>
-                {% endfor %}
-            </div>
-        </div>
-    </div>
+{% block isi_tab %}
+<div class="grid grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-7">
+  {% for fungsionaris in fungsionaris_list %}
+    {% include 'birdep/components/kartu_orang.html' with foto=fungsionaris.foto nama=fungsionaris.nama judul=fungsionaris.nama keterangan=fungsionaris.jabatan only %}
+  {% empty %}
+  <p class="col-span-full py-8 text-center text-sm sm:text-base italic text-navy-400">Belum ada fungsionaris yang ditambahkan.</p>
+  {% endfor %}
+</div>
 {% endblock %}
