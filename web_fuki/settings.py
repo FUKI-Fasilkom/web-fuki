@@ -69,6 +69,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.sitemaps',
+    'django_cas_ng',
     'main',
     'kegiatan',
     'birdep',
@@ -85,8 +86,24 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024
 
 # 7 — Authentication: where @login_required sends anonymous users, and where
 # they land after logging in.
-# LOGIN_URL = 'siwak:login'
-# LOGIN_REDIRECT_URL = 'siwak:tugas_list'
+
+AUTHENTICATION_BACKENDS = [
+    'django_cas_ng.backends.CASBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
+
+CAS_SERVER_URL = "https://sso.ui.ac.id/cas2/"
+CAS_VERSION = 2
+
+CAS_ADMIN_REDIRECT = False
+CAS_LOGIN_URL_NAME = "siwak:cas_ng_login"
+CAS_LOGOUT_URL_NAME = "siwak:cas_ng_logout"
+CAS_LOGIN_MSG = None
+
+LOGIN_URL = "siwak:cas_ng_login"
+CAS_REDIRECT_URL = "siwak:tugas_list"
+CAS_IGNORE_REFERER = True
+CAS_LOGOUT_NEXT_PAGE = "/"
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
