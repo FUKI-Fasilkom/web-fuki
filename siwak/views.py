@@ -52,6 +52,17 @@ def landing(request):
     return render(request, "siwak/landing.html", context)
 
 
+def event_detail(request, pk):
+    """Public detail page for a SIWAK event."""
+    event = get_object_or_404(SiwakEvent, pk=pk)
+
+    context = {
+        "event": event,
+        "info": SiwakInfo.get_solo(),
+    }
+    return render(request, "siwak/event_detail.html", context)
+
+
 def kelompok_search(request):
     """4.3 — 'Cari Kelompok' search, matches the Figma search + result screens."""
     form = CariKelompokForm(request.POST or None)
@@ -119,16 +130,25 @@ def tugas_list(request):
     tugas_qs = Tugas.objects.filter(is_active=True)
     rows = []
     due_dates = set()
+
     for tugas in tugas_qs:
         submission = tugas.submission_for(request.user)
+
         if submission:
             status = "Submitted" if submission.status == "submitted" else "Late"
         else:
             status = "Not Submitted"
-        rows.append({"tugas": tugas, "status": status, "submission": submission})
+
+        rows.append({
+            "tugas": tugas,
+            "status": status,
+            "submission": submission,
+        })
+
         due_dates.add(tugas.deadline.date())
 
     today = timezone.localdate()
+
     try:
         year = int(request.GET.get("year", today.year))
         month = int(request.GET.get("month", today.month))
@@ -157,9 +177,12 @@ def tugas_list(request):
         "cal_years": range(today.year - 1, today.year + 2),
         "due_dates": due_dates,
         "today": today,
-        "prev_year": prev_year, "prev_month": prev_m,
-        "next_year": next_year, "next_month": next_m,
+        "prev_year": prev_year,
+        "prev_month": prev_m,
+        "next_year": next_year,
+        "next_month": next_m,
     }
+
     return render(request, "siwak/tugas_list.html", context)
 
 
@@ -170,13 +193,24 @@ def tugas_detail(request, pk):
     is_past_deadline = timezone.now() > tugas.deadline
 
     form = TugasSubmissionForm(tugas=tugas)
+
     if request.method == "POST":
-        form = TugasSubmissionForm(request.POST, request.FILES, tugas=tugas)
+        form = TugasSubmissionForm(
+            request.POST,
+            request.FILES,
+            tugas=tugas,
+        )
+
         if form.is_valid():
             if submission:
                 submission.file = form.cleaned_data["file"]
             else:
-                submission = tugas.submissions.model(tugas=tugas, user=request.user, file=form.cleaned_data["file"])
+                submission = tugas.submissions.model(
+                    tugas=tugas,
+                    user=request.user,
+                    file=form.cleaned_data["file"],
+                )
+
             submission.save()
             messages.success(request, "Tugas berhasil dikirim.")
             return redirect("siwak:tugas_detail", pk=pk)
@@ -187,6 +221,7 @@ def tugas_detail(request, pk):
         "is_past_deadline": is_past_deadline,
         "form": form,
     }
+
     return render(request, "siwak/tugas_detail.html", context)
 
 
@@ -196,24 +231,48 @@ def tugas_detail(request, pk):
 
 @login_required
 def rsvp_event(request, tipe):
-    event = get_object_or_404(SiwakEvent, tipe=tipe, rsvp_dibuka=True)
-    rsvp = EventRSVP.objects.filter(event=event, user=request.user).first()
+    event = get_object_or_404(
+        SiwakEvent,
+        tipe=tipe,
+        rsvp_dibuka=True,
+    )
+
+    rsvp = EventRSVP.objects.filter(
+        event=event,
+        user=request.user,
+    ).first()
 
     form = RSVPForm()
+
     if request.method == "POST" and not rsvp:
         form = RSVPForm(request.POST)
+
         if form.is_valid():
             rsvp = form.save(commit=False)
             rsvp.event = event
             rsvp.user = request.user
             rsvp.save()
-            messages.success(request, "RSVP berhasil! QR code kamu sudah siap.")
-            return redirect("siwak:rsvp", tipe=tipe)
 
-    context = {"event": event, "rsvp": rsvp, "form": form}
+            messages.success(
+                request,
+                "RSVP berhasil! QR code kamu sudah siap.",
+            )
+
+            return redirect(
+                "siwak:rsvp",
+                tipe=tipe,
+            )
+
+    context = {
+        "event": event,
+        "rsvp": rsvp,
+        "form": form,
+    }
+
     if rsvp:
         context["qr_registrasi"] = registrasi_qr_data_uri(request, rsvp)
         context["qr_kupon"] = kupon_qr_data_uri(request, rsvp)
+
     return render(request, "siwak/rsvp.html", context)
 
 
@@ -229,35 +288,70 @@ def qr_verify(request, signed):
         payload = unsign_payload(signed)
         kind = payload["kind"]
         token = payload["token"]
+
     except signing.SignatureExpired:
         error = "QR sudah kedaluwarsa."
+
     except signing.BadSignature:
         error = "QR tidak valid atau rusak."
 
     if not error:
         if kind == "registrasi":
-            rsvp = EventRSVP.objects.filter(qr_registrasi_token=token).select_related("user", "event").first()
+            rsvp = EventRSVP.objects.filter(
+                qr_registrasi_token=token
+            ).select_related(
+                "user",
+                "event",
+            ).first()
+
         else:
-            rsvp = EventRSVP.objects.filter(qr_kupon_token=token).select_related("user", "event").first()
+            rsvp = EventRSVP.objects.filter(
+                qr_kupon_token=token
+            ).select_related(
+                "user",
+                "event",
+            ).first()
 
         if not rsvp:
             error = "Data RSVP tidak ditemukan."
+
         elif kind == "registrasi":
             if rsvp.status_kehadiran == "hadir":
                 already = True
+
             else:
                 rsvp.status_kehadiran = "hadir"
                 rsvp.checked_in_at = timezone.now()
-                rsvp.save(update_fields=["status_kehadiran", "checked_in_at"])
+
+                rsvp.save(
+                    update_fields=[
+                        "status_kehadiran",
+                        "checked_in_at",
+                    ]
+                )
+
         elif kind == "kupon":
             if rsvp.status_kupon == "redeemed":
                 already = True
+
             else:
                 rsvp.status_kupon = "redeemed"
                 rsvp.redeemed_at = timezone.now()
-                rsvp.save(update_fields=["status_kupon", "redeemed_at"])
 
-    context = {"error": error, "rsvp": rsvp, "kind": kind, "already": already}
+                rsvp.save(
+                    update_fields=[
+                        "status_kupon",
+                        "redeemed_at",
+                    ]
+                )
+
+    context = {
+        "error": error,
+        "rsvp": rsvp,
+        "kind": kind,
+        "already": already,
+    }
+
     return render(request, "siwak/qr_verify.html", context)
 
 

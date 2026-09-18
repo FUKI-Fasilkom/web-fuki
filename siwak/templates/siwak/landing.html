@@ -34,55 +34,78 @@
       </div>
     </section>
 
-    <!-- SIWAK Events — Accordion -->
+    <!-- SIWAK Events -->
     <section class="mt-12 sm:mt-[60px]">
       <h2 class="text-2xl sm:text-4xl font-bold text-[#001B3D] text-center">SIWAK Events</h2>
 
       <div class="mt-8 sm:mt-12 max-w-[1001px] mx-auto space-y-8 sm:space-y-12">
         {% for event in events %}
         <div x-data="{ revealed: false }" class="text-center">
-        <article @mouseenter="revealed = true" @mouseleave="revealed = false"
-                 @click="revealed = !revealed" @keydown.enter.prevent="revealed = !revealed" @keydown.space.prevent="revealed = !revealed"
-                 :aria-expanded="revealed.toString()" tabindex="0" role="button"
-                 class="group relative isolate overflow-hidden bg-[#D9D9D9] text-left shadow-sm cursor-pointer focus:outline-none focus-visible:ring-4 focus-visible:ring-gold/60">
-          {% if event.gambar %}
-          <img src="{{ event.gambar.url }}" alt="" loading="lazy" aria-hidden="true"
-               class="absolute inset-0 -z-20 w-full h-full object-cover transition-transform duration-500 ease-out"
-               :class="revealed ? 'scale-[1.025]' : 'scale-100'">
-          {% else %}
-          <div class="absolute inset-0 -z-20 bg-[#D9D9D9]"></div>
-          {% endif %}
+          <a href="{% url 'siwak:event_detail' event.pk %}"
+             @mouseenter="revealed = true"
+             @mouseleave="revealed = false"
+             @focusin="revealed = true"
+             @focusout="revealed = false"
+             class="group block focus:outline-none focus-visible:ring-4 focus-visible:ring-gold/60">
 
-          <div class="absolute inset-0 -z-10 bg-white/55 transition-colors duration-300" :class="revealed ? 'bg-white/70' : 'bg-white/55'"></div>
+            <article
+              :aria-expanded="revealed.toString()"
+              class="relative isolate overflow-hidden bg-[#D9D9D9] text-left shadow-sm cursor-pointer">
 
-          <div class="relative grid transition-[grid-template-rows] duration-500 ease-in-out"
-               :class="revealed ? 'grid-rows-[minmax(140px,auto)_1fr] sm:grid-rows-[minmax(190px,auto)_1fr]' : 'grid-rows-[minmax(140px,auto)_0fr] sm:grid-rows-[minmax(190px,auto)_0fr]'">
-            <div class="flex items-end p-4 sm:p-5">
-              <h3 class="text-2xl sm:text-4xl lg:text-[52px] lg:leading-[1.15] font-bold text-[#001B3D]">{{ event.judul }}</h3>
-            </div>
+              {% if event.gambar %}
+              <img src="{{ event.gambar.url }}" alt="" loading="lazy" aria-hidden="true"
+                   class="absolute inset-0 -z-20 w-full h-full object-cover transition-transform duration-500 ease-out"
+                   :class="revealed ? 'scale-[1.025]' : 'scale-100'">
+              {% else %}
+              <div class="absolute inset-0 -z-20 bg-[#D9D9D9]"></div>
+              {% endif %}
 
-            <div class="min-h-0 overflow-hidden transition-opacity duration-300 ease-out"
-                 :class="revealed ? 'opacity-100 delay-150' : 'opacity-0 delay-0'">
-              <div class="px-4 pb-5 sm:px-5">
-                {% if event.deskripsi %}
-                <p class="text-sm sm:text-base leading-relaxed text-[#333333]">{{ event.deskripsi }}</p>
-                {% endif %}
-                {% if event.tanggal or event.lokasi %}
-                <p class="mt-2 text-xs sm:text-sm font-medium text-[#4A4A4A]">
-                  {% if event.tanggal %}{{ event.tanggal|date:"j F Y" }}{% endif %}
-                  {% if event.tanggal and event.lokasi %}<span aria-hidden="true"> &middot; </span>{% endif %}
-                  {% if event.lokasi %}{{ event.lokasi }}{% endif %}
-                </p>
-                {% endif %}
+              <div class="absolute inset-0 -z-10 bg-white/55 transition-colors duration-300"
+                   :class="revealed ? 'bg-white/70' : 'bg-white/55'"></div>
+
+              <div class="relative grid transition-[grid-template-rows] duration-500 ease-in-out"
+                   :class="revealed ? 'grid-rows-[minmax(140px,auto)_1fr] sm:grid-rows-[minmax(190px,auto)_1fr]' : 'grid-rows-[minmax(140px,auto)_0fr] sm:grid-rows-[minmax(190px,auto)_0fr]'">
+
+                <div class="flex items-end p-4 sm:p-5">
+                  <h3 class="text-2xl sm:text-4xl lg:text-[52px] lg:leading-[1.15] font-bold text-[#001B3D]">
+                    {{ event.judul }}
+                  </h3>
+                </div>
+
+                <div class="min-h-0 overflow-hidden transition-opacity duration-300 ease-out"
+                     :class="revealed ? 'opacity-100 delay-150' : 'opacity-0 delay-0'">
+
+                  <div class="px-4 pb-5 sm:px-5">
+                    {% if event.deskripsi %}
+                    <p class="text-sm sm:text-base leading-relaxed text-[#333333]">
+                      {{ event.deskripsi }}
+                    </p>
+                    {% endif %}
+
+                    {% if event.tanggal or event.lokasi %}
+                    <p class="mt-2 text-xs sm:text-sm font-medium text-[#4A4A4A]">
+                      {% if event.tanggal %}{{ event.tanggal|date:"j F Y" }}{% endif %}
+                      {% if event.tanggal and event.lokasi %}
+                      <span aria-hidden="true"> &middot; </span>
+                      {% endif %}
+                      {% if event.lokasi %}{{ event.lokasi }}{% endif %}
+                    </p>
+                    {% endif %}
+                  </div>
+
+                </div>
               </div>
-            </div>
-          </div>
-        </article>
-        <button type="button" @click="revealed = !revealed" :aria-expanded="revealed.toString()"
-                class="mt-4 inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#001B3D] px-4 py-2 text-xs sm:text-sm font-medium text-white shadow-lg hover:bg-navy-700 focus:outline-none focus-visible:ring-4 focus-visible:ring-gold/60 transition">
-          <span>Isi RSVP {{ event.judul }}</span>
-          <svg class="h-4 w-4 transition-transform" :class="revealed && 'rotate-90'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5-5 5M6 12h12" /></svg>
-        </button>
+
+            </article>
+          </a>
+
+          <a href="{% url 'siwak:event_detail' event.pk %}"
+             class="mt-4 inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#001B3D] px-4 py-2 text-xs sm:text-sm font-medium text-white shadow-lg hover:bg-navy-700 focus:outline-none focus-visible:ring-4 focus-visible:ring-gold/60 transition">
+            <span>Lihat Detail {{ event.judul }}</span>
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5-5 5M6 12h12" />
+            </svg>
+          </a>
         </div>
 
         {% empty %}
