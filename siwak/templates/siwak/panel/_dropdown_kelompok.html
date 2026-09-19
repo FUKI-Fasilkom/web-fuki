@@ -1,0 +1,31 @@
+{% comment %}
+  Dropdown pemilih kelompok yang menyimpan sendiri begitu pilihannya berubah.
+
+  Dipakai dua kali dengan alamat tujuan berbeda: memindahkan peserta (daftar
+  Peserta Mentoring) dan memindahkan mentor (daftar Mentor). Isinya sama, jadi
+  keduanya membaca `daftar_kelompok` yang sama pula.
+
+  Parameter: aksi (url tujuan), terpilih (id kelompok sekarang, boleh None),
+  label_kosong, aria, tampil_kapasitas.
+{% endcomment %}
+
+<form method="post" action="{{ aksi }}" class="flex items-center gap-1.5">
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ url_kembali }}" />
+  <select name="kelompok" aria-label="{{ aria }}"
+          onchange="this.form.submit()"
+          class="min-h-[38px] w-full min-w-[9.5rem] max-w-[15rem] rounded-xl border-2 bg-white px-2.5 py-1.5 text-[13px] font-semibold text-navy transition focus:border-gold focus:outline-none focus:ring-4 focus:ring-gold/25
+                 {% if terpilih %}border-gold-light{% else %}border-dashed border-navy-400/50 text-navy-400{% endif %}">
+    <option value="">{{ label_kosong }}</option>
+    {% for k in daftar_kelompok %}
+    <option value="{{ k.pk }}" {% if k.pk == terpilih %}selected{% endif %}>
+      {{ k.nama_kelompok }}{% if tampil_kapasitas %} ({{ k.terisi }}/{{ k.kapasitas }}){% endif %}
+    </option>
+    {% endfor %}
+  </select>
+  {% comment %}Jaring pengaman kalau JavaScript mati atau pengguna memakai keyboard.{% endcomment %}
+  <button type="submit"
+          class="sr-only focus:not-sr-only focus:rounded-lg focus:bg-navy focus:px-3 focus:py-1.5 focus:text-xs focus:font-bold focus:text-white">
+    Simpan
+  </button>
+</form>

@@ -93,9 +93,9 @@ def kelompok_search(request):
 
     if request.method == "POST" and form.is_valid():
         peserta = PesertaMentoring.objects.filter(
-            nama_lengkap__iexact=form.cleaned_data["nama_lengkap"].strip(),
-            jurusan=form.cleaned_data["jurusan"],
-        ).select_related("kelompok").prefetch_related("kelompok__mentors").first()
+            maba__nama_lengkap__iexact=form.cleaned_data["nama_lengkap"].strip(),
+            maba__jurusan=form.cleaned_data["jurusan"],
+        ).select_related("maba", "kelompok").prefetch_related("kelompok__mentor_list").first()
 
         if not peserta:
             result_state = "not_found"

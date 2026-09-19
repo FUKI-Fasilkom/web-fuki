@@ -138,14 +138,19 @@
 </head>
 <body>
 
-  {% include 'navbar.html' %}
+  {% comment %}
+    Navbar dan footer dibungkus blok supaya halaman yang bukan halaman publik —
+    mis. panel pengelola SIWAK di /siwak/admin/ — bisa mengosongkannya tanpa
+    harus menyalin ulang seluruh <head> (font, konfigurasi Tailwind, palet).
+  {% endcomment %}
+  {% block navbar %}{% include 'navbar.html' %}{% endblock %}
 
   <main class="w-full">
     {% block content %}
     {% endblock %}
   </main>
 
-  {% include 'footer.html' %}
+  {% block footer %}{% include 'footer.html' %}{% endblock %}
 
 </body>
 </html>

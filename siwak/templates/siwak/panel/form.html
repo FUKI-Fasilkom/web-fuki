@@ -1,0 +1,55 @@
+{% extends 'siwak/panel/base.html' %}
+
+{% block panel %}
+<header class="mb-5">
+  <h1 class="text-2xl font-bold text-navy sm:text-3xl">{{ judul_panel }}</h1>
+  <p class="mt-1 max-w-2xl text-sm leading-relaxed text-navy-400">{{ sumber_data.deskripsi }}</p>
+</header>
+
+<form method="post" enctype="multipart/form-data" novalidate
+      class="rounded-2xl border-2 border-gold-light bg-white p-5 sm:p-7">
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+  <div class="mb-5 rounded-xl border-2 border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+    {% for galat in form.non_field_errors %}<p>{{ galat }}</p>{% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="space-y-5">
+    {% for field in form %}
+      {% include 'siwak/panel/_field.html' %}
+    {% endfor %}
+  </div>
+
+  <div class="mt-7 flex flex-col gap-2.5 border-t-2 border-gold-light pt-5 sm:flex-row sm:items-center">
+    <button type="submit"
+            class="inline-flex min-h-[48px] items-center justify-center rounded-xl bg-navy px-8 text-sm font-bold text-white transition hover:bg-navy-700 sm:min-w-[160px]">
+      Simpan
+    </button>
+    <a href="{{ url_batal }}"
+       class="inline-flex min-h-[48px] items-center justify-center rounded-xl border-2 border-navy px-8 text-sm font-bold text-navy transition hover:bg-cream-300">
+      Batal
+    </a>
+    {% if url_hapus %}
+    <span class="sm:ml-auto">
+      <button type="submit" form="form-hapus"
+              class="inline-flex min-h-[48px] w-full items-center justify-center rounded-xl border-2 border-red-300 px-6 text-sm font-bold text-red-700 transition hover:bg-red-50 sm:w-auto">
+        Hapus {{ sumber_data.label }}
+      </button>
+    </span>
+    {% endif %}
+  </div>
+</form>
+
+{% if url_hapus %}
+{% comment %}
+  Form hapus ditaruh di luar form utama: form HTML tidak boleh bersarang, dan
+  tombolnya tetap bisa berada di dalam kartu di atas lewat atribut "form".
+{% endcomment %}
+<form id="form-hapus" method="post" action="{{ url_hapus }}" class="hidden"
+      onsubmit="return confirm('Hapus {{ sumber_data.label|escapejs }} “{{ objek|escapejs }}”? Tindakan ini tidak bisa dibatalkan.');">
+  {% csrf_token %}
+</form>
+{% endif %}
+{% endblock %}

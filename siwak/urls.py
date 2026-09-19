@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import panel_views, views
 from django_cas_ng import views as cas_views
 
 
@@ -24,4 +24,22 @@ urlpatterns = [
     # 5.2 / 6 — RSVP & QR
     path("rsvp/<int:id>/", views.rsvp_event, name="rsvp"),
     path("qr/<str:signed>/", views.qr_verify, name="qr_verify"),
+
+    # 8 — Panel pengelola SIWAK (khusus pengurus)
+    path("admin/", panel_views.panel_beranda, name="panel_beranda"),
+    path("admin/bagian/<slug:bagian>/", panel_views.panel_bagian, name="panel_bagian"),
+    path("admin/info/", panel_views.panel_info, name="panel_info"),
+    path("admin/acara/<int:pk>/rsvp/", panel_views.panel_rsvp, name="panel_rsvp"),
+    path("admin/acara/<int:pk>/rsvp/csv/", panel_views.panel_rsvp_csv, name="panel_rsvp_csv"),
+    path("admin/acara/<int:pk>/rsvp/buka-tutup/", panel_views.panel_rsvp_toggle, name="panel_rsvp_toggle"),
+    path("admin/rsvp/<int:pk>/status/", panel_views.panel_rsvp_status, name="panel_rsvp_status"),
+    path("admin/data/<slug:slug>/", panel_views.panel_daftar, name="panel_daftar"),
+    path("admin/data/<slug:slug>/tambah/", panel_views.panel_tambah, name="panel_tambah"),
+    path("admin/data/<slug:slug>/<int:pk>/ubah/", panel_views.panel_ubah, name="panel_ubah"),
+    path("admin/data/<slug:slug>/<int:pk>/hapus/", panel_views.panel_hapus, name="panel_hapus"),
+
+    # Penyunting relasi yang dipanggil dropdown di halaman daftar
+    path("admin/peserta/<int:pk>/kelompok/", panel_views.panel_set_kelompok, name="panel_set_kelompok"),
+    path("admin/penugasan-mentor/", panel_views.panel_set_mentor, name="panel_set_mentor"),
+    path("admin/mentor/<int:pk>/kelompok/", panel_views.panel_set_mentor_kelompok, name="panel_set_mentor_kelompok"),
 ]
