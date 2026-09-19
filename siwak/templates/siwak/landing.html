@@ -543,7 +543,7 @@
   <div class="max-w-[1000px] mx-auto rounded-[28px] bg-gradient-to-r from-[#113665] to-[#001B3D] px-6 py-7 sm:px-10 sm:py-8 text-center text-white shadow-[0_10px_30px_rgba(0,27,61,0.22)]">
     <h2 class="text-xl sm:text-2xl font-bold">Yuk Mentoring!</h2>
     <p class="max-w-2xl mx-auto mt-4 text-sm sm:text-base leading-relaxed text-white/85">Cari tahu kelompok mentoring dan mentormu.</p>
-    <a href="{{ info.cta_mentoring_link|default:'/siwak/kelompok/' }}"
+    <a href="{% url 'siwak:kelompok_search' %}"
        class="mt-6 flex min-h-11 w-full items-center justify-center rounded-lg bg-gradient-to-r from-[#E0BE6B] to-[#C79A3A] px-5 py-3 text-sm font-semibold text-[#281F0C] shadow hover:brightness-105 focus:outline-none focus-visible:ring-4 focus-visible:ring-white/60 transition">
       <span class="flex-1 text-center">Lihat Kelompok Mentoring</span>
       <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5-5 5M6 12h12" /></svg>

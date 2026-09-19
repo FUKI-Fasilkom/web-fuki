@@ -23,7 +23,13 @@ class MabaProfile(models.Model):
     """
 
     user = models.OneToOneField(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="maba_profile"
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="maba_profile",
+        null=True,
+        blank=True,
+        verbose_name="Akun login",
+        help_text="Terisi otomatis saat maba login lewat SSO UI. Boleh kosong.",
     )
     npm = models.CharField(max_length=20, unique=True, verbose_name="NPM")
     nama_lengkap = models.CharField(max_length=200, verbose_name="Nama Lengkap")
@@ -43,16 +49,11 @@ class SiwakInfo(models.Model):
     """Konten singleton untuk hero & section 'Apa itu SIWAK-NG' (PRD 4.1)."""
 
     hero_judul = models.CharField(max_length=200, default="SIWAK-NG")
-    hero_deskripsi = models.TextField(blank=True)
     apa_itu_deskripsi = models.TextField(blank=True, verbose_name="Deskripsi 'Apa itu SIWAK-NG'")
     apa_itu_gambar = models.ImageField(
         upload_to="siwak/info/", blank=True, null=True, verbose_name="Gambar 'Apa itu SIWAK-NG'"
     )
     mentoring_deskripsi = models.TextField(blank=True, verbose_name="Deskripsi 'Apa itu Mentoring'")
-    cta_mentoring_link = models.CharField(
-        max_length=300, blank=True, default="/siwak/kelompok/",
-        verbose_name="Link tombol 'Lihat Kelompok Mentoring'",
-    )
     kontak_cp = models.CharField(
         max_length=300, blank=True,
         help_text="Link WhatsApp/kontak CP Fakultas, ditampilkan saat kelompok tidak ditemukan.",
@@ -140,7 +141,24 @@ class TimelineEvent(models.Model):
 
 
 class Mentor(models.Model):
+    """Satu mentor memegang paling banyak satu kelompok.
+
+    Relasinya sengaja dipasang sebagai ForeignKey di sisi Mentor, bukan
+    ManyToMany di sisi kelompok: aturan "satu mentor satu kelompok" jadi
+    dijaga basis data, bukan hanya oleh tampilan panel. Satu kelompok tetap
+    boleh dipegang lebih dari satu mentor lewat `kelompok.mentor_list`.
+    """
+
     nama = models.CharField(max_length=200)
+    kelompok = models.ForeignKey(
+        "KelompokMentoring",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="mentor_list",
+        verbose_name="Kelompok",
+        help_text="Satu mentor hanya boleh memegang satu kelompok. Boleh dikosongkan.",
+    )
 
     class Meta:
         verbose_name = "Mentor"
@@ -154,7 +172,6 @@ class KelompokMentoring(models.Model):
     """Kelompok mentoring + link grup WhatsApp (PRD 4.3)."""
 
     nama_kelompok = models.CharField(max_length=100, verbose_name="Nama Kelompok")
-    mentors = models.ManyToManyField(Mentor, related_name="kelompok_list", blank=True, verbose_name="Mentor")
     link_grup = models.URLField(verbose_name="Link Grup WhatsApp", blank=True)
     kapasitas = models.PositiveIntegerField(default=15, verbose_name="Kapasitas")
     is_active = models.BooleanField(default=True)
@@ -170,31 +187,53 @@ class KelompokMentoring(models.Model):
 
 
 class PesertaMentoring(models.Model):
-    """Baris data peserta (mentee) yang dipakai fitur 'Cari Kelompok' (PRD 4.3).
+    """Penempatan satu maba di satu kelompok mentoring (PRD 4.3).
 
-    Diisi oleh admin lewat upload data kelompok. `user` terisi otomatis begitu
-    mahasiswa terkait login lewat SSO, supaya fitur Tugas/RSVP tahu kelompok
-    mana yang berlaku untuknya.
+    Baris ini sengaja tidak lagi menyimpan nama, NPM, atau jurusan: semuanya
+    sudah ada di MabaProfile. Yang disimpan di sini hanya relasinya — maba ini
+    masuk kelompok yang mana — sehingga memindahkan peserta antar kelompok
+    tidak pernah menggandakan atau membuat identitasnya jadi tidak sinkron.
     """
 
-    nama_lengkap = models.CharField(max_length=200)
-    jurusan = models.CharField(max_length=10, choices=JURUSAN_CHOICES)
-    npm = models.CharField(max_length=20, blank=True, verbose_name="NPM (opsional)")
-    kelompok = models.ForeignKey(
-        KelompokMentoring, on_delete=models.SET_NULL, null=True, blank=True, related_name="peserta_list"
+    maba = models.OneToOneField(
+        MabaProfile,
+        on_delete=models.CASCADE,
+        related_name="peserta",
+        verbose_name="Maba",
     )
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="peserta_mentoring"
+    kelompok = models.ForeignKey(
+        KelompokMentoring, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="peserta_list", verbose_name="Kelompok",
     )
 
     class Meta:
         verbose_name = "Peserta Mentoring"
         verbose_name_plural = "Peserta Mentoring"
-        ordering = ["nama_lengkap"]
-        indexes = [models.Index(fields=["nama_lengkap", "jurusan"])]
+        ordering = ["maba__nama_lengkap"]
 
     def __str__(self):
-        return f"{self.nama_lengkap} - {self.jurusan}"
+        return f"{self.maba.nama_lengkap} - {self.maba.jurusan}"
+
+    # Alias baca-saja supaya template & kode lama yang menulis `peserta.nama_lengkap`
+    # tetap jalan tanpa harus tahu identitasnya kini tinggal di MabaProfile.
+    @property
+    def nama_lengkap(self):
+        return self.maba.nama_lengkap
+
+    @property
+    def npm(self):
+        return self.maba.npm
+
+    @property
+    def jurusan(self):
+        return self.maba.jurusan
+
+    @property
+    def user(self):
+        return self.maba.user
+
+    def get_jurusan_display(self):
+        return self.maba.get_jurusan_display()
 
 
 class MentoringTujuan(models.Model):

@@ -1,0 +1,27 @@
+{% comment %}
+  Dropdown status QR di daftar RSVP, menyimpan sendiri begitu pilihannya
+  berubah. Dipakai dua kali per baris: QR Kehadiran dan QR Kupon.
+
+  Parameter: rsvp, medan ("kehadiran"/"kupon"), pilihan (daftar pasangan
+  nilai-label dari model), sekarang (nilai terpilih), aktif_saat (nilai yang
+  berarti "sudah terjadi", dipakai untuk warnanya), aria.
+{% endcomment %}
+
+<form method="post" action="{% url 'siwak:panel_rsvp_status' rsvp.pk %}" class="flex items-center gap-1.5">
+  {% csrf_token %}
+  <input type="hidden" name="medan" value="{{ medan }}" />
+  <input type="hidden" name="next" value="{{ url_kembali }}" />
+  <select name="nilai" aria-label="{{ aria }} {{ rsvp.user.maba_profile.nama_lengkap|default:rsvp.user.username }}"
+          onchange="this.form.submit()"
+          class="min-h-[38px] w-full rounded-xl border-2 px-2.5 py-1.5 text-[13px] font-semibold transition focus:border-gold focus:outline-none focus:ring-4 focus:ring-gold/25
+                 {% if sekarang == aktif_saat %}border-navy bg-cream-300 text-navy{% else %}border-gold-light bg-white text-navy-400{% endif %}">
+    {% for nilai, label in pilihan %}
+    <option value="{{ nilai }}" {% if nilai == sekarang %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  {% comment %}Jaring pengaman kalau JavaScript mati atau pengguna memakai keyboard.{% endcomment %}
+  <button type="submit"
+          class="sr-only focus:not-sr-only focus:rounded-lg focus:bg-navy focus:px-3 focus:py-1.5 focus:text-xs focus:font-bold focus:text-white">
+    Simpan
+  </button>
+</form>

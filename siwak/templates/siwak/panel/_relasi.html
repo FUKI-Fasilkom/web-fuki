@@ -1,0 +1,56 @@
+{% comment %}
+  Mentor sebuah kelompok, di dalam satu sel tabel daftar Kelompok.
+
+  Satu kelompok boleh dipegang lebih dari satu mentor, tapi satu mentor hanya
+  memegang satu kelompok. Karena itu yang sudah terpasang ditampilkan sebagai
+  keping yang bisa diklik untuk dilepas, sedangkan dropdown penambah menyebut
+  kelompok yang sedang dipegang calonnya — memilih mentor yang sudah punya
+  kelompok berarti memindahkannya, dan itu harus kelihatan sebelum diklik.
+
+  Parameter: terpasang (daftar Mentor), kelompok_pk.
+{% endcomment %}
+
+<div class="flex flex-wrap items-center gap-1.5">
+  {% for mentor in terpasang %}
+  <form method="post" action="{% url 'siwak:panel_set_mentor' %}" class="contents">
+    {% csrf_token %}
+    <input type="hidden" name="aksi" value="hapus" />
+    <input type="hidden" name="kelompok" value="{{ kelompok_pk }}" />
+    <input type="hidden" name="mentor" value="{{ mentor.pk }}" />
+    <input type="hidden" name="next" value="{{ url_kembali }}" />
+    <button type="submit" title="Lepas {{ mentor.nama }} dari kelompok ini"
+            class="group inline-flex min-h-[32px] max-w-full items-center gap-1.5 rounded-full border-2 border-navy bg-cream-300 px-3 text-[11px] font-bold text-navy transition hover:border-red-400 hover:bg-red-50 hover:text-red-700">
+      <span class="truncate">{{ mentor.nama }}</span>
+      <span aria-hidden="true" class="text-navy-400 transition group-hover:text-red-700">&times;</span>
+    </button>
+  </form>
+  {% empty %}
+  <span class="text-[11px] italic text-navy-400">Belum ada</span>
+  {% endfor %}
+
+  {% comment %}
+    Dropdown tambah disembunyikan kalau semua mentor sudah memegang kelompok
+    ini — kotak pilihan kosong hanya bikin pengelola mengira ada yang belum
+    terdaftar.
+  {% endcomment %}
+  {% if daftar_mentor|length > terpasang|length %}
+  <form method="post" action="{% url 'siwak:panel_set_mentor' %}" class="contents">
+    {% csrf_token %}
+    <input type="hidden" name="aksi" value="tambah" />
+    <input type="hidden" name="kelompok" value="{{ kelompok_pk }}" />
+    <input type="hidden" name="next" value="{{ url_kembali }}" />
+    <select name="mentor" aria-label="Tambah mentor ke kelompok ini"
+            onchange="if (this.value) this.form.submit()"
+            class="min-h-[32px] max-w-[13rem] rounded-full border-2 border-dashed border-gold-light bg-white px-2.5 text-[11px] font-bold text-navy-400 transition hover:border-gold focus:border-gold focus:text-navy focus:outline-none focus:ring-4 focus:ring-gold/25">
+      <option value="">+ mentor</option>
+      {% for mentor in daftar_mentor %}
+      {% if mentor not in terpasang %}
+      <option value="{{ mentor.pk }}">
+        {{ mentor.nama }}{% if mentor.kelompok %} (kini di {{ mentor.kelompok.nama_kelompok }}){% endif %}
+      </option>
+      {% endif %}
+      {% endfor %}
+    </select>
+  </form>
+  {% endif %}
+</div>

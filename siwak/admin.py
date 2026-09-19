@@ -40,9 +40,6 @@ class SiwakInfoAdmin(admin.ModelAdmin):
 
 @admin.register(SiwakEvent)
 class SiwakEventAdmin(admin.ModelAdmin):
-    list_display = ["judul", "tipe", "tanggal", "rsvp_dibuka", "urutan"]
-    list_editable = ["rsvp_dibuka", "urutan"]
-    list_filter = ["tipe", "rsvp_dibuka"]
     list_display = ["judul", "tanggal", "lokasi", "rsvp_dibuka", "urutan"]
     list_editable = ["urutan"]
     list_filter = ["rsvp_dibuka", "tanggal"]
@@ -59,8 +56,11 @@ class TimelineEventAdmin(admin.ModelAdmin):
 
 @admin.register(Mentor)
 class MentorAdmin(admin.ModelAdmin):
-    list_display = ["nama"]
+    list_display = ["nama", "kelompok"]
+    list_filter = ["kelompok"]
     search_fields = ["nama"]
+    autocomplete_fields = ["kelompok"]
+    list_select_related = ["kelompok"]
 
 
 @admin.register(KelompokMentoring)
@@ -68,10 +68,9 @@ class KelompokMentoringAdmin(admin.ModelAdmin):
     list_display = ["nama_kelompok", "mentor_names", "jumlah_peserta", "kapasitas", "is_active"]
     list_filter = ["is_active"]
     search_fields = ["nama_kelompok"]
-    filter_horizontal = ["mentors"]
 
     def mentor_names(self, obj):
-        return ", ".join(m.nama for m in obj.mentors.all()) or "-"
+        return ", ".join(m.nama for m in obj.mentor_list.all()) or "-"
     mentor_names.short_description = "Mentor"
 
     def jumlah_peserta(self, obj):
@@ -81,14 +80,27 @@ class KelompokMentoringAdmin(admin.ModelAdmin):
 
 @admin.register(PesertaMentoring)
 class PesertaMentoringAdmin(admin.ModelAdmin):
-    """PRD 4.3: 'Admin dapat upload data kelompok.' Gunakan Import via list ini,
-    atau tambah satu-satu; untuk upload massal pakai Excel -> copy-paste tetap
-    lebih aman lewat halaman 'Add' berulang / manajemen command loaddata."""
+    """Penempatan maba ke kelompok. Untuk pengelolaan sehari-hari pakai panel
+    SIWAK di /siwak/admin/data/peserta/ yang punya dropdown kelompok langsung
+    di daftarnya; halaman ini disimpan sebagai cadangan teknis."""
 
-    list_display = ["nama_lengkap", "jurusan", "npm", "kelompok", "user"]
-    list_filter = ["jurusan", "kelompok"]
-    search_fields = ["nama_lengkap", "npm"]
-    autocomplete_fields = ["kelompok"]
+    list_display = ["nama_lengkap", "jurusan", "npm", "kelompok"]
+    list_filter = ["maba__jurusan", "kelompok"]
+    search_fields = ["maba__nama_lengkap", "maba__npm"]
+    autocomplete_fields = ["kelompok", "maba"]
+    list_select_related = ["maba", "kelompok"]
+
+    @admin.display(description="Nama", ordering="maba__nama_lengkap")
+    def nama_lengkap(self, obj):
+        return obj.maba.nama_lengkap
+
+    @admin.display(description="Jurusan", ordering="maba__jurusan")
+    def jurusan(self, obj):
+        return obj.maba.get_jurusan_display()
+
+    @admin.display(description="NPM", ordering="maba__npm")
+    def npm(self, obj):
+        return obj.maba.npm
 
 
 @admin.register(MentoringTujuan)
@@ -165,7 +177,7 @@ class TugasAdmin(admin.ModelAdmin):
 
 @admin.register(MabaProfile)
 class MabaProfileAdmin(admin.ModelAdmin):
-    list_display = ["nama_lengkap", "npm", "jurusan", "angkatan"]
+    list_display = ["nama_lengkap", "npm", "jurusan", "angkatan", "user"]
     search_fields = ["nama_lengkap", "npm"]
     list_filter = ["jurusan", "angkatan"]
 
