@@ -16,16 +16,19 @@ from django.utils import formats
 
 from . import panel_forms as f
 from .models import (
+    AssessmentAspect,
     GaleriFoto,
     KelompokMentoring,
     KetuaSiwak,
     MabaProfile,
     Mentor,
     MentoringBenefit,
+    MentoringSession,
     MentoringTujuan,
     SistemMentoring,
     SiwakEvent,
     TimelineEvent,
+    Tugas,
 )
 
 
@@ -51,6 +54,18 @@ class Kolom:
 
 
 @dataclass(frozen=True)
+class AksiBaris:
+    """Tombol tambahan di ujung satu baris daftar, mis. "Pertanyaan (3)".
+
+    `label` menerima objek barisnya supaya tombolnya bisa menyebut jumlah, dan
+    `nama_url` dipanggil dengan pk objek itu.
+    """
+
+    label: Callable
+    nama_url: str
+
+
+@dataclass(frozen=True)
 class Sumber:
     """Satu jenis data yang bisa dikelola lewat panel."""
 
@@ -68,6 +83,12 @@ class Sumber:
     # {"kunci": (ekspresi ORM, ...)} — dipakai view saat judul kolom diklik.
     pengurutan: dict = None
     urut_awal: str = ""
+    # Data yang barisnya lahir/mati di tempat lain (mis. sesi mentoring dibuat
+    # otomatis saat kelompok dibuat) cukup boleh diubah saja.
+    boleh_tambah: bool = True
+    boleh_hapus: bool = True
+    # Tombol tambahan per baris, di samping Ubah dan Hapus.
+    aksi_baris: tuple = ()
 
     def ambil_queryset(self):
         return self.queryset() if self.queryset else self.model.objects.all()
@@ -331,9 +352,102 @@ SUMBER = [
             # karena menutup RSVP di waktu yang salah langsung terasa di maba.
             Kolom("RSVP", _saklar_rsvp, "saklar_rsvp"),
         ),
+        aksi_baris=(
+            AksiBaris(lambda o: f"RSVP ({o.rsvp_list.count()})", "siwak:panel_rsvp"),
+        ),
         pencarian=("judul", "deskripsi", "lokasi"),
         kosong="Belum ada acara SIWAK.",
         queryset=lambda: SiwakEvent.objects.prefetch_related("rsvp_list"),
+    ),
+
+    # --- Bagian 5: Mentoring ---------------------------------------------------
+    Sumber(
+        slug="sesi",
+        bagian="mentoring",
+        label="Sesi Mentoring",
+        label_jamak="Sesi Mentoring",
+        deskripsi=(
+            "Empat sesi tiap kelompok dibuat otomatis. Di sini tanggal, catatan, dan status "
+            "aktifnya diatur — mentor baru bisa mengisi presensi kalau sesinya aktif."
+        ),
+        model=MentoringSession,
+        form=f.SesiForm,
+        # Sesi lahir bersama kelompoknya lewat signal dan nomornya dikunci 1-4,
+        # jadi yang masuk akal di sini cuma mengubah isinya.
+        boleh_tambah=False,
+        boleh_hapus=False,
+        kolom=(
+            Kolom("Kelompok", lambda o: o.kelompok.nama_kelompok, utama=True, urut="kelompok"),
+            Kolom("Sesi", lambda o: o.judul),
+            Kolom("Tanggal", lambda o: o.tanggal, "tanggal", urut="tanggal"),
+            # Dropdown, bukan penanda: membuka sesi berikutnya untuk semua
+            # kelompok adalah pekerjaan paling sering di halaman ini, dan
+            # membuka form ubah satu per satu hanya untuk satu centang jelas
+            # tidak masuk akal.
+            Kolom("Aktif", lambda o: o.is_active, "pilih_aktif"),
+            Kolom("Catatan", lambda o: o.catatan or "—", "panjang"),
+        ),
+        pencarian=("kelompok__nama_kelompok",),
+        kosong="Sesi mentoring muncul otomatis begitu kelompok mentoring dibuat.",
+        queryset=lambda: MentoringSession.objects.select_related("kelompok"),
+        pengurutan={
+            "kelompok": _urut_nama_kelompok("kelompok__") + ("nomor",),
+            "tanggal": ("tanggal", "nomor"),
+        },
+        urut_awal="kelompok",
+    ),
+    Sumber(
+        slug="aspek",
+        bagian="mentoring",
+        label="Aspek Penilaian",
+        label_jamak="Aspek Penilaian",
+        deskripsi=(
+            "Daftar aspek yang dinilai mentor. Menambah aspek di sini langsung menambah "
+            "kolom nilai di halaman penilaian mentor."
+        ),
+        model=AssessmentAspect,
+        form=f.AspekForm,
+        kolom=(
+            Kolom("Nama", lambda o: o.nama, utama=True, urut="nama"),
+            Kolom("Aktif", lambda o: o.is_active, "bool"),
+            Kolom("Dipakai", lambda o: f"{o.jumlah_nilai} penilaian"),
+        ),
+        kosong="Belum ada aspek penilaian. Mentor belum bisa memberi nilai sampai ada minimal satu.",
+        # order_by ditulis ulang di sini: annotate() dengan agregat membuang
+        # Meta.ordering, jadi tanpa ini daftarnya jatuh ke urutan acak dari
+        # database begitu kolom urutnya tidak lagi dipilih pengguna.
+        queryset=lambda: AssessmentAspect.objects.annotate(
+            jumlah_nilai=Count("mentee_assessments")
+        ).order_by("urutan", "nama"),
+        # Tanpa urut_awal: daftarnya mengikuti urutan rubrik di model, sama
+        # dengan yang dilihat mentor saat menilai.
+        pengurutan={"nama": ("nama",)},
+    ),
+    Sumber(
+        slug="tugas",
+        bagian="mentoring",
+        label="Tugas",
+        label_jamak="Tugas",
+        deskripsi="Tugas mentoring beserta pertanyaannya. Satu tugas berlaku untuk semua kelompok.",
+        model=Tugas,
+        form=f.TugasForm,
+        kolom=(
+            Kolom("Judul", lambda o: o.judul_tugas, utama=True, urut="judul"),
+            Kolom("Deadline", lambda o: o.deadline, "tanggal", urut="deadline"),
+            Kolom("Aktif", lambda o: o.is_active, "bool"),
+            Kolom("Pertanyaan", lambda o: o.jumlah_pertanyaan),
+            Kolom("Submission", lambda o: o.jumlah_submission),
+        ),
+        aksi_baris=(
+            AksiBaris(lambda o: f"Pertanyaan ({o.jumlah_pertanyaan})", "siwak:panel_pertanyaan"),
+        ),
+        kosong="Belum ada tugas mentoring.",
+        queryset=lambda: Tugas.objects.annotate(
+            jumlah_pertanyaan=Count("questions", distinct=True),
+            jumlah_submission=Count("submissions", distinct=True),
+        ),
+        pengurutan={"judul": ("judul_tugas",), "deadline": ("deadline",)},
+        urut_awal="deadline",
     ),
 ]
 
@@ -387,6 +501,12 @@ BAGIAN = [
         nama="SIWAK Events",
         deskripsi="Acara SIWAK-NG dan pengaturan buka-tutup RSVP-nya.",
         ikon="tiket",
+    ),
+    Bagian(
+        slug="mentoring",
+        nama="Mentoring",
+        deskripsi="Sesi mentoring, aspek penilaian, dan tugas beserta pertanyaannya.",
+        ikon="tugas",
     ),
 ]
 

@@ -17,22 +17,29 @@ from urllib.parse import urlencode
 from django.contrib import messages
 from django.contrib.auth.views import redirect_to_login
 from django.core.paginator import Paginator
-from django.db.models import F, Q
+from django.db import transaction
+from django.db.models import F, Max, ProtectedError, Q
+from django.forms import inlineformset_factory
 from django.http import Http404, HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
+from django.utils.text import slugify
 from django.views.decorators.http import require_POST
 
 from .models import (
+    Choice,
     EventRSVP,
     KelompokMentoring,
     MabaProfile,
     Mentor,
+    MentoringSession,
     PesertaMentoring,
+    Question,
     SiwakEvent,
     SiwakInfo,
+    Tugas,
 )
 from .panel import (
     BAGIAN,
@@ -43,7 +50,7 @@ from .panel import (
     daftar_mentor,
     sumber_bagian,
 )
-from .panel_forms import InfoSiwakForm
+from .panel_forms import InfoSiwakForm, PertanyaanForm, PilihanForm
 
 PER_HALAMAN = 25
 
@@ -127,6 +134,7 @@ URL_SEL = {
     "pilih_kelompok": "siwak:panel_set_kelompok",
     "pilih_kelompok_mentor": "siwak:panel_set_mentor_kelompok",
     "saklar_rsvp": "siwak:panel_rsvp_toggle",
+    "pilih_aktif": "siwak:panel_sesi_aktif",
 }
 
 
@@ -143,6 +151,14 @@ def _sel(obj, sumber):
             butir["url"] = reverse(nama_url, args=[obj.pk])
         daftar.append(butir)
     return daftar
+
+
+def _aksi(obj, sumber):
+    """Tombol tambahan baris ini — labelnya boleh menghitung isi objeknya."""
+    return [
+        {"label": a.label(obj), "url": reverse(a.nama_url, args=[obj.pk])}
+        for a in sumber.aksi_baris
+    ]
 
 
 def _angka(nilai):
@@ -258,7 +274,9 @@ def panel_bagian(request, bagian):
             "deskripsi": sumber.deskripsi,
             "url": reverse("siwak:panel_daftar", args=[sumber.slug]),
             "jumlah": sumber.model.objects.count(),
-            "url_tambah": reverse("siwak:panel_tambah", args=[sumber.slug]),
+            "url_tambah": (
+                reverse("siwak:panel_tambah", args=[sumber.slug]) if sumber.boleh_tambah else ""
+            ),
         })
 
     return render(request, "siwak/panel/bagian.html", _kerangka(
@@ -291,7 +309,10 @@ def panel_daftar(request, slug):
     qs, kunci_urut, turun = _urutkan(qs, sumber, request)
 
     halaman = Paginator(qs, PER_HALAMAN).get_page(request.GET.get("page"))
-    baris = [{"obj": o, "pk": o.pk, "sel": _sel(o, sumber)} for o in halaman.object_list]
+    baris = [
+        {"obj": o, "pk": o.pk, "sel": _sel(o, sumber), "aksi": _aksi(o, sumber)}
+        for o in halaman.object_list
+    ]
 
     # Judul kolom yang bisa diklik untuk mengurutkan. Sekali klik = menaik,
     # klik lagi pada kolom yang sama = menurun.
@@ -342,8 +363,9 @@ def panel_daftar(request, slug):
         # kembali ke halaman, pencarian, dan urutan yang sama.
         url_kembali=request.get_full_path(),
         kueri=urlencode({k: v for k, v in request.GET.items() if k != "page" and v}),
-        url_tambah=reverse("siwak:panel_tambah", args=[sumber.slug]),
-        ada_rsvp=sumber.slug == "event",
+        url_tambah=(
+            reverse("siwak:panel_tambah", args=[sumber.slug]) if sumber.boleh_tambah else ""
+        ),
         **ekstra,
     ))
 
@@ -380,13 +402,20 @@ def _simpan(request, sumber, instance=None):
         sumber_data=sumber,
         objek=instance,
         url_batal=reverse("siwak:panel_daftar", args=[sumber.slug]),
-        url_hapus=reverse("siwak:panel_hapus", args=[sumber.slug, instance.pk]) if ubah else "",
+        url_hapus=(
+            reverse("siwak:panel_hapus", args=[sumber.slug, instance.pk])
+            if ubah and sumber.boleh_hapus
+            else ""
+        ),
     ))
 
 
 @staf_required
 def panel_tambah(request, slug):
-    return _simpan(request, _sumber_atau_404(slug))
+    sumber = _sumber_atau_404(slug)
+    if not sumber.boleh_tambah:
+        raise Http404("Jenis data ini tidak bisa ditambah dari panel.")
+    return _simpan(request, sumber)
 
 
 @staf_required
@@ -399,9 +428,20 @@ def panel_ubah(request, slug, pk):
 @require_POST
 def panel_hapus(request, slug, pk):
     sumber = _sumber_atau_404(slug)
+    if not sumber.boleh_hapus:
+        raise Http404("Jenis data ini tidak bisa dihapus dari panel.")
     objek = get_object_or_404(sumber.model, pk=pk)
     nama = str(objek)
-    objek.delete()
+    try:
+        objek.delete()
+    except ProtectedError:
+        # Mis. aspek penilaian yang nilainya sudah dipakai mentor: lebih baik
+        # bilang kenapa daripada melempar 500 ke pengurus.
+        messages.error(
+            request,
+            f"{sumber.label} “{nama}” tidak bisa dihapus karena masih dipakai data lain.",
+        )
+        return redirect("siwak:panel_daftar", slug=sumber.slug)
     messages.success(request, f"{sumber.label} “{nama}” berhasil dihapus.")
     return redirect("siwak:panel_daftar", slug=sumber.slug)
 
@@ -688,3 +728,352 @@ def panel_rsvp_toggle(request, pk):
         f"RSVP “{event.judul}” sekarang {'dibuka' if event.rsvp_dibuka else 'ditutup'}.",
     )
     return _kembali(request, reverse("siwak:panel_daftar", args=["event"]))
+
+
+@staf_required
+@require_POST
+def panel_sesi_aktif(request, pk):
+    """Nyalakan/matikan satu sesi mentoring langsung dari daftarnya.
+
+    Status baru dibaca dari kiriman form, bukan sekadar dibalik dari yang
+    tersimpan: pengurus sering membuka daftar ini di beberapa tab sekaligus,
+    dan saklar yang hanya tahu "kebalikan dari sekarang" akan mematikan sesi
+    yang baru saja dinyalakan dari tab sebelah.
+    """
+    sesi = get_object_or_404(MentoringSession.objects.select_related("kelompok"), pk=pk)
+    aktif = request.POST.get("aktif") == "1"
+    if aktif != sesi.is_active:
+        sesi.is_active = aktif
+        sesi.save(update_fields=["is_active"])
+    messages.success(
+        request,
+        f"{sesi.kelompok.nama_kelompok} — {sesi.judul} sekarang "
+        f"{'aktif' if aktif else 'nonaktif'}.",
+    )
+    return _kembali(request, reverse("siwak:panel_daftar", args=["sesi"]))
+
+
+# ---------------------------------------------------------------------------
+# Penyusun pertanyaan tugas
+#
+# Dua halaman: daftar pertanyaan sebuah tugas, dan form satu pertanyaan
+# beserta pilihan jawabannya. Sengaja dipisah — menyusun pilihan ganda di
+# dalam daftar yang panjang lebih membingungkan daripada membuka satu form
+# yang fokus pada satu pertanyaan.
+# ---------------------------------------------------------------------------
+
+PilihanFormSet = inlineformset_factory(
+    Question, Choice, form=PilihanForm, fields=["teks"], extra=1, can_delete=True
+)
+
+TIPE_PILIHAN_GANDA = "choice"
+
+
+def _tugas_atau_404(pk):
+    return get_object_or_404(Tugas, pk=pk)
+
+
+def _pertanyaan_terurut(tugas):
+    """Pertanyaan tugas ini, urutannya pasti.
+
+    `Question.Meta.ordering` cuma memakai `urutan`, padahal baris yang dibuat
+    di luar panel semuanya bernilai 0. Tanpa pk sebagai pemecah seri, urutan
+    yang tampil bisa berubah-ubah tiap kali halaman dibuka.
+    """
+    return tugas.questions.order_by("urutan", "pk")
+
+
+def _rapikan_urutan(tugas):
+    """Tulis ulang urutan jadi 0..n-1 supaya tombol naik/turun punya arti."""
+    for posisi, soal in enumerate(_pertanyaan_terurut(tugas)):
+        if soal.urutan != posisi:
+            Question.objects.filter(pk=soal.pk).update(urutan=posisi)
+
+
+def _remah_pertanyaan(tugas, judul=""):
+    bagian = PETA_BAGIAN["mentoring"]
+    remah = [
+        (bagian.nama, reverse("siwak:panel_bagian", args=[bagian.slug])),
+        ("Tugas", reverse("siwak:panel_daftar", args=["tugas"])),
+    ]
+    if judul:
+        remah.append((tugas.judul_tugas, reverse("siwak:panel_pertanyaan", args=[tugas.pk])))
+        remah.append((judul, ""))
+    else:
+        remah.append((tugas.judul_tugas, ""))
+    return remah
+
+
+@staf_required
+def panel_pertanyaan(request, pk):
+    """Daftar pertanyaan satu tugas, lengkap dengan pratinjaunya."""
+    tugas = _tugas_atau_404(pk)
+    _rapikan_urutan(tugas)
+    daftar = list(_pertanyaan_terurut(tugas).prefetch_related("choices"))
+    terakhir = len(daftar) - 1
+
+    soal = [
+        {
+            "obj": s,
+            "nomor": posisi + 1,
+            "label_tipe": PertanyaanForm.TIPE_LABEL.get(s.tipe, s.tipe),
+            "pilihan": list(s.choices.order_by("urutan", "pk")),
+            "pertama": posisi == 0,
+            "terakhir": posisi == terakhir,
+        }
+        for posisi, s in enumerate(daftar)
+    ]
+
+    return render(request, "siwak/panel/pertanyaan.html", _kerangka(
+        request,
+        judul=f"Pertanyaan — {tugas.judul_tugas}",
+        bagian="mentoring",
+        sumber="tugas",
+        remah=_remah_pertanyaan(tugas),
+        tugas=tugas,
+        soal=soal,
+        url_kembali=request.get_full_path(),
+    ))
+
+
+def _cukup_pilihan(formset):
+    """Pilihan ganda tanpa dua pilihan bukan pilihan ganda."""
+    terisi = 0
+    for form in formset.forms:
+        if not hasattr(form, "cleaned_data"):
+            continue
+        if form.cleaned_data.get("DELETE"):
+            continue
+        if (form.cleaned_data.get("teks") or "").strip():
+            terisi += 1
+    return terisi >= 2
+
+
+def _simpan_pertanyaan(request, tugas, instance=None):
+    """Form satu pertanyaan + pilihan jawabannya, dipakai tambah dan ubah."""
+    ubah = instance is not None
+
+    if request.method == "POST":
+        form = PertanyaanForm(request.POST, instance=instance)
+        formset = PilihanFormSet(request.POST, instance=instance)
+
+        if form.is_valid():
+            # Disusun dulu tanpa menyentuh basis data: pertanyaan baru yang
+            # pilihannya belum sah jangan sempat tersimpan setengah jadi.
+            soal = form.save(commit=False)
+            soal.tugas = tugas
+            if not ubah:
+                terakhir = tugas.questions.aggregate(n=Max("urutan"))["n"]
+                soal.urutan = 0 if terakhir is None else terakhir + 1
+
+            if soal.tipe != TIPE_PILIHAN_GANDA:
+                soal.save()
+                # Bukan pilihan ganda: jangan sisakan pilihan yatim yang tidak
+                # akan pernah tampil ke maba.
+                dibuang = soal.choices.count()
+                soal.choices.all().delete()
+                catatan = f" {dibuang} pilihan jawaban ikut dihapus." if dibuang else ""
+                messages.success(request, f"Pertanyaan “{soal}” berhasil disimpan.{catatan}")
+                return redirect("siwak:panel_pertanyaan", pk=tugas.pk)
+
+            formset = PilihanFormSet(request.POST, instance=soal)
+            if formset.is_valid() and _cukup_pilihan(formset):
+                with transaction.atomic():
+                    soal.save()
+                    formset.instance = soal
+                    formset.save()
+                messages.success(request, f"Pertanyaan “{soal}” berhasil disimpan.")
+                return redirect("siwak:panel_pertanyaan", pk=tugas.pk)
+
+            if formset.is_valid():
+                form.add_error(None, "Pilihan ganda butuh minimal dua pilihan jawaban.")
+            messages.error(request, "Masih ada isian yang perlu dibetulkan.")
+        else:
+            messages.error(request, "Masih ada isian yang perlu dibetulkan.")
+    else:
+        form = PertanyaanForm(instance=instance)
+        formset = PilihanFormSet(instance=instance)
+
+    judul = "Ubah Pertanyaan" if ubah else "Tambah Pertanyaan"
+    return render(request, "siwak/panel/pertanyaan_form.html", _kerangka(
+        request,
+        judul=judul,
+        bagian="mentoring",
+        sumber="tugas",
+        remah=_remah_pertanyaan(tugas, judul),
+        tugas=tugas,
+        form=form,
+        formset=formset,
+        objek=instance,
+        url_batal=reverse("siwak:panel_pertanyaan", args=[tugas.pk]),
+        url_hapus=(
+            reverse("siwak:panel_pertanyaan_hapus", args=[instance.pk]) if ubah else ""
+        ),
+    ))
+
+
+@staf_required
+def panel_pertanyaan_tambah(request, pk):
+    return _simpan_pertanyaan(request, _tugas_atau_404(pk))
+
+
+@staf_required
+def panel_pertanyaan_ubah(request, pk):
+    soal = get_object_or_404(Question.objects.select_related("tugas"), pk=pk)
+    return _simpan_pertanyaan(request, soal.tugas, instance=soal)
+
+
+@staf_required
+@require_POST
+def panel_pertanyaan_hapus(request, pk):
+    soal = get_object_or_404(Question.objects.select_related("tugas"), pk=pk)
+    tugas = soal.tugas
+    nama = str(soal)
+    soal.delete()
+    _rapikan_urutan(tugas)
+    messages.success(request, f"Pertanyaan “{nama}” berhasil dihapus.")
+    return redirect("siwak:panel_pertanyaan", pk=tugas.pk)
+
+
+@staf_required
+@require_POST
+def panel_pertanyaan_urut(request, pk):
+    """Tukar posisi satu pertanyaan dengan tetangganya."""
+    soal = get_object_or_404(Question.objects.select_related("tugas"), pk=pk)
+    tugas = soal.tugas
+    naik = request.POST.get("arah") != "turun"
+
+    with transaction.atomic():
+        # Dirapikan dulu: kalau dua baris sama-sama bernilai 0, menukarnya
+        # tidak mengubah apa pun dan tombolnya terlihat rusak.
+        _rapikan_urutan(tugas)
+        soal.refresh_from_db()
+        tetangga = (
+            _pertanyaan_terurut(tugas).filter(urutan__lt=soal.urutan).last()
+            if naik
+            else _pertanyaan_terurut(tugas).filter(urutan__gt=soal.urutan).first()
+        )
+        if tetangga is not None:
+            Question.objects.filter(pk=soal.pk).update(urutan=tetangga.urutan)
+            Question.objects.filter(pk=tetangga.pk).update(urutan=soal.urutan)
+
+    return _kembali(request, reverse("siwak:panel_pertanyaan", args=[tugas.pk]))
+
+
+# ---------------------------------------------------------------------------
+# Pemeriksa jawaban tugas — hanya baca.
+# Jawaban adalah kiriman maba; panel ini untuk memeriksa dan mengunduhnya,
+# bukan untuk menyuntingnya. Karena itu tidak ada view ubah maupun hapus.
+# ---------------------------------------------------------------------------
+
+CARI_JAWABAN = (
+    "user__maba_profile__nama_lengkap",
+    "user__maba_profile__npm",
+    "user__username",
+)
+
+
+def _jawaban_queryset(tugas, kata=""):
+    qs = (
+        tugas.submissions.select_related("user__maba_profile")
+        .prefetch_related("answers__question", "answers__selected_choice")
+        .order_by("user__maba_profile__nama_lengkap", "user__username")
+    )
+    if kata:
+        saring = Q()
+        for nama_field in CARI_JAWABAN:
+            saring |= Q(**{f"{nama_field}__icontains": kata})
+        qs = qs.filter(saring)
+    return qs
+
+
+def _isi_jawaban(jawaban):
+    """Satu jawaban jadi tulisan siap tampil, apa pun tipenya."""
+    if jawaban.selected_choice_id:
+        return jawaban.selected_choice.teks
+    if jawaban.file_answer:
+        return jawaban.file_answer.name.split("/")[-1]
+    return jawaban.text_answer
+
+
+def _pasangkan_jawaban(pengumpulan, pertanyaan):
+    """Pasangkan tiap pertanyaan dengan jawabannya, termasuk yang belum diisi."""
+    peta = {j.question_id: j for j in pengumpulan.answers.all()}
+    baris = []
+    for soal in pertanyaan:
+        jawaban = peta.get(soal.pk)
+        baris.append({
+            "pertanyaan": soal,
+            "jawaban": jawaban,
+            "isi": _isi_jawaban(jawaban) if jawaban else "",
+        })
+    return baris
+
+
+@staf_required
+def panel_jawaban(request, pk):
+    tugas = _tugas_atau_404(pk)
+    pertanyaan = list(_pertanyaan_terurut(tugas))
+    kata = (request.GET.get("q") or "").strip()
+
+    halaman = Paginator(_jawaban_queryset(tugas, kata), PER_HALAMAN).get_page(
+        request.GET.get("page")
+    )
+    baris = []
+    for pengumpulan in halaman.object_list:
+        profil = getattr(pengumpulan.user, "maba_profile", None)
+        pasangan = _pasangkan_jawaban(pengumpulan, pertanyaan)
+        baris.append({
+            "obj": pengumpulan,
+            "nama": profil.nama_lengkap if profil else pengumpulan.user.username,
+            "npm": profil.npm if profil else "—",
+            "jawaban": pasangan,
+            "jumlah_terisi": sum(1 for p in pasangan if p["isi"]),
+        })
+
+    semua = tugas.submissions.all()
+    return render(request, "siwak/panel/jawaban.html", _kerangka(
+        request,
+        judul=f"Jawaban — {tugas.judul_tugas}",
+        bagian="mentoring",
+        sumber="tugas",
+        remah=_remah_pertanyaan(tugas, "Jawaban"),
+        tugas=tugas,
+        pertanyaan=pertanyaan,
+        baris=baris,
+        halaman=halaman,
+        kata=kata,
+        kueri=urlencode({k: v for k, v in request.GET.items() if k != "page" and v}),
+        jumlah_semua=semua.count(),
+        jumlah_terlambat=semua.filter(status="late").count(),
+    ))
+
+
+@staf_required
+def panel_jawaban_csv(request, pk):
+    """Unduhan mengikuti pencarian yang sedang aktif, sama seperti ekspor RSVP."""
+    tugas = _tugas_atau_404(pk)
+    pertanyaan = list(_pertanyaan_terurut(tugas))
+    kata = (request.GET.get("q") or "").strip()
+
+    respons = HttpResponse(content_type="text/csv")
+    nama_berkas = slugify(tugas.judul_tugas) or "tugas"
+    respons["Content-Disposition"] = f'attachment; filename="jawaban_{nama_berkas}.csv"'
+
+    penulis = csv.writer(respons)
+    penulis.writerow(
+        ["Nama", "NPM", "Status", "Waktu Kumpul"] + [s.pertanyaan for s in pertanyaan]
+    )
+    for pengumpulan in _jawaban_queryset(tugas, kata):
+        profil = getattr(pengumpulan.user, "maba_profile", None)
+        peta = {j.question_id: j for j in pengumpulan.answers.all()}
+        penulis.writerow(
+            [
+                profil.nama_lengkap if profil else pengumpulan.user.username,
+                profil.npm if profil else "",
+                pengumpulan.get_status_display(),
+                timezone.localtime(pengumpulan.submitted_at).strftime("%Y-%m-%d %H:%M"),
+            ]
+            + [_isi_jawaban(peta[s.pk]) if s.pk in peta else "" for s in pertanyaan]
+        )
+    return respons

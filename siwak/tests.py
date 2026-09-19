@@ -25,12 +25,20 @@ from django.core import signing
 from django.test import Client, TestCase
 from django.urls import reverse
 from .models import (
+    Answer,
+    AssessmentAspect,
+    Choice,
     EventRSVP,
     KelompokMentoring,
     MabaProfile,
+    MenteeAssessment,
     Mentor,
+    MentoringSession,
     PesertaMentoring,
-    SiwakEvent
+    Question,
+    SiwakEvent,
+    Tugas,
+    TugasSubmission
 )
 from django.utils import formats, timezone
 
@@ -289,6 +297,10 @@ class PanelAccessTests(TestCase):
             reverse("siwak:panel_daftar", args=["mentor"]),
             reverse("siwak:panel_daftar", args=["peserta"]),
             reverse("siwak:panel_tambah", args=["peserta"]),
+            reverse("siwak:panel_bagian", args=["mentoring"]),
+            reverse("siwak:panel_daftar", args=["sesi"]),
+            reverse("siwak:panel_daftar", args=["aspek"]),
+            reverse("siwak:panel_daftar", args=["tugas"]),
         ):
             with self.subTest(url=url):
                 self.assertEqual(self.client.get(url).status_code, 200)
@@ -1203,3 +1215,447 @@ class EventRSVPModelTests(TestCase):
         EventRSVP.objects.create(event=self.event, user=self.user)
         with self.assertRaises(Exception):
             EventRSVP.objects.create(event=self.event, user=self.user)
+
+
+class PanelSesiTests(TestCase):
+    """Verify mentoring sessions can be edited but never added or deleted."""
+
+    def setUp(self):
+        self.client.force_login(User.objects.create_user(username="pengurus", is_staff=True))
+        self.kelompok = KelompokMentoring.objects.create(nama_kelompok="Kelompok 1")
+        self.sesi = MentoringSession.objects.filter(kelompok=self.kelompok).first()
+
+    def test_creating_a_group_already_fills_the_session_list(self):
+        """The list should show the four sessions the signal created."""
+        response = self.client.get(reverse("siwak:panel_daftar", args=["sesi"]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(MentoringSession.objects.filter(kelompok=self.kelompok).count(), 4)
+
+    def test_the_list_offers_no_way_to_add_a_session(self):
+        """Sessions are created by the signal, so the add button must be gone."""
+        response = self.client.get(reverse("siwak:panel_daftar", args=["sesi"]))
+
+        self.assertNotContains(response, reverse("siwak:panel_tambah", args=["sesi"]))
+
+    def test_the_add_page_is_not_reachable_by_url(self):
+        """Hiding the button is not enough; the address must refuse too."""
+        response = self.client.get(reverse("siwak:panel_tambah", args=["sesi"]))
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_deleting_a_session_over_its_own_url_is_refused(self):
+        """A hand-made POST must not remove a session the signal owns."""
+        response = self.client.post(reverse("siwak:panel_hapus", args=["sesi", self.sesi.pk]))
+
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(MentoringSession.objects.filter(pk=self.sesi.pk).exists())
+
+    def test_editing_a_session_saves_the_date_and_activates_it(self):
+        """Activating a session here is what unlocks the mentor's presensi form."""
+        response = self.client.post(
+            reverse("siwak:panel_ubah", args=["sesi", self.sesi.pk]),
+            {"tanggal": "2026-09-20", "catatan": "Ruang 3113", "is_active": "on"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.sesi.refresh_from_db()
+        self.assertTrue(self.sesi.is_active)
+        self.assertEqual(self.sesi.catatan, "Ruang 3113")
+        self.assertEqual(str(self.sesi.tanggal), "2026-09-20")
+
+    def test_editing_a_session_never_moves_it_to_another_group(self):
+        """The group is locked, otherwise the (kelompok, nomor) pair could collide."""
+        lain = KelompokMentoring.objects.create(nama_kelompok="Kelompok 2")
+
+        self.client.post(
+            reverse("siwak:panel_ubah", args=["sesi", self.sesi.pk]),
+            {"tanggal": "", "catatan": "", "kelompok": lain.pk, "nomor": 4},
+        )
+
+        self.sesi.refresh_from_db()
+        self.assertEqual(self.sesi.kelompok, self.kelompok)
+        self.assertEqual(self.sesi.nomor, 1)
+
+    def test_the_list_can_activate_a_session_without_opening_the_form(self):
+        """Opening the next session for every group is the job done most here."""
+        response = self.client.post(
+            reverse("siwak:panel_sesi_aktif", args=[self.sesi.pk]), {"aktif": "1"}
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.sesi.refresh_from_db()
+        self.assertTrue(self.sesi.is_active)
+
+    def test_the_same_dropdown_switches_a_session_back_off(self):
+        """A saklar that only works one way would still need the edit form."""
+        MentoringSession.objects.filter(pk=self.sesi.pk).update(is_active=True)
+
+        self.client.post(
+            reverse("siwak:panel_sesi_aktif", args=[self.sesi.pk]), {"aktif": "0"}
+        )
+
+        self.sesi.refresh_from_db()
+        self.assertFalse(self.sesi.is_active)
+
+    def test_switching_lands_back_on_the_page_it_was_used_from(self):
+        """Sort order lives in the address, so saving must not reset it."""
+        asal = f"{reverse('siwak:panel_daftar', args=['sesi'])}?urut=tanggal&arah=turun"
+
+        response = self.client.post(
+            reverse("siwak:panel_sesi_aktif", args=[self.sesi.pk]),
+            {"aktif": "1", "next": asal},
+        )
+
+        self.assertRedirects(response, asal)
+
+    def test_switching_over_a_get_is_refused(self):
+        """Like every other panel mutation, this one is POST-only."""
+        response = self.client.get(reverse("siwak:panel_sesi_aktif", args=[self.sesi.pk]))
+
+        self.assertEqual(response.status_code, 405)
+
+
+class PanelAspekTests(TestCase):
+    """Verify the assessment rubric can be managed without breaking saved scores.
+
+    Migrasi 0013 sudah mengisi tiga aspek bawaan, jadi tes di sini memakai nama
+    lain dan tidak pernah menganggap tabelnya kosong.
+    """
+
+    def setUp(self):
+        self.client.force_login(User.objects.create_user(username="pengurus", is_staff=True))
+
+    def test_adding_an_aspect_makes_it_available_to_mentors(self):
+        """A new aspect should become part of the rubric straight away."""
+        response = self.client.post(
+            reverse("siwak:panel_tambah", args=["aspek"]),
+            {"nama": "Kedisiplinan", "urutan": 4, "is_active": "on"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        aspek = AssessmentAspect.objects.get(nama="Kedisiplinan")
+        self.assertTrue(aspek.is_active)
+
+    def test_a_duplicate_aspect_name_is_refused_in_plain_language(self):
+        """The rubric already ships with "Keaktifan"; adding it twice must not 500."""
+        response = self.client.post(
+            reverse("siwak:panel_tambah", args=["aspek"]),
+            {"nama": "Keaktifan", "urutan": 9, "is_active": "on"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Sudah ada aspek penilaian dengan nama ini.")
+        self.assertEqual(AssessmentAspect.objects.filter(nama="Keaktifan").count(), 1)
+
+    def test_an_unused_aspect_can_still_be_deleted(self):
+        """Nothing protects an aspect nobody has scored against yet."""
+        aspek = AssessmentAspect.objects.create(nama="Salah Ketik")
+
+        self.client.post(reverse("siwak:panel_hapus", args=["aspek", aspek.pk]))
+
+        self.assertFalse(AssessmentAspect.objects.filter(pk=aspek.pk).exists())
+
+    def test_deleting_a_scored_aspect_explains_itself_instead_of_crashing(self):
+        """MenteeAssessment protects the aspect, so the panel must say why."""
+        aspek = AssessmentAspect.objects.get(nama="Kehadiran")
+        kelompok = KelompokMentoring.objects.create(nama_kelompok="Kelompok 1")
+        profil = MabaProfile.objects.create(
+            npm="2506000030", nama_lengkap="Peserta Dinilai", jurusan="IK"
+        )
+        peserta = PesertaMentoring.objects.create(maba=profil, kelompok=kelompok)
+        MenteeAssessment.objects.create(peserta=peserta, aspect=aspek, score=80)
+
+        response = self.client.post(
+            reverse("siwak:panel_hapus", args=["aspek", aspek.pk]), follow=True
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(AssessmentAspect.objects.filter(pk=aspek.pk).exists())
+        self.assertContains(response, "masih dipakai data lain")
+
+
+class PanelTugasDaftarTests(TestCase):
+    """Verify the task list stays down to the two controls pengurus asked for."""
+
+    def setUp(self):
+        self.client.force_login(User.objects.create_user(username="pengurus", is_staff=True))
+        self.tugas = Tugas.objects.create(
+            judul_tugas="Tugas Uji", deskripsi="Isi", deadline=timezone.now()
+        )
+
+    def test_the_row_leads_to_the_question_builder(self):
+        """Menyusun pertanyaan tetap satu klik dari daftar tugas."""
+        response = self.client.get(reverse("siwak:panel_daftar", args=["tugas"]))
+
+        self.assertContains(response, reverse("siwak:panel_pertanyaan", args=[self.tugas.pk]))
+
+    def test_the_row_no_longer_offers_the_answer_viewer(self):
+        """Tombol Jawaban dilepas atas permintaan pengurus."""
+        response = self.client.get(reverse("siwak:panel_daftar", args=["tugas"]))
+
+        self.assertNotContains(response, reverse("siwak:panel_jawaban", args=[self.tugas.pk]))
+
+    def test_neither_short_list_carries_a_search_box(self):
+        """Tugas dan aspek penilaian isinya sedikit; kotak cari cuma jadi bising."""
+        for slug in ("tugas", "aspek"):
+            with self.subTest(slug=slug):
+                response = self.client.get(reverse("siwak:panel_daftar", args=[slug]))
+
+                self.assertNotContains(response, 'type="search"')
+
+    def test_the_rubric_list_drops_the_urutan_column(self):
+        """Urutan tetap dipakai model untuk mengurutkan, tapi tidak perlu dilihat."""
+        response = self.client.get(reverse("siwak:panel_daftar", args=["aspek"]))
+
+        self.assertContains(response, "Dipakai")
+        self.assertNotContains(response, "Urutan")
+
+
+class PanelPertanyaanTests(TestCase):
+    """Verify the task question builder: ordering, choice rules, and cleanup."""
+
+    def setUp(self):
+        self.client.force_login(User.objects.create_user(username="pengurus", is_staff=True))
+        self.tugas = Tugas.objects.create(
+            judul_tugas="Tugas Uji", deskripsi="Isi", deadline=timezone.now()
+        )
+
+    def _tambah(self, teks, tipe="text", **ekstra):
+        data = {
+            "pertanyaan": teks,
+            "tipe": tipe,
+            "choices-TOTAL_FORMS": "0",
+            "choices-INITIAL_FORMS": "0",
+            "choices-MIN_NUM_FORMS": "0",
+            "choices-MAX_NUM_FORMS": "1000",
+        }
+        data.update(ekstra)
+        return self.client.post(
+            reverse("siwak:panel_pertanyaan_tambah", args=[self.tugas.pk]), data
+        )
+
+    def test_a_text_question_is_added_to_the_end_of_the_list(self):
+        """Each new question should queue up after the ones already there."""
+        self._tambah("Pertanyaan satu")
+        self._tambah("Pertanyaan dua")
+
+        urutan = list(
+            self.tugas.questions.order_by("urutan", "pk").values_list("pertanyaan", flat=True)
+        )
+        self.assertEqual(urutan, ["Pertanyaan satu", "Pertanyaan dua"])
+
+    def test_a_multiple_choice_question_needs_at_least_two_options(self):
+        """One option is not a choice, so the form must refuse it."""
+        response = self._tambah(
+            "Pilih satu",
+            tipe="choice",
+            **{
+                "choices-TOTAL_FORMS": "1",
+                "choices-0-teks": "Cuma ini",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Question.objects.exists())
+        self.assertContains(response, "minimal dua pilihan")
+
+    def test_a_multiple_choice_question_saves_its_options(self):
+        """Two filled options is the smallest valid multiple choice question."""
+        response = self._tambah(
+            "Materi favorit",
+            tipe="choice",
+            **{
+                "choices-TOTAL_FORMS": "2",
+                "choices-0-teks": "Tauhid",
+                "choices-1-teks": "Fiqih",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        soal = Question.objects.get(pertanyaan="Materi favorit")
+        self.assertEqual(
+            list(soal.choices.order_by("pk").values_list("teks", flat=True)),
+            ["Tauhid", "Fiqih"],
+        )
+
+    def test_switching_away_from_choice_clears_the_orphaned_options(self):
+        """A text question must not keep options that can never be shown."""
+        soal = Question.objects.create(
+            tugas=self.tugas, pertanyaan="Dulu pilihan ganda", tipe="choice"
+        )
+        Choice.objects.create(question=soal, teks="A")
+        Choice.objects.create(question=soal, teks="B")
+
+        self.client.post(
+            reverse("siwak:panel_pertanyaan_ubah", args=[soal.pk]),
+            {
+                "pertanyaan": "Sekarang isian teks",
+                "tipe": "text",
+                "choices-TOTAL_FORMS": "0",
+                "choices-INITIAL_FORMS": "2",
+                "choices-MIN_NUM_FORMS": "0",
+                "choices-MAX_NUM_FORMS": "1000",
+            },
+        )
+
+        soal.refresh_from_db()
+        self.assertEqual(soal.tipe, "text")
+        self.assertEqual(soal.choices.count(), 0)
+
+    def test_the_arrows_swap_two_questions_that_both_start_at_zero(self):
+        """Rows made outside the panel all sit at urutan=0; the swap must still work."""
+        satu = Question.objects.create(tugas=self.tugas, pertanyaan="Satu", tipe="text")
+        dua = Question.objects.create(tugas=self.tugas, pertanyaan="Dua", tipe="text")
+        self.assertEqual(satu.urutan, dua.urutan)
+
+        self.client.post(reverse("siwak:panel_pertanyaan_urut", args=[dua.pk]), {"arah": "naik"})
+
+        urutan = list(
+            self.tugas.questions.order_by("urutan", "pk").values_list("pertanyaan", flat=True)
+        )
+        self.assertEqual(urutan, ["Dua", "Satu"])
+
+    def test_the_first_question_cannot_be_moved_further_up(self):
+        """Moving past the edge should be a no-op, not an error."""
+        satu = Question.objects.create(tugas=self.tugas, pertanyaan="Satu", tipe="text")
+        Question.objects.create(tugas=self.tugas, pertanyaan="Dua", tipe="text")
+
+        self.client.post(reverse("siwak:panel_pertanyaan_urut", args=[satu.pk]), {"arah": "naik"})
+
+        urutan = list(
+            self.tugas.questions.order_by("urutan", "pk").values_list("pertanyaan", flat=True)
+        )
+        self.assertEqual(urutan, ["Satu", "Dua"])
+
+    def test_reordering_over_get_is_refused(self):
+        """Order changes are POST-only, like every other panel mutation."""
+        soal = Question.objects.create(tugas=self.tugas, pertanyaan="Satu", tipe="text")
+
+        response = self.client.get(reverse("siwak:panel_pertanyaan_urut", args=[soal.pk]))
+
+        self.assertEqual(response.status_code, 405)
+
+    def test_deleting_a_question_closes_the_gap_it_leaves(self):
+        """Remaining questions should renumber so the arrows keep working."""
+        self._tambah("Satu")
+        self._tambah("Dua")
+        self._tambah("Tiga")
+        kedua = Question.objects.get(pertanyaan="Dua")
+
+        self.client.post(reverse("siwak:panel_pertanyaan_hapus", args=[kedua.pk]))
+
+        self.assertEqual(
+            list(self.tugas.questions.order_by("urutan").values_list("urutan", flat=True)),
+            [0, 1],
+        )
+
+
+class PanelJawabanTests(TestCase):
+    """Verify the read-only answer viewer scopes, searches, and exports correctly."""
+
+    def setUp(self):
+        self.client.force_login(User.objects.create_user(username="pengurus", is_staff=True))
+        self.tugas = Tugas.objects.create(
+            judul_tugas="Tugas Refleksi", deskripsi="Isi", deadline=timezone.now()
+        )
+        self.soal = Question.objects.create(
+            tugas=self.tugas, pertanyaan="Apa kesanmu?", tipe="text", urutan=0
+        )
+        self.maba = self._peserta("Aisyah Putri", "2506000040")
+        self.lain = self._peserta("Bilal Rahman", "2506000041")
+
+    def _peserta(self, nama, npm):
+        user = User.objects.create_user(username=npm)
+        MabaProfile.objects.create(
+            user=user, npm=npm, nama_lengkap=nama, jurusan="IK"
+        )
+        return user
+
+    def _kumpul(self, user, isi):
+        pengumpulan = TugasSubmission.objects.create(
+            tugas=self.tugas, user=user, file="siwak/tugas/uji.pdf"
+        )
+        Answer.objects.create(submission=pengumpulan, question=self.soal, text_answer=isi)
+        return pengumpulan
+
+    def test_the_page_lists_every_submission_with_its_answer(self):
+        """Each row should carry the student's own answer text."""
+        self._kumpul(self.maba, "Seru sekali")
+
+        response = self.client.get(reverse("siwak:panel_jawaban", args=[self.tugas.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Aisyah Putri")
+        self.assertContains(response, "Seru sekali")
+
+    def test_searching_by_name_keeps_only_the_matching_student(self):
+        """The search narrows the list without hiding the answer content."""
+        self._kumpul(self.maba, "Jawaban Aisyah")
+        self._kumpul(self.lain, "Jawaban Bilal")
+
+        response = self.client.get(
+            reverse("siwak:panel_jawaban", args=[self.tugas.pk]), {"q": "Aisyah"}
+        )
+
+        self.assertContains(response, "Aisyah Putri")
+        self.assertNotContains(response, "Bilal Rahman")
+
+    def test_searching_by_npm_works_too(self):
+        """Pengurus usually have the NPM, not the spelling of the name."""
+        self._kumpul(self.maba, "Jawaban Aisyah")
+        self._kumpul(self.lain, "Jawaban Bilal")
+
+        response = self.client.get(
+            reverse("siwak:panel_jawaban", args=[self.tugas.pk]), {"q": "2506000041"}
+        )
+
+        self.assertContains(response, "Bilal Rahman")
+        self.assertNotContains(response, "Aisyah Putri")
+
+    def test_the_search_never_reaches_into_another_task(self):
+        """Submissions belonging to a different task must stay out of this page."""
+        lain = Tugas.objects.create(
+            judul_tugas="Tugas Lain", deskripsi="x", deadline=timezone.now()
+        )
+        TugasSubmission.objects.create(tugas=lain, user=self.maba, file="siwak/tugas/lain.pdf")
+
+        response = self.client.get(reverse("siwak:panel_jawaban", args=[self.tugas.pk]))
+
+        self.assertEqual(len(response.context["baris"]), 0)
+
+    def test_the_export_returns_a_csv_with_one_column_per_question(self):
+        """The header must line up with the questions in their shown order."""
+        self._kumpul(self.maba, "Seru sekali")
+
+        response = self.client.get(reverse("siwak:panel_jawaban_csv", args=[self.tugas.pk]))
+
+        self.assertEqual(response["Content-Type"], "text/csv")
+        self.assertIn("attachment;", response["Content-Disposition"])
+        isi = response.content.decode()
+        self.assertIn("Apa kesanmu?", isi.splitlines()[0])
+        self.assertIn("Seru sekali", isi)
+
+    def test_the_export_follows_the_active_search(self):
+        """Downloading a filtered view should not quietly return everyone."""
+        self._kumpul(self.maba, "Jawaban Aisyah")
+        self._kumpul(self.lain, "Jawaban Bilal")
+
+        response = self.client.get(
+            reverse("siwak:panel_jawaban_csv", args=[self.tugas.pk]), {"q": "Aisyah"}
+        )
+
+        isi = response.content.decode()
+        self.assertIn("Aisyah Putri", isi)
+        self.assertNotIn("Bilal Rahman", isi)
+
+    def test_the_viewer_offers_no_way_to_change_an_answer(self):
+        """Submitted answers are an audit record, so the page stays read-only."""
+        self._kumpul(self.maba, "Seru sekali")
+
+        response = self.client.get(reverse("siwak:panel_jawaban", args=[self.tugas.pk]))
+
+        # Tidak ada isian apa pun yang terikat ke jawaban, jadi tidak ada yang
+        # bisa dikirim balik untuk mengubahnya.
+        self.assertNotContains(response, 'name="text_answer"')
+        self.assertNotContains(response, 'name="selected_choice"')

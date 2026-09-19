@@ -6,17 +6,26 @@ from django.contrib import admin
 from django.http import HttpResponse
 
 from .models import (
+    Answer,
+    AssessmentAspect,
+    AssignmentReview,
+    AssignmentReviewHistory,
+    Choice,
     EventRSVP,
     FAQMentoring,
     GaleriFoto,
     KelompokMentoring,
     KetuaSiwak,
     MabaProfile,
+    MenteeAssessment,
     Mentor,
+    MentorFeedback,
+    MentoringAttendance,
     MentoringBenefit,
     MentoringSession,
     MentoringTujuan,
     PesertaMentoring,
+    Question,
     SistemMentoring,
     SiwakEvent,
     SiwakInfo,
@@ -165,6 +174,13 @@ class FAQMentoringAdmin(admin.ModelAdmin):
     list_editable = ["urutan"]
 
 
+class QuestionInline(admin.TabularInline):
+    model = Question
+    extra = 0
+    fields = ["urutan", "tipe", "pertanyaan"]
+    ordering = ["urutan"]
+
+
 class TugasSubmissionInline(admin.TabularInline):
     model = TugasSubmission
     extra = 0
@@ -174,14 +190,19 @@ class TugasSubmissionInline(admin.TabularInline):
 
 @admin.register(Tugas)
 class TugasAdmin(admin.ModelAdmin):
-    list_display = ["judul_tugas", "deadline", "is_active", "jumlah_submission"]
+    list_display = ["judul_tugas", "deadline", "is_active", "jumlah_pertanyaan", "jumlah_submission"]
     list_filter = ["is_active"]
-    inlines = [TugasSubmissionInline]
+    search_fields = ["judul_tugas", "deskripsi"]
+    inlines = [QuestionInline, TugasSubmissionInline]
     actions = ["download_all_submissions"]
 
     def jumlah_submission(self, obj):
         return obj.submissions.count()
     jumlah_submission.short_description = "Submission"
+
+    def jumlah_pertanyaan(self, obj):
+        return obj.questions.count()
+    jumlah_pertanyaan.short_description = "Pertanyaan"
 
     @admin.action(description="Download seluruh submission (ZIP)")
     def download_all_submissions(self, request, queryset):
@@ -234,3 +255,200 @@ class EventRSVPAdmin(admin.ModelAdmin):
                 rsvp.redeemed_at or "",
             ])
         return response
+
+
+# ---------------------------------------------------------------------------
+# Model mentor (presensi, penilaian, feedback) & isi tugas.
+# Semuanya sengaja didaftarkan lengkap supaya setiap relasi bisa diuji langsung
+# dari halaman admin, bukan hanya lewat panel SIWAK di /siwak/admin/.
+# ---------------------------------------------------------------------------
+
+
+@admin.register(MentoringAttendance)
+class MentoringAttendanceAdmin(admin.ModelAdmin):
+    list_display = ["peserta", "session", "kelompok", "status", "recorded_by", "updated_at"]
+    list_filter = ["status", "session__nomor", "session__kelompok"]
+    search_fields = [
+        "peserta__maba__nama_lengkap",
+        "peserta__maba__npm",
+        "session__kelompok__nama_kelompok",
+    ]
+    autocomplete_fields = ["session", "peserta", "recorded_by"]
+    list_select_related = ["peserta__maba", "session__kelompok", "recorded_by"]
+    readonly_fields = ["created_at", "updated_at"]
+
+    @admin.display(description="Kelompok", ordering="session__kelompok__nama_kelompok")
+    def kelompok(self, obj):
+        return obj.session.kelompok
+
+
+@admin.register(AssessmentAspect)
+class AssessmentAspectAdmin(admin.ModelAdmin):
+    list_display = ["nama", "urutan", "is_active"]
+    list_editable = ["urutan", "is_active"]
+    list_filter = ["is_active"]
+    search_fields = ["nama"]
+
+
+@admin.register(MenteeAssessment)
+class MenteeAssessmentAdmin(admin.ModelAdmin):
+    list_display = ["peserta", "kelompok", "aspect", "score", "assessed_by", "updated_at"]
+    list_filter = ["aspect", "peserta__kelompok"]
+    search_fields = [
+        "peserta__maba__nama_lengkap",
+        "peserta__maba__npm",
+        "aspect__nama",
+    ]
+    autocomplete_fields = ["peserta", "aspect", "assessed_by"]
+    list_select_related = ["peserta__maba", "peserta__kelompok", "aspect", "assessed_by"]
+    readonly_fields = ["created_at", "updated_at"]
+
+    @admin.display(description="Kelompok", ordering="peserta__kelompok__nama_kelompok")
+    def kelompok(self, obj):
+        return obj.peserta.kelompok
+
+
+@admin.register(MentorFeedback)
+class MentorFeedbackAdmin(admin.ModelAdmin):
+    list_display = ["peserta", "session", "mentor", "ringkasan", "created_at"]
+    list_filter = ["session__nomor", "session__kelompok", "mentor"]
+    search_fields = [
+        "peserta__maba__nama_lengkap",
+        "peserta__maba__npm",
+        "isi",
+    ]
+    autocomplete_fields = ["session", "peserta", "mentor"]
+    list_select_related = ["peserta__maba", "session__kelompok", "mentor"]
+    readonly_fields = ["created_at", "updated_at"]
+
+    @admin.display(description="Feedback")
+    def ringkasan(self, obj):
+        return obj.isi[:60] + ("..." if len(obj.isi) > 60 else "")
+
+
+class ChoiceInline(admin.TabularInline):
+    model = Choice
+    extra = 0
+    fields = ["urutan", "teks"]
+    ordering = ["urutan"]
+
+
+@admin.register(Question)
+class QuestionAdmin(admin.ModelAdmin):
+    list_display = ["pertanyaan_singkat", "tugas", "tipe", "urutan", "jumlah_pilihan"]
+    list_editable = ["urutan"]
+    list_filter = ["tipe", "tugas"]
+    search_fields = ["pertanyaan", "tugas__judul_tugas"]
+    autocomplete_fields = ["tugas"]
+    list_select_related = ["tugas"]
+    inlines = [ChoiceInline]
+
+    @admin.display(description="Pertanyaan", ordering="pertanyaan")
+    def pertanyaan_singkat(self, obj):
+        return obj.pertanyaan[:80]
+
+    @admin.display(description="Pilihan")
+    def jumlah_pilihan(self, obj):
+        return obj.choices.count()
+
+
+@admin.register(Choice)
+class ChoiceAdmin(admin.ModelAdmin):
+    list_display = ["teks", "question", "urutan"]
+    list_editable = ["urutan"]
+    list_filter = ["question__tugas"]
+    search_fields = ["teks", "question__pertanyaan"]
+    autocomplete_fields = ["question"]
+    list_select_related = ["question__tugas"]
+
+
+class AnswerInline(admin.TabularInline):
+    model = Answer
+    extra = 0
+    autocomplete_fields = ["question", "selected_choice"]
+
+
+class AssignmentReviewInline(admin.StackedInline):
+    model = AssignmentReview
+    extra = 0
+    autocomplete_fields = ["reviewer"]
+    readonly_fields = ["created_at", "updated_at"]
+
+
+@admin.register(TugasSubmission)
+class TugasSubmissionAdmin(admin.ModelAdmin):
+    """Standalone selain inline di TugasAdmin, supaya relasi Answer &
+    AssignmentReview bisa ditelusuri dari satu submission."""
+
+    list_display = ["tugas", "user", "status", "nilai", "jumlah_jawaban", "submitted_at"]
+    list_filter = ["status", "tugas"]
+    search_fields = ["tugas__judul_tugas", "user__username", "user__maba_profile__nama_lengkap"]
+    autocomplete_fields = ["tugas"]
+    list_select_related = ["tugas", "user"]
+    readonly_fields = ["status", "submitted_at"]
+    inlines = [AnswerInline, AssignmentReviewInline]
+
+    @admin.display(description="Nilai")
+    def nilai(self, obj):
+        review = getattr(obj, "mentor_review", None)
+        return review.score if review else "-"
+
+    @admin.display(description="Jawaban")
+    def jumlah_jawaban(self, obj):
+        return obj.answers.count()
+
+
+@admin.register(Answer)
+class AnswerAdmin(admin.ModelAdmin):
+    list_display = ["submission", "question", "isi_singkat"]
+    list_filter = ["question__tugas", "question__tipe"]
+    search_fields = [
+        "text_answer",
+        "question__pertanyaan",
+        "submission__user__username",
+    ]
+    autocomplete_fields = ["submission", "question", "selected_choice"]
+    list_select_related = ["submission__tugas", "submission__user", "question"]
+
+    @admin.display(description="Jawaban")
+    def isi_singkat(self, obj):
+        if obj.selected_choice:
+            return obj.selected_choice.teks
+        if obj.file_answer:
+            return obj.file_answer.name.split("/")[-1]
+        return obj.text_answer[:60]
+
+
+@admin.register(AssignmentReview)
+class AssignmentReviewAdmin(admin.ModelAdmin):
+    list_display = ["submission", "score", "reviewer", "updated_at"]
+    list_filter = ["submission__tugas", "reviewer"]
+    search_fields = [
+        "submission__user__username",
+        "submission__tugas__judul_tugas",
+        "feedback",
+    ]
+    autocomplete_fields = ["submission", "reviewer"]
+    list_select_related = ["submission__tugas", "submission__user", "reviewer"]
+    readonly_fields = ["created_at", "updated_at"]
+
+
+@admin.register(AssignmentReviewHistory)
+class AssignmentReviewHistoryAdmin(admin.ModelAdmin):
+    """Append-only: cuma untuk dibaca, jangan diedit lewat admin."""
+
+    list_display = ["submission", "score", "reviewer", "created_at"]
+    list_filter = ["submission__tugas", "reviewer"]
+    search_fields = [
+        "submission__user__username",
+        "submission__tugas__judul_tugas",
+        "feedback",
+    ]
+    list_select_related = ["submission__tugas", "submission__user", "reviewer"]
+    readonly_fields = ["submission", "score", "feedback", "reviewer", "created_at"]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False

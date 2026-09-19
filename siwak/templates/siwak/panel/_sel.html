@@ -99,6 +99,30 @@
     </div>
   </div>
 
+{% elif sel.tipe == 'pilih_aktif' %}
+  {% comment %}
+    Saklar aktif/nonaktif yang menyimpan sendiri begitu pilihannya berubah.
+    Berbeda dengan saklar RSVP yang selalu bertanya dulu: menonaktifkan satu
+    sesi mentoring tidak menghapus apa pun dan langsung bisa dibalik, jadi
+    kotak konfirmasi di sini hanya jadi penghalang.
+  {% endcomment %}
+  <form method="post" action="{{ sel.url }}" class="flex items-center gap-1.5">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ url_kembali }}" />
+    <select name="aktif" aria-label="Status aktif baris ini"
+            onchange="this.form.submit()"
+            class="min-h-[38px] w-full min-w-[8rem] max-w-[11rem] rounded-xl border-2 px-2.5 py-1.5 text-[13px] font-semibold transition focus:border-gold focus:outline-none focus:ring-4 focus:ring-gold/25
+                   {% if sel.nilai %}border-gold-light bg-cream-300 text-navy{% else %}border-navy-400/40 bg-white text-navy-400{% endif %}">
+      <option value="1" {% if sel.nilai %}selected{% endif %}>&#10003; Aktif</option>
+      <option value="0" {% if not sel.nilai %}selected{% endif %}>&times; Nonaktif</option>
+    </select>
+    {% comment %}Jaring pengaman kalau JavaScript mati atau pengguna memakai keyboard.{% endcomment %}
+    <button type="submit"
+            class="sr-only focus:not-sr-only focus:rounded-lg focus:bg-navy focus:px-3 focus:py-1.5 focus:text-xs focus:font-bold focus:text-white">
+      Simpan
+    </button>
+  </form>
+
 {% elif sel.tipe == 'tanggal' %}
   {% if sel.nilai %}<span class="whitespace-nowrap">{{ sel.nilai|date:"j M Y" }}</span>
   {% else %}<span class="text-navy-400">&mdash;</span>{% endif %}
