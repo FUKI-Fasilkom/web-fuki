@@ -1,0 +1,127 @@
+{% extends 'siwak/panel/base.html' %}
+
+{% block panel %}
+<header class="mb-5 flex flex-wrap items-start justify-between gap-3">
+  <div class="min-w-0">
+    <h1 class="text-2xl font-bold text-navy sm:text-3xl">Jawaban Tugas</h1>
+    <p class="mt-1 text-sm font-semibold text-navy">{{ tugas.judul_tugas }}</p>
+    <p class="mt-1 max-w-2xl text-sm leading-relaxed text-navy-400">
+      Halaman ini hanya untuk memeriksa dan mengunduh. Jawaban maba tidak bisa diubah dari sini.
+    </p>
+  </div>
+  <div class="flex flex-wrap gap-2">
+    <a href="{% url 'siwak:panel_pertanyaan' tugas.pk %}"
+       class="inline-flex min-h-[44px] items-center rounded-xl border-2 border-navy px-5 text-sm font-bold text-navy transition hover:bg-cream-300">
+      Susun pertanyaan
+    </a>
+    <a href="{% url 'siwak:panel_jawaban_csv' tugas.pk %}{% if kata %}?q={{ kata|urlencode }}{% endif %}"
+       class="inline-flex min-h-[44px] items-center rounded-xl bg-navy px-5 text-sm font-bold text-white transition hover:bg-navy-700">
+      Unduh CSV
+    </a>
+  </div>
+</header>
+
+<div class="mb-5 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+  <div class="rounded-2xl border-2 border-gold-light bg-white px-4 py-4">
+    <p class="text-2xl font-bold leading-none text-navy sm:text-3xl">{{ jumlah_semua }}</p>
+    <p class="mt-1.5 text-[11px] font-semibold uppercase tracking-wide text-navy-400 sm:text-xs">Total Pengumpulan</p>
+  </div>
+  <div class="rounded-2xl border-2 border-gold-light bg-white px-4 py-4">
+    <p class="text-2xl font-bold leading-none text-navy sm:text-3xl">{{ jumlah_terlambat }}</p>
+    <p class="mt-1.5 text-[11px] font-semibold uppercase tracking-wide text-navy-400 sm:text-xs">Terlambat</p>
+  </div>
+  <div class="rounded-2xl border-2 border-gold-light bg-white px-4 py-4">
+    <p class="text-2xl font-bold leading-none text-navy sm:text-3xl">{{ pertanyaan|length }}</p>
+    <p class="mt-1.5 text-[11px] font-semibold uppercase tracking-wide text-navy-400 sm:text-xs">Pertanyaan</p>
+  </div>
+  <div class="rounded-2xl border-2 border-gold-light bg-white px-4 py-4">
+    <p class="text-2xl font-bold leading-none text-navy sm:text-3xl">{{ halaman.paginator.count }}</p>
+    <p class="mt-1.5 text-[11px] font-semibold uppercase tracking-wide text-navy-400 sm:text-xs">Sedang Ditampilkan</p>
+  </div>
+</div>
+
+{% comment %}
+  Pencarian lewat alamat halaman, bukan penyaring di sisi peramban — sama
+  seperti daftar RSVP, supaya hasil yang tersaring bisa dikirim ke pengurus lain.
+{% endcomment %}
+<form method="get" class="mb-4 flex flex-wrap gap-2" role="search">
+  <input type="search" name="q" value="{{ kata }}" placeholder="Cari nama atau NPM…"
+         class="min-h-[44px] w-full flex-1 rounded-xl border-2 border-gold-light bg-white px-4 text-[15px] text-navy placeholder-navy-400/60 transition focus:border-gold focus:outline-none focus:ring-4 focus:ring-gold/25 sm:w-auto" />
+  <button type="submit"
+          class="min-h-[44px] rounded-xl bg-navy px-5 text-sm font-bold text-white transition hover:bg-navy-700">
+    Cari
+  </button>
+  {% if kata %}
+  <a href="{% url 'siwak:panel_jawaban' tugas.pk %}"
+     class="inline-flex min-h-[44px] items-center rounded-xl border-2 border-navy px-5 text-sm font-bold text-navy transition hover:bg-cream-300">
+    Bersihkan
+  </a>
+  {% endif %}
+</form>
+
+{% if baris %}
+<div class="space-y-2">
+  {% for item in baris %}
+  <details class="rounded-2xl border-2 border-gold-light bg-white">
+    <summary class="flex cursor-pointer flex-wrap items-center gap-3 px-4 py-3.5">
+      <span class="min-w-0 flex-1">
+        <span class="block truncate text-[15px] font-semibold text-navy">{{ item.nama }}</span>
+        <span class="block text-xs text-navy-400">{{ item.npm }}</span>
+      </span>
+      {% if item.obj.status == 'late' %}
+      <span class="rounded-full bg-navy/5 px-2.5 py-1 text-[11px] font-bold text-red-700">Terlambat</span>
+      {% else %}
+      <span class="rounded-full bg-cream-300 px-2.5 py-1 text-[11px] font-bold text-navy">Terkumpul</span>
+      {% endif %}
+      <span class="rounded-full bg-badge/60 px-2.5 py-1 text-[11px] font-semibold text-navy">
+        {{ item.jumlah_terisi }}/{{ pertanyaan|length }} jawaban
+      </span>
+      <span class="text-xs text-navy-400">{{ item.obj.submitted_at|date:"j M Y, H:i" }}</span>
+    </summary>
+
+    <div class="space-y-4 border-t border-gold-light/70 px-4 py-4">
+      {% if item.obj.file %}
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-wide text-navy-400">Berkas unggahan</p>
+        <a href="{% url 'siwak:submission_download' item.obj.pk %}"
+           class="mt-1 inline-flex min-h-[38px] items-center rounded-xl border-2 border-navy px-4 text-xs font-bold text-navy transition hover:bg-cream-300">
+          Unduh berkas
+        </a>
+      </div>
+      {% endif %}
+
+      {% for pasangan in item.jawaban %}
+      <div>
+        <p class="text-sm font-semibold text-navy">{{ forloop.counter }}. {{ pasangan.pertanyaan.pertanyaan }}</p>
+        {% if pasangan.isi %}
+        <p class="mt-1 whitespace-pre-line rounded-xl bg-cream-50 px-4 py-2.5 text-sm text-navy">{{ pasangan.isi }}</p>
+        {% else %}
+        <p class="mt-1 rounded-xl border-2 border-dashed border-gold-light px-4 py-2.5 text-sm text-navy-400">
+          Belum dijawab.
+        </p>
+        {% endif %}
+      </div>
+      {% empty %}
+      <p class="rounded-xl border-2 border-dashed border-gold-light px-4 py-3 text-sm text-navy-400">
+        Tugas ini belum punya pertanyaan, jadi yang dikumpulkan hanya berkas.
+      </p>
+      {% endfor %}
+    </div>
+  </details>
+  {% endfor %}
+</div>
+
+{% include 'siwak/panel/_paginasi.html' %}
+
+{% else %}
+<div class="rounded-2xl border-2 border-dashed border-gold-light bg-white px-6 py-14 text-center">
+  <p class="text-base font-bold text-navy">
+    {% if kata %}Tidak ada hasil untuk &ldquo;{{ kata }}&rdquo;.{% else %}Belum ada yang mengumpulkan tugas ini.{% endif %}
+  </p>
+  <p class="mx-auto mt-1.5 max-w-md text-sm leading-relaxed text-navy-400">
+    {% if kata %}Coba kata kunci lain, atau bersihkan pencarian.
+    {% else %}Jawaban maba akan muncul di sini begitu mereka mengumpulkan.{% endif %}
+  </p>
+</div>
+{% endif %}
+{% endblock %}

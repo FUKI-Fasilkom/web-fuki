@@ -9,18 +9,23 @@ ke model otomatis ikut bergaya benar tanpa disentuh lagi.
 from django import forms
 
 from .models import (
+    AssessmentAspect,
+    Choice,
     GaleriFoto,
     KelompokMentoring,
     KetuaSiwak,
     MabaProfile,
     Mentor,
     MentoringBenefit,
+    MentoringSession,
     MentoringTujuan,
     PesertaMentoring,
+    Question,
     SistemMentoring,
     SiwakEvent,
     SiwakInfo,
     TimelineEvent,
+    Tugas,
 )
 
 ISIAN = (
@@ -72,6 +77,15 @@ class PanelForm(forms.ModelForm):
 
             if isinstance(widget, forms.Textarea):
                 widget.attrs.setdefault("rows", 4)
+                widget.attrs.setdefault("class", ISIAN)
+                continue
+
+            if isinstance(widget, forms.DateTimeInput):
+                # DateTimeInput bukan turunan DateInput, jadi harus diurus
+                # sendiri — tanpa ini deadline tugas jadi kotak teks biasa.
+                widget.input_type = "datetime-local"
+                widget.format = "%Y-%m-%dT%H:%M"
+                field.input_formats = ["%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"]
                 widget.attrs.setdefault("class", ISIAN)
                 continue
 
@@ -285,3 +299,119 @@ class EventForm(PanelForm):
             "rsvp_dibuka": "Saat dimatikan, maba tidak bisa RSVP baru. Yang sudah RSVP tetap bisa membuka QR-nya.",
             "urutan": "Angka lebih kecil tampil lebih dulu di halaman SIWAK.",
         }
+
+
+# ---------------------------------------------------------------------------
+# Bagian 5 — Mentoring
+# ---------------------------------------------------------------------------
+
+
+class SesiForm(PanelForm):
+    """Isi satu sesi mentoring.
+
+    Kelompok dan nomor sesi sengaja tidak ada di sini: keduanya dikunci saat
+    sesi dibuat otomatis, dan memindahkan sesi ke kelompok lain akan bentrok
+    dengan unique constraint (kelompok, nomor).
+    """
+
+    class Meta:
+        model = MentoringSession
+        fields = ["tanggal", "catatan", "is_active"]
+        labels = {
+            "tanggal": "Tanggal Mentoring",
+            "catatan": "Catatan Sesi",
+            "is_active": "Sesi aktif",
+        }
+        help_texts = {
+            "tanggal": "Boleh dikosongkan kalau tanggalnya belum ditentukan.",
+            "catatan": "Catatan untuk pengurus. Tidak tampil ke maba.",
+            "is_active": "Mentor baru bisa mengisi presensi dan feedback kalau sesinya aktif.",
+        }
+
+
+class AspekForm(PanelForm):
+    class Meta:
+        model = AssessmentAspect
+        fields = ["nama", "urutan", "is_active"]
+        labels = {"nama": "Nama Aspek", "urutan": "Urutan", "is_active": "Aspek aktif"}
+        help_texts = {
+            "urutan": "Angka lebih kecil tampil lebih dulu di form penilaian mentor.",
+            "is_active": (
+                "Kalau dimatikan, aspek ini hilang dari form penilaian mentor, "
+                "tapi nilai yang sudah masuk tetap tersimpan."
+            ),
+        }
+        error_messages = {
+            "nama": {"unique": "Sudah ada aspek penilaian dengan nama ini."},
+        }
+
+
+class TugasForm(PanelForm):
+    class Meta:
+        model = Tugas
+        fields = ["judul_tugas", "deskripsi", "deadline", "max_file_size_mb", "is_active"]
+        widgets = {"deadline": forms.DateTimeInput()}
+        labels = {
+            "judul_tugas": "Judul Tugas",
+            "deskripsi": "Deskripsi",
+            "deadline": "Deadline",
+            "max_file_size_mb": "Ukuran file maksimum (MB)",
+            "is_active": "Tugas aktif",
+        }
+        help_texts = {
+            "deskripsi": "Satu tugas berlaku untuk semua kelompok mentoring.",
+            "deadline": "Pengumpulan setelah waktu ini otomatis ditandai terlambat.",
+            "is_active": "Tugas yang tidak aktif hilang dari halaman tugas maba.",
+        }
+
+
+class PertanyaanForm(PanelForm):
+    """Satu pertanyaan di dalam sebuah tugas.
+
+    Pilihan tipe digambar tangan di templatnya (tiga kartu, bukan dropdown),
+    jadi labelnya ditulis ulang di sini dalam bahasa yang dimengerti pengurus
+    tanpa mengubah nilai yang tersimpan di basis data.
+    """
+
+    TIPE_LABEL = {
+        "text": "Isian teks",
+        "choice": "Pilihan ganda",
+        "file": "Unggah berkas",
+    }
+    TIPE_KETERANGAN = {
+        "text": "Maba mengetik jawabannya sendiri.",
+        "choice": "Maba memilih satu dari beberapa pilihan yang kamu tulis.",
+        "file": "Maba mengunggah satu berkas.",
+    }
+
+    class Meta:
+        model = Question
+        fields = ["pertanyaan", "tipe"]
+        labels = {"pertanyaan": "Pertanyaan", "tipe": "Jenis Jawaban"}
+        widgets = {"pertanyaan": forms.Textarea(attrs={"rows": 3})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["tipe"].choices = [
+            (nilai, self.TIPE_LABEL[nilai]) for nilai, _ in Question.TYPE_CHOICES
+        ]
+
+    def kartu_tipe(self):
+        """Tiga kartu pilihan tipe, siap dirender templat."""
+        terpilih = self["tipe"].value() or Question.TYPE_CHOICES[0][0]
+        return [
+            {
+                "nilai": nilai,
+                "label": self.TIPE_LABEL[nilai],
+                "keterangan": self.TIPE_KETERANGAN[nilai],
+                "terpilih": nilai == terpilih,
+            }
+            for nilai, _ in Question.TYPE_CHOICES
+        ]
+
+
+class PilihanForm(PanelForm):
+    class Meta:
+        model = Choice
+        fields = ["teks"]
+        labels = {"teks": "Pilihan jawaban"}
