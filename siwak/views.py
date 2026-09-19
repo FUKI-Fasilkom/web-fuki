@@ -209,6 +209,9 @@ def tugas_detail(request, pk):
     context = {
         "tugas": tugas,
         "submission": submission,
+        "assignment_review": (
+            getattr(submission, "mentor_review", None) if submission else None
+        ),
         "is_past_deadline": is_past_deadline,
         "form": form,
     }
