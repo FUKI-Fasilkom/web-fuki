@@ -182,8 +182,12 @@ class TimelineForm(PanelForm):
 class MentorForm(PanelForm):
     class Meta:
         model = Mentor
-        fields = ["nama", "kelompok"]
-        labels = {"nama": "Nama mentor", "kelompok": "Memegang kelompok"}
+        fields = ["nama", "npm", "kelompok"]
+        labels = {
+            "nama": "Nama mentor",
+            "npm": "NPM mentor",
+            "kelompok": "Memegang kelompok",
+        }
 
 
 class KelompokForm(PanelForm):
