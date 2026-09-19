@@ -1,0 +1,13 @@
+{% load static %}
+{% if variant == 'redesign' %}
+  <img src="{% static 'images/Logo-FUKI-Biru.png' %}" alt="" aria-hidden="true"
+       class="pointer-events-none absolute right-[21px] top-1/2 z-0 h-auto w-[60.5px] -translate-y-1/2 -rotate-[18deg] lg:right-[-118px] lg:top-[128px] lg:-z-10 lg:w-[390px] lg:translate-y-0" />
+{% elif variant == 'tilted' %}
+  <img src="{% static 'images/Logo-FUKI-Biru.png' %}" alt="Logo FUKI"
+       class="pointer-events-none absolute right-0 top-1/2 h-auto object-contain
+              {% if ringkas %}w-[100px] sm:w-[160px] lg:w-[200px]{% else %}w-[150px] sm:w-[260px] lg:w-[380px]{% endif %}
+              -translate-y-1/2 translate-x-[30%] -rotate-[18deg]" />
+{% else %}
+  <img src="{% static 'images/Logo-FUKI-Biru.png' %}" alt="Logo FUKI"
+       class="w-[110px] sm:w-[200px] lg:w-[330px] h-auto object-contain shrink-0" />
+{% endif %}
