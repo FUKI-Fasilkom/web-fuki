@@ -20,7 +20,7 @@ from django.contrib.auth import get_user_model
 from django.contrib import messages
 from django.db import transaction
 
-from .models import MabaProfile, PesertaMentoring
+from .models import MabaProfile, Mentor, PesertaMentoring
 
 
 from django.dispatch import receiver
@@ -161,6 +161,13 @@ def sync_maba_profile(*, user, npm: str, nama_lengkap: str, jurusan: str, angkat
         npm=npm,
         user__isnull=True,
     ).update(user=user)
+
+    # Data mentor dapat disiapkan lebih dulu oleh admin hanya dengan NPM. Saat
+    # login CAS pertama, hubungkan baris tersebut dengan User hasil autentikasi.
+    mentor = Mentor.objects.filter(npm=npm).first()
+    if mentor and mentor.user_id is None:
+        mentor.user = user
+        mentor.save(update_fields=["user"])
 
     return profile
 

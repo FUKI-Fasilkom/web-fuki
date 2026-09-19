@@ -136,7 +136,7 @@ class Command(BaseCommand):
             nama_kelompok="Kelompok 1",
             defaults={"link_grup": "https://chat.whatsapp.com/contoh-link-kelompok-1"},
         )
-        kelompok1.mentors.set([mentor1, mentor2])
+        Mentor.objects.filter(pk__in=[mentor1.pk, mentor2.pk]).update(kelompok=kelompok1)
 
         PesertaMentoring.objects.update_or_create(
             nama_lengkap="Marwa Muhlashon", jurusan="SI",
