@@ -89,10 +89,10 @@
 {% block content %}
 
 {# ============================ HERO ============================ #}
-{% include 'hero_gold.html' with page_title="FUKI 2026" subtitle="#UnitePurposeAccelerateImpact" judul_besar=True %}
+{% include 'components/redesign_header.html' with page_title="FUKI 2026" subtitle="#UnitePurposeAccelerateImpact" judul_besar=True logo_miring=False %}
 
 {# ======================== APA ITU FUKI ======================== #}
-<section class="w-full bg-white py-14 sm:py-20">
+<section class="w-full bg-[#F9F8F5] py-14 sm:py-20">
   <div class="mx-auto w-full max-w-[1118px] px-6 grid gap-10 items-center lg:grid-cols-2 lg:gap-16">
 
     <div class="text-center lg:text-left">
@@ -133,7 +133,7 @@
 </section>
 
 {# ======================= UPCOMING EVENT ======================= #}
-<section class="w-full bg-white py-10 sm:py-16" x-data="{ filter: 'all' }">
+<section class="w-full bg-[#F9F8F5] py-10 sm:py-16" x-data="{ filter: 'all' }">
   <div class="mx-auto w-full max-w-[1118px] px-6">
     <h2 class="text-2xl sm:text-4xl font-bold text-navy-700 text-center">Upcoming Event</h2>
 
@@ -218,7 +218,7 @@
 {# ======================== OUR ACTIVITY ======================== #}
 {% comment %}
 {% if activities %}
-<section class="w-full bg-white py-10 sm:py-16 overflow-hidden"
+<section class="w-full bg-[#F9F8F5] py-10 sm:py-16 overflow-hidden"
          x-data="carousel" @resize.window="hitung()">
   <div class="mx-auto w-full max-w-[1118px] px-6">
     <h2 class="text-2xl sm:text-4xl font-bold text-navy-700">Our Activity</h2>
@@ -269,7 +269,7 @@
 {# ========================== PODCAST =========================== #}
 {% comment %}
 {% if podcasts %}
-<section class="w-full bg-white py-10 sm:py-16">
+<section class="w-full bg-[#F9F8F5] py-10 sm:py-16">
   <div class="mx-auto w-full max-w-[1118px] px-6">
     <h2 class="text-2xl sm:text-4xl font-bold text-navy-700 text-center">Listen to Our Podcast</h2>
 

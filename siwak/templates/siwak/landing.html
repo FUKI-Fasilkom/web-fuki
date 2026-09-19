@@ -5,9 +5,9 @@
 {% include 'siwak/_messages.html' %}
 
 <!-- Hero: shared verbatim with Profil so its geometry and logo treatment stay identical. -->
-{% include 'hero_gold.html' with page_title=info.hero_judul logo_miring=True %}
+{% include 'components/redesign_header.html' with page_title=info.hero_judul%}
 
-<div class="bg-[#F9F8F5]" style="background-image: linear-gradient(to bottom, #ffffff 0, #F9F8F5 160px);">
+<div class="bg-[#F9F8F5]">
   <div class="mx-auto w-full max-w-[1118px] px-6 py-12 sm:py-16">
 
     <!-- Apa itu SIWAK-NG -->
