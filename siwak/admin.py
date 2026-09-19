@@ -14,6 +14,7 @@ from .models import (
     MabaProfile,
     Mentor,
     MentoringBenefit,
+    MentoringSession,
     MentoringTujuan,
     PesertaMentoring,
     SistemMentoring,
@@ -59,8 +60,9 @@ class TimelineEventAdmin(admin.ModelAdmin):
 
 @admin.register(Mentor)
 class MentorAdmin(admin.ModelAdmin):
-    list_display = ["nama"]
-    search_fields = ["nama"]
+    list_display = ["nama", "npm", "kelompok", "user"]
+    list_filter = ["kelompok"]
+    search_fields = ["nama", "npm"]
 
 
 @admin.register(KelompokMentoring)
@@ -68,8 +70,6 @@ class KelompokMentoringAdmin(admin.ModelAdmin):
     list_display = ["nama_kelompok", "mentor_names", "jumlah_peserta", "kapasitas", "is_active"]
     list_filter = ["is_active"]
     search_fields = ["nama_kelompok"]
-    filter_horizontal = ["mentors"]
-
     def mentor_names(self, obj):
         return ", ".join(m.nama for m in obj.mentors.all()) or "-"
     mentor_names.short_description = "Mentor"
@@ -77,6 +77,31 @@ class KelompokMentoringAdmin(admin.ModelAdmin):
     def jumlah_peserta(self, obj):
         return obj.peserta_list.count()
     jumlah_peserta.short_description = "Jumlah Peserta"
+
+
+@admin.register(MentoringSession)
+class MentoringSessionAdmin(admin.ModelAdmin):
+    list_display = ["kelompok", "nomor", "tanggal", "is_active"]
+    list_display_links = ["kelompok", "nomor"]
+    list_editable = ["tanggal", "is_active"]
+    list_filter = ["nomor", "is_active"]
+    search_fields = ["kelompok__nama_kelompok"]
+    ordering = ["kelompok__nama_kelompok", "nomor"]
+    actions = ["activate_sessions", "deactivate_sessions"]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    @admin.action(description="Aktifkan sesi terpilih")
+    def activate_sessions(self, request, queryset):
+        queryset.update(is_active=True)
+
+    @admin.action(description="Nonaktifkan sesi terpilih")
+    def deactivate_sessions(self, request, queryset):
+        queryset.update(is_active=False)
 
 
 @admin.register(PesertaMentoring)

@@ -1,6 +1,7 @@
 import uuid
 
 from django.conf import settings
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 
@@ -141,6 +142,29 @@ class TimelineEvent(models.Model):
 
 class Mentor(models.Model):
     nama = models.CharField(max_length=200)
+    npm = models.CharField(
+        max_length=20,
+        unique=True,
+        null=True,
+        blank=True,
+        verbose_name="NPM",
+        help_text="Dipakai untuk menghubungkan data mentor dengan akun SSO UI.",
+    )
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="mentor_profile",
+    )
+    kelompok = models.ForeignKey(
+        "KelompokMentoring",
+        on_delete=models.SET_NULL,
+        related_name="mentors",
+        null=True,
+        blank=True,
+        verbose_name="Kelompok Mentoring",
+    )
 
     class Meta:
         verbose_name = "Mentor"
@@ -154,7 +178,6 @@ class KelompokMentoring(models.Model):
     """Kelompok mentoring + link grup WhatsApp (PRD 4.3)."""
 
     nama_kelompok = models.CharField(max_length=100, verbose_name="Nama Kelompok")
-    mentors = models.ManyToManyField(Mentor, related_name="kelompok_list", blank=True, verbose_name="Mentor")
     link_grup = models.URLField(verbose_name="Link Grup WhatsApp", blank=True)
     kapasitas = models.PositiveIntegerField(default=15, verbose_name="Kapasitas")
     is_active = models.BooleanField(default=True)
@@ -167,6 +190,51 @@ class KelompokMentoring(models.Model):
 
     def __str__(self):
         return self.nama_kelompok
+
+class MentoringSession(models.Model):
+    SESSION_CHOICES = [(number, f"Sesi {number}") for number in range(1, 5)]
+
+    kelompok = models.ForeignKey(
+        KelompokMentoring,
+        on_delete=models.CASCADE,
+        related_name="mentoring_sessions",
+    )
+    nomor = models.PositiveSmallIntegerField(
+        choices=SESSION_CHOICES,
+        editable=False,
+        verbose_name="Sesi",
+    )
+    judul = models.CharField(
+        max_length=200,
+        editable=False,
+        verbose_name="Nama/Sesi Mentoring",
+    )
+    tanggal = models.DateField(null=True, blank=True, verbose_name="Tanggal Mentoring")
+    catatan = models.TextField(blank=True, verbose_name="Catatan Sesi")
+    is_active = models.BooleanField(default=False, verbose_name="Aktif")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Sesi Mentoring"
+        verbose_name_plural = "Sesi Mentoring"
+        ordering = ["kelompok", "nomor"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["kelompok", "nomor"],
+                name="unique_mentoring_session_number_per_group",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(nomor__gte=1, nomor__lte=4),
+                name="mentoring_session_number_between_1_and_4",
+            ),
+        ]
+
+    def save(self, *args, **kwargs):
+        self.judul = f"Sesi Mentoring {self.nomor}"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.kelompok} - {self.judul}"
 
 
 class PesertaMentoring(models.Model):
@@ -195,6 +263,136 @@ class PesertaMentoring(models.Model):
 
     def __str__(self):
         return f"{self.nama_lengkap} - {self.jurusan}"
+
+
+class MentoringAttendance(models.Model):
+    STATUS_HADIR = "hadir"
+    STATUS_TIDAK_HADIR = "tidak_hadir"
+    STATUS_IZIN = "izin"
+    STATUS_CHOICES = [
+        (STATUS_HADIR, "Hadir"),
+        (STATUS_TIDAK_HADIR, "Tidak Hadir"),
+        (STATUS_IZIN, "Izin"),
+    ]
+
+    session = models.ForeignKey(
+        MentoringSession,
+        on_delete=models.CASCADE,
+        related_name="attendance_records",
+    )
+    peserta = models.ForeignKey(
+        PesertaMentoring,
+        on_delete=models.CASCADE,
+        related_name="mentoring_attendance",
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES)
+    catatan = models.CharField(max_length=300, blank=True)
+    recorded_by = models.ForeignKey(
+        Mentor,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="recorded_attendance",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Presensi Mentee"
+        verbose_name_plural = "Presensi Mentee"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["session", "peserta"],
+                name="unique_attendance_per_session_participant",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.peserta} - {self.session} - {self.get_status_display()}"
+
+
+class AssessmentAspect(models.Model):
+    nama = models.CharField(max_length=100, unique=True)
+    urutan = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = "Aspek Penilaian"
+        verbose_name_plural = "Aspek Penilaian"
+        ordering = ["urutan", "nama"]
+
+    def __str__(self):
+        return self.nama
+
+
+class MenteeAssessment(models.Model):
+    peserta = models.ForeignKey(
+        PesertaMentoring,
+        on_delete=models.CASCADE,
+        related_name="assessments",
+    )
+    aspect = models.ForeignKey(
+        AssessmentAspect,
+        on_delete=models.PROTECT,
+        related_name="mentee_assessments",
+    )
+    score = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        verbose_name="Nilai",
+    )
+    catatan = models.TextField(blank=True, verbose_name="Catatan Mentor")
+    assessed_by = models.ForeignKey(
+        Mentor,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="mentee_assessments",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Penilaian Mentee"
+        verbose_name_plural = "Penilaian Mentee"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["peserta", "aspect"],
+                name="unique_assessment_per_participant_aspect",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.peserta} - {self.aspect}: {self.score}"
+
+
+class MentorFeedback(models.Model):
+    session = models.ForeignKey(
+        MentoringSession,
+        on_delete=models.CASCADE,
+        related_name="mentee_feedback",
+    )
+    peserta = models.ForeignKey(
+        PesertaMentoring,
+        on_delete=models.CASCADE,
+        related_name="mentor_feedback",
+    )
+    mentor = models.ForeignKey(
+        Mentor,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="feedback_entries",
+    )
+    isi = models.TextField(verbose_name="Feedback")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Feedback Mentor"
+        verbose_name_plural = "Feedback Mentor"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Feedback {self.peserta} - {self.session}"
 
 
 class MentoringTujuan(models.Model):
@@ -375,6 +573,64 @@ class TugasSubmission(models.Model):
     def save(self, *args, **kwargs):
         self.status = "late" if timezone.now() > self.tugas.deadline else "submitted"
         super().save(*args, **kwargs)
+
+
+class AssignmentReview(models.Model):
+    submission = models.OneToOneField(
+        TugasSubmission,
+        on_delete=models.CASCADE,
+        related_name="mentor_review",
+    )
+    score = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        verbose_name="Nilai Tugas",
+    )
+    feedback = models.TextField(blank=True)
+    reviewer = models.ForeignKey(
+        Mentor,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="assignment_reviews",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Penilaian Tugas"
+        verbose_name_plural = "Penilaian Tugas"
+
+    def __str__(self):
+        return f"{self.submission} - {self.score}"
+
+
+class AssignmentReviewHistory(models.Model):
+    """Append-only snapshots so assignment feedback remains reviewable over time."""
+
+    submission = models.ForeignKey(
+        TugasSubmission,
+        on_delete=models.CASCADE,
+        related_name="mentor_review_history",
+    )
+    score = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        verbose_name="Nilai Tugas",
+    )
+    feedback = models.TextField(blank=True)
+    reviewer = models.ForeignKey(
+        Mentor,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="assignment_review_history",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Riwayat Penilaian Tugas"
+        verbose_name_plural = "Riwayat Penilaian Tugas"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.submission} - {self.score} ({self.created_at})"
 
 
 def _new_token():
