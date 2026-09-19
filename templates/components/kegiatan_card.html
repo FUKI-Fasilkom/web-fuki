@@ -1,0 +1,35 @@
+{% load static %}
+<article aria-labelledby="kegiatan-{{ kegiatan.pk }}-title" class="grid min-w-0 gap-[19px] lg:max-w-[1167px] lg:grid-cols-[308px_minmax(0,1fr)] {% if is_past %}opacity-50{% endif %}">
+  <div class="hidden min-h-[343px] flex-col items-center rounded-[20px] bg-[linear-gradient(-67.55deg,#001B3D_21.124%,#0048A3_151.6%)] px-8 pb-16 pt-[57px] text-center font-bold text-[#F9F8F5] lg:flex">
+    <time datetime="{{ kegiatan.tanggal|date:'Y-m-d' }}" class="block text-[64px] leading-[96px]">{{ kegiatan.tanggal|date:'j' }}</time>
+    <p class="text-xl leading-[30px]">{{ kegiatan.tanggal|date:'F Y' }}</p>
+    <p class="text-xl leading-[30px]">{% if kegiatan.start_time %}{{ kegiatan.start_time|time:'H.i' }}{% if kegiatan.end_time %} - {{ kegiatan.end_time|time:'H.i' }}{% endif %}{% else %}Waktu menyusul{% endif %}</p>
+    {% if not is_past %}
+      <a href="{% url 'kegiatan:ics' kegiatan.pk %}" aria-label="Tambahkan {{ kegiatan.judul }} ke kalender" class="mt-[19px] flex h-[47px] w-[184px] items-center justify-center rounded-[10px] bg-[#F2E5BB] text-xs text-[#113665] hover:bg-[#E0BE6B] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#F2E5BB]">
+        <img src="{% static 'images/redesign/calendar.png' %}" alt="" class="h-[42px] w-[42px] object-contain" />Add To Calendar
+      </a>
+    {% else %}
+      <button disabled class="mt-[19px] flex h-[47px] w-[184px] cursor-not-allowed items-center justify-center rounded-[10px] bg-[#F2E5BB] text-xs text-[#113665]">
+        <img src="{% static 'images/redesign/calendar.png' %}" alt="" class="h-[42px] w-[42px] object-contain" />Add To Calendar
+      </button>
+    {% endif %}
+  </div>
+  <div class="min-w-0 rounded-xl bg-[linear-gradient(-41.59deg,#001B3D_21.124%,#0048A3_151.6%)] p-3 text-[#F9F8F5] lg:min-h-[343px] lg:rounded-[20px] lg:pb-[29px] lg:pl-9 lg:pr-[30px] lg:pt-[37px]">
+    <div class="grid grid-cols-[89px_minmax(0,1fr)] items-start gap-x-[10px] lg:grid-cols-[206px_minmax(0,1fr)] lg:gap-x-[39px]">
+      {% if kegiatan.gambar %}
+      <img src="{{ kegiatan.gambar.url }}" alt="Poster {{ kegiatan.judul }}" loading="lazy" class="row-span-2 h-[109px] w-[89px] rounded bg-[#D9D9D9] object-cover lg:row-span-1 lg:h-[233px] lg:w-[206px] lg:rounded-lg" />
+      {% else %}
+      <div aria-hidden="true" class="row-span-2 h-[109px] w-[89px] rounded bg-[#D9D9D9] lg:row-span-1 lg:h-[233px] lg:w-[206px] lg:rounded-lg"></div>
+      {% endif %}
+      <div class="flex min-w-0 flex-col items-start gap-[5px] lg:gap-[7px]">
+        <span class="rounded-[30px] bg-[#DCE9FF] px-[5px] py-[3px] text-[6px] font-bold leading-[1.5] text-[#264777] lg:min-w-[105px] lg:px-[10px] lg:py-[9px] lg:text-center lg:text-xs">{{ kegiatan.get_kategori_display }}</span>
+        <h2 id="kegiatan-{{ kegiatan.pk }}-title" class="break-words text-xs font-bold leading-[1.5] lg:text-2xl">{{ kegiatan.judul }}</h2>
+        <p class="hidden break-words text-xl leading-[30px] lg:block">{{ kegiatan.deskripsi }}</p>
+        <p class="font-['Roboto',sans-serif] text-[11px] font-bold leading-4 tracking-[0.5px] text-[#E0BE6B] lg:hidden">{% if kegiatan.start_time %}{{ kegiatan.start_time|time:'H.i' }}{% if kegiatan.end_time %} - {{ kegiatan.end_time|time:'H.i' }}{% endif %}, {% endif %}{{ kegiatan.tanggal|date:'j F Y' }}</p>
+      </div>
+      <div class="col-start-2 mt-[9px] min-w-0 lg:col-span-2 lg:col-start-1 lg:mt-2">
+        <a href="{% url 'kegiatan:detail' kegiatan.pk %}" class="ml-auto flex min-h-[19px] w-fit items-center justify-center rounded bg-[#F2E5BB] px-[7px] py-px text-[10px] font-bold leading-[1.5] text-[#113665] hover:bg-[#E0BE6B] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#F2E5BB] lg:min-h-9 lg:min-w-[105px] lg:rounded-[10px] lg:px-[10px] lg:py-[9px] lg:text-xs">See Details</a>
+      </div>
+    </div>
+  </div>
+</article>
