@@ -5,17 +5,18 @@
 {% block meta_robots %}noindex, follow{% endblock %}
 
 {% block content %}
-    <!-- Menjadikan tulisan 404 sebagai Page Title di header -->
-    {% include 'header.html' with page_title="404: Page Not Found" %}
-    
-    <div class="relative w-full min-h-[60vh] bg-[#F8FBEF] overflow-hidden flex items-center justify-center pb-24">
-        <div class="text-center px-6 -mt-8">
-            <p class="text-xl sm:text-2xl text-gray-700 mb-10 max-w-2xl mx-auto leading-relaxed">
-                Oops! Halaman yang kamu cari tidak dapat ditemukan atau mungkin sudah dipindahkan.
-            </p>
-            <a href="/" class="inline-block px-10 py-4 bg-[#A6CE39] text-[#3A3A3A] text-lg font-bold rounded-full hover:bg-[#c1df68] transition-all border-[3px] border-[#3A3A3A] shadow-[0_8px_0_0_#3A3A3A] hover:shadow-[0_4px_0_0_#3A3A3A] hover:translate-y-1">
-                Kembali ke Beranda
-            </a>
-        </div>
-    </div>
+<div class="overflow-hidden bg-[#F9F8F5] text-[#3A3A3A] lg:bg-[#F6FAEB]">
+  {% include 'components/redesign_header.html' with page_title='Halaman Tidak Ditemukan' contact_header=True %}
+
+  <section aria-label="Halaman tidak ditemukan"
+           class="mx-auto flex max-w-[948px] flex-col items-center gap-12 px-8 pb-[120px] pt-[5px] lg:pb-[168px] lg:pt-12">
+    <p class="w-full text-center text-2xl font-bold leading-[1.4] text-[#001B3D] lg:text-4xl">
+      Oops! Halaman yang kamu cari tidak dapat ditemukan atau mungkin sudah dipindahkan.
+    </p>
+    <a href="{% url 'beranda' %}"
+       class="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#001B3D] px-6 py-2.5 text-xs font-medium text-white shadow-lg hover:bg-navy-700 sm:px-8 sm:py-3 sm:text-sm transition focus:outline-none focus-visible:ring-4 focus-visible:ring-gold/60">
+      Kembali ke Beranda
+    </a>
+  </section>
+</div>
 {% endblock %}

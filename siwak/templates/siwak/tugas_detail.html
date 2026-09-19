@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ tugas.judul_tugas }}{% endblock %}
+
+{% block content %}
+{% include 'siwak/_messages.html' %}
+
+<div class="bg-[#F8FBEF] min-h-screen">
+  <div class="max-w-xl mx-auto px-6 py-10">
+    <p class="text-sm text-gray-500 mb-6">
+      <a href="{% url 'siwak:tugas_list' %}" class="hover:text-gray-700">Daftar Tugas</a>
+      <span class="mx-1">&gt;</span>
+      <span class="text-gray-800">{{ tugas.judul_tugas }}</span>
+    </p>
+
+    <div class="rounded-3xl bg-[#417BB1] border-[3px] border-[#3A3A3A] p-8 text-white">
+      <h1 class="text-2xl font-bold">{{ tugas.judul_tugas }}</h1>
+
+      <div class="flex flex-wrap items-center gap-2 mt-3">
+        {% if submission %}
+          <span class="px-3 py-1 rounded-full text-xs font-semibold
+                      {% if submission.status == 'submitted' %}bg-[#A6CE39] text-gray-800{% else %}bg-orange-300 text-gray-800{% endif %}">
+            {% if submission.status == 'submitted' %}Submitted{% else %}Late{% endif %}
+          </span>
+        {% else %}
+          <span class="px-3 py-1 rounded-full bg-red-200 text-gray-800 text-xs font-semibold">Not Submitted</span>
+        {% endif %}
+        <span class="px-3 py-1 rounded-full border border-white/60 text-xs">
+          Due : {{ tugas.deadline|date:"d F Y H:i" }}
+        </span>
+      </div>
+
+      <p class="mt-5 text-sm whitespace-pre-line leading-relaxed">{{ tugas.deskripsi }}</p>
+
+      {% if submission %}
+      <div class="mt-6 rounded-xl bg-white/10 border border-white/30 px-4 py-3 text-sm">
+        File terkirim: <a href="{{ submission.file.url }}" class="underline font-semibold" target="_blank">{{ submission.file.name|slice:"-40:" }}</a>
+        &middot; {{ submission.submitted_at|date:"d M Y H:i" }}
+      </div>
+      {% endif %}
+
+      <form method="post" enctype="multipart/form-data" class="mt-6">
+        {% csrf_token %}
+        <label for="{{ form.file.id_for_label }}"
+               class="flex flex-col items-center justify-center gap-2 rounded-xl bg-[#F6FAEB] border-2 border-dashed border-[#3A3A3A]
+                      py-10 cursor-pointer hover:bg-[#eef5da] transition text-gray-700">
+          <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M12 12v9m0-9l-3 3m3-3l3 3" />
+          </svg>
+          <span id="file-name-display" class="text-sm font-semibold">
+            {% if submission %}Ketuk untuk Ganti File{% else %}Ketuk untuk Pilih File{% endif %}
+          </span>
+        </label>
+        {{ form.file }}
+        {% for error in form.file.errors %}<p class="text-red-100 text-xs mt-2">{{ error }}</p>{% endfor %}
+        <p class="text-white/70 text-xs mt-2">Format: PDF, DOCX, JPG, PNG &middot; Maks {{ tugas.max_file_size_mb }} MB</p>
+
+        <button type="submit"
+                class="w-full mt-5 py-3 rounded-full bg-[#A6CE39] text-gray-800 font-bold border-[3px] border-[#3A3A3A] hover:bg-[#94ba2f] transition">
+          Kirim Tugas
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    var input = document.getElementById('{{ form.file.id_for_label }}');
+    var display = document.getElementById('file-name-display');
+    if (input) {
+      input.addEventListener('change', function () {
+        if (input.files && input.files.length > 0) {
+          display.textContent = input.files[0].name;
+        }
+      });
+    }
+  });
+</script>
+{% endblock %}

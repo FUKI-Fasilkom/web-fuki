@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 from pathlib import Path
 import os
 import dj_database_url
+import requests
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -69,6 +70,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.sitemaps',
+    'django_cas_ng',
     'main',
     'kegiatan',
     'birdep',
@@ -85,8 +87,39 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024
 
 # 7 — Authentication: where @login_required sends anonymous users, and where
 # they land after logging in.
-# LOGIN_URL = 'siwak:login'
-# LOGIN_REDIRECT_URL = 'siwak:tugas_list'
+
+AUTHENTICATION_BACKENDS = [
+    'django_cas_ng.backends.CASBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
+
+CAS_SERVER_URL = "https://sso.ui.ac.id/cas2/"
+CAS_VERSION = 2
+
+CAS_ADMIN_REDIRECT = False
+CAS_LOGIN_URL_NAME = "siwak:cas_ng_login"
+CAS_LOGOUT_URL_NAME = "siwak:cas_ng_logout"
+CAS_LOGIN_MSG = None
+
+LOGIN_URL = "siwak:cas_ng_login"
+CAS_REDIRECT_URL = "siwak:tugas_list"
+CAS_IGNORE_REFERER = True
+CAS_LOGOUT_NEXT_PAGE = "/"
+
+# nginx di depan SSO UI menolak User-Agent default `python-requests/*`
+# (HTTP 400 -> halaman HTML yang membuat parser python-cas melempar
+# ParseError). Kirim serviceValidate pakai User-Agent browser supaya WAF SSO UI
+# menerimanya dan mengembalikan XML CAS yang valid.
+def _cas_session_factory():
+    session = requests.Session()
+    session.headers['User-Agent'] = (
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+        '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    )
+    return session
+
+
+CAS_SESSION_FACTORY = _cas_session_factory
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -264,3 +297,26 @@ GOOGLE_SITE_VERIFICATION = os.getenv(
     'GOOGLE_SITE_VERIFICATION',
     'lCewhFlHG9UyyEKQPRpfzDkunjEQRLb1J0Bc9FgL3Xo',
 )
+
+
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+# Logger "cas" di level DEBUG menampilkan respons mentah serviceValidate dari
+# SSO UI (termasuk bagian XML yang rusak) sebelum parser toleran di
+# siwak/sso.py bekerja. Root tetap WARNING seperti bawaan Django.
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'console': {'format': '{asctime} {levelname} {name} {message}', 'style': '{'},
+    },
+    'handlers': {
+        'console': {'class': 'logging.StreamHandler', 'formatter': 'console'},
+    },
+    'root': {'handlers': ['console'], 'level': 'WARNING'},
+    'loggers': {
+        'cas': {'handlers': ['console'], 'level': 'DEBUG', 'propagate': False},
+    },
+}
