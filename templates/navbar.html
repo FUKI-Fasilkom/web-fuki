@@ -7,7 +7,7 @@
 {% endcomment %}
 
 <nav x-data="{ open: false, kegiatan: false }" class="bg-[#FDFBF4] sticky top-0 z-50 shadow-sm">
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex items-center justify-between gap-4">
 
     <a href="/" class="flex items-center space-x-2 shrink-0">
       <img src="{% static 'images/Logo-FUKI-Biru.png' %}" alt="Logo FUKI"
@@ -48,8 +48,8 @@
       <a href="{% url 'hubungi_kami' %}" class="text-navy hover:text-navy-600 transition">Hubungi Kami</a>
     </div>
 
-    {% comment %} 
-      SSO UI sudah tersedia 
+    {% comment %}
+      SSO UI sudah tersedia
     {% endcomment %}
     {% if user.is_authenticated %}
       <a href="{% url 'siwak:cas_ng_logout' %}"
