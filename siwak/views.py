@@ -5,10 +5,12 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import redirect_to_login
 from django.core import signing
+from django.db import transaction
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.views.decorators.http import require_http_methods
 
 from .forms import CariKelompokForm, RSVPForm, TugasSubmissionForm
 from .models import (
@@ -91,9 +93,9 @@ def kelompok_search(request):
 
     if request.method == "POST" and form.is_valid():
         peserta = PesertaMentoring.objects.filter(
-            nama_lengkap__iexact=form.cleaned_data["nama_lengkap"].strip(),
-            jurusan=form.cleaned_data["jurusan"],
-        ).select_related("kelompok").prefetch_related("kelompok__mentors").first()
+            maba__nama_lengkap__iexact=form.cleaned_data["nama_lengkap"].strip(),
+            maba__jurusan=form.cleaned_data["jurusan"],
+        ).select_related("maba", "kelompok").prefetch_related("kelompok__mentor_list").first()
 
         if not peserta:
             result_state = "not_found"
@@ -264,9 +266,31 @@ def rsvp_event(request, id):
     return render(request, "siwak/rsvp.html", context)
 
 
+def _find_rsvp(kind: str, token: str, lock: bool = False):
+    """Find the RSVP referenced by a signed QR payload.
+
+    `lock=True` re-selects the row with ``SELECT ... FOR UPDATE`` so concurrent
+    scans serialize instead of both succeeding (TOCTOU check-in / kupon).
+    """
+    field = "qr_registrasi_token" if kind == "registrasi" else "qr_kupon_token"
+    qs = EventRSVP.objects.filter(**{field: token}).select_related("user", "event")
+    if lock:
+        qs = qs.select_for_update()
+    return qs.first()
+
+
 @superuser_required
+@require_http_methods(["GET", "POST"])
 def qr_verify(request, signed):
-    """Landing page for a scanned QR (PRD 6.1/6.2). Superuser-only, one-time use."""
+    """Scanned-QR landing page (PRD 6.1/6.2). Superuser-only.
+
+    GET is read-only: it only renders a *confirmation* page. The actual
+    check-in / kupon redemption happens on a CSRF-protected POST, so a passive
+    ``<img src=".../qr/...">`` load in an admin's browser can't flip
+    attendance state. The POST runs inside a transaction with
+    ``SELECT ... FOR UPDATE`` on the RSVP row, so two concurrent scans can't
+    both succeed (TOCTOU).
+    """
     error = None
     rsvp = None
     kind = None
@@ -283,61 +307,70 @@ def qr_verify(request, signed):
     except signing.BadSignature:
         error = "QR tidak valid atau rusak."
 
-    if not error:
-        if kind == "registrasi":
-            rsvp = EventRSVP.objects.filter(
-                qr_registrasi_token=token
-            ).select_related(
-                "user",
-                "event",
-            ).first()
+    if not error and request.method == "POST":
+        # Mutation path: lock the row so concurrent scans serialize.
+        with transaction.atomic():
+            rsvp = _find_rsvp(kind, token, lock=True)
 
-        else:
-            rsvp = EventRSVP.objects.filter(
-                qr_kupon_token=token
-            ).select_related(
-                "user",
-                "event",
-            ).first()
+            if not rsvp:
+                error = "Data RSVP tidak ditemukan."
+
+            elif kind == "registrasi":
+                already = rsvp.status_kehadiran == "hadir"
+
+                if not already:
+                    if rsvp.kehadiran != "hadir":
+                        error = "Check-in ditolak: kehadiran RSVP peserta bukan 'hadir'."
+                    else:
+                        rsvp.status_kehadiran = "hadir"
+                        rsvp.checked_in_at = timezone.now()
+
+                        rsvp.save(
+                            update_fields=[
+                                "status_kehadiran",
+                                "checked_in_at",
+                            ]
+                        )
+
+            elif kind == "kupon":
+                already = rsvp.status_kupon == "redeemed"
+
+                if not already:
+                    rsvp.status_kupon = "redeemed"
+                    rsvp.redeemed_at = timezone.now()
+
+                    rsvp.save(
+                        update_fields=[
+                            "status_kupon",
+                            "redeemed_at",
+                        ]
+                    )
+
+    elif not error:
+        # Read-only preview: resolve the row so the page can show a confirm step.
+        rsvp = _find_rsvp(kind, token)
 
         if not rsvp:
             error = "Data RSVP tidak ditemukan."
 
-        elif kind == "registrasi":
-            if rsvp.status_kehadiran == "hadir":
-                already = True
-
-            else:
-                rsvp.status_kehadiran = "hadir"
-                rsvp.checked_in_at = timezone.now()
-
-                rsvp.save(
-                    update_fields=[
-                        "status_kehadiran",
-                        "checked_in_at",
-                    ]
-                )
-
-        elif kind == "kupon":
-            if rsvp.status_kupon == "redeemed":
-                already = True
-
-            else:
-                rsvp.status_kupon = "redeemed"
-                rsvp.redeemed_at = timezone.now()
-
-                rsvp.save(
-                    update_fields=[
-                        "status_kupon",
-                        "redeemed_at",
-                    ]
-                )
+        else:
+            already = (
+                rsvp.status_kehadiran == "hadir"
+                if kind == "registrasi"
+                else rsvp.status_kupon == "redeemed"
+            )
 
     context = {
         "error": error,
         "rsvp": rsvp,
         "kind": kind,
         "already": already,
+        "confirm": (
+            request.method == "GET"
+            and rsvp is not None
+            and not error
+            and not already
+        ),
         "back_url": reverse("siwak:landing"),
     }
 

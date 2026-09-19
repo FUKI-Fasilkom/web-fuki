@@ -12,7 +12,7 @@
       <div class="grid gap-6 px-6 py-7 sm:px-8 lg:grid-cols-[1fr_auto] lg:items-center">
         <div>
           <h1 class="text-2xl font-bold">{{ participant.nama_lengkap }}</h1>
-          <p class="mt-2 text-sm text-white/75">{{ participant.npm|default:"NPM belum terhubung" }} &middot; {{ participant.get_jurusan_display }}{% if participant.user.maba_profile.angkatan %} &middot; Angkatan {{ participant.user.maba_profile.angkatan }}{% endif %}</p>
+          <p class="mt-2 text-sm text-white/75">{{ participant.npm|default:"NPM belum terhubung" }} &middot; {{ participant.get_jurusan_display }}{% if participant.maba.angkatan %} &middot; Angkatan {{ participant.maba.angkatan }}{% endif %}</p>
         </div>
         <div class="grid grid-cols-2 gap-3 text-center">
           <div class="rounded-2xl bg-white/10 px-5 py-3">
@@ -70,6 +70,8 @@
             </div>
             <button type="submit" class="w-full rounded-xl bg-navy px-5 py-3 font-bold text-white hover:bg-navy-700">Simpan Sesi</button>
           </form>
+          {% else %}
+          <p class="mt-5 rounded-xl bg-white p-4 text-sm text-slate-500">Menunggu aktivasi admin SIWAK. Presensi dan feedback belum dapat diisi.</p>
           {% endif %}
 
           {% if card.feedback_entries %}

@@ -28,7 +28,7 @@ from .services.mentor import require_mentor, save_assessments, save_session_reco
 
 def _mentor_group_or_404(mentor, group_id):
     return get_object_or_404(
-        KelompokMentoring.objects.filter(mentors=mentor).distinct(),
+        KelompokMentoring.objects.filter(mentor_list=mentor).distinct(),
         pk=group_id,
     )
 
@@ -43,7 +43,7 @@ def mentor_dashboard(request):
 
     if group:
         participants = list(
-            group.peserta_list.select_related("user", "user__maba_profile")
+            group.peserta_list.select_related("maba", "maba__user")
             .annotate(
                 assessment_count=Count("assessments", distinct=True),
                 attendance_count=Count("mentoring_attendance", distinct=True),
@@ -53,9 +53,13 @@ def mentor_dashboard(request):
                     distinct=True,
                 ),
             )
-            .order_by("nama_lengkap")
+            .order_by("maba__nama_lengkap")
         )
-        user_ids = [participant.user_id for participant in participants if participant.user_id]
+        user_ids = [
+            participant.maba.user_id
+            for participant in participants
+            if participant.maba.user_id
+        ]
         active_tasks = list(Tugas.objects.filter(is_active=True))
         task_count = len(active_tasks)
         submissions = TugasSubmission.objects.filter(
@@ -69,7 +73,7 @@ def mentor_dashboard(request):
         aspect_count = AssessmentAspect.objects.filter(is_active=True).count()
         session_count = group.mentoring_sessions.filter(is_active=True).count()
         for participant in participants:
-            participant_submissions = submissions_by_user.get(participant.user_id, [])
+            participant_submissions = submissions_by_user.get(participant.maba.user_id, [])
             submitted_count = len(participant_submissions)
             mentee_cards.append(
                 {
@@ -103,7 +107,7 @@ def mentee_detail(request, participant_id):
         raise Http404
     group = mentor.kelompok
     participant = get_object_or_404(
-        PesertaMentoring.objects.select_related("user", "user__maba_profile"),
+        PesertaMentoring.objects.select_related("maba", "maba__user"),
         pk=participant_id,
         kelompok=group,
     )
@@ -187,7 +191,7 @@ def mentee_detail(request, participant_id):
             queryset=TugasSubmission.objects.filter(user=participant.user).select_related(
                 "mentor_review__reviewer"
             )
-            if participant.user_id
+            if participant.maba.user_id
             else TugasSubmission.objects.none(),
             to_attr="participant_submissions",
         )
@@ -317,8 +321,16 @@ def mentee_detail(request, participant_id):
 def assignments(request, group_id):
     mentor = require_mentor(request.user)
     group = _mentor_group_or_404(mentor, group_id)
-    participants = list(group.peserta_list.select_related("user").order_by("nama_lengkap"))
-    user_ids = [participant.user_id for participant in participants if participant.user_id]
+    participants = list(
+        group.peserta_list.select_related("maba", "maba__user").order_by(
+            "maba__nama_lengkap"
+        )
+    )
+    user_ids = [
+        participant.maba.user_id
+        for participant in participants
+        if participant.maba.user_id
+    ]
     tasks = Tugas.objects.all().prefetch_related(
         Prefetch(
             "submissions",
@@ -337,7 +349,9 @@ def assignments(request, group_id):
     for participant in participants:
         participant_tasks = []
         for task in tasks:
-            submission = submissions_by_task_and_user.get((task.pk, participant.user_id))
+            submission = submissions_by_task_and_user.get(
+                (task.pk, participant.maba.user_id)
+            )
             participant_tasks.append(
                 {
                     "task": task,
@@ -362,7 +376,7 @@ def assignments(request, group_id):
 
 @login_required
 def mentee_feedback_history(request):
-    participants = PesertaMentoring.objects.filter(user=request.user)
+    participants = PesertaMentoring.objects.filter(maba__user=request.user)
     feedback_entries = MentorFeedback.objects.filter(peserta__in=participants).select_related(
         "session", "mentor", "peserta"
     )
@@ -390,8 +404,8 @@ def submission_download(request, submission_id):
     is_responsible_mentor = bool(
         mentor
         and PesertaMentoring.objects.filter(
-            user=submission.user,
-            kelompok__mentors=mentor,
+            maba__user=submission.user,
+            kelompok__mentor_list=mentor,
         ).exists()
     )
     if not (is_owner or is_responsible_mentor or request.user.is_staff):

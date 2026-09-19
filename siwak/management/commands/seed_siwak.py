@@ -8,6 +8,7 @@ from siwak.models import (
     FAQMentoring,
     KelompokMentoring,
     KetuaSiwak,
+    MabaProfile,
     MentoringBenefit,
     MentoringTujuan,
     Mentor,
@@ -28,10 +29,6 @@ class Command(BaseCommand):
 
         info = SiwakInfo.get_solo()
         info.hero_judul = "SIWAK-NG"
-        info.hero_deskripsi = (
-            "Sistem Informasi Wawasan Almamater dan Kaderisasi — masa pengenalan dan mentoring "
-            "keislaman untuk mahasiswa baru Fasilkom UI."
-        )
         info.apa_itu_deskripsi = (
             "SIWAK-NG adalah rangkaian kegiatan mentoring dan pengenalan nilai-nilai keislaman "
             "bagi mahasiswa baru muslim Fasilkom UI, diselenggarakan oleh FUKI."
@@ -44,9 +41,8 @@ class Command(BaseCommand):
         info.save()
 
         SiwakEvent.objects.update_or_create(
-            tipe="pre_event",
+            judul="Pre-Event SIWAK",
             defaults=dict(
-                judul="Pre-Event SIWAK",
                 deskripsi="Sesi pembukaan dan pengenalan kelompok mentoring.",
                 tanggal=today + datetime.timedelta(days=10),
                 lokasi="Auditorium Fasilkom UI",
@@ -54,9 +50,8 @@ class Command(BaseCommand):
             ),
         )
         SiwakEvent.objects.update_or_create(
-            tipe="main_event",
+            judul="Main Event SIWAK",
             defaults=dict(
-                judul="Main Event SIWAK",
                 deskripsi="Puncak acara SIWAK-NG dengan tausiyah dan penutupan mentoring.",
                 tanggal=today + datetime.timedelta(days=30),
                 lokasi="Balairung UI",
@@ -136,10 +131,14 @@ class Command(BaseCommand):
             nama_kelompok="Kelompok 1",
             defaults={"link_grup": "https://chat.whatsapp.com/contoh-link-kelompok-1"},
         )
-        Mentor.objects.filter(pk__in=[mentor1.pk, mentor2.pk]).update(kelompok=kelompok1)
+        kelompok1.mentor_list.set([mentor1, mentor2])
 
+        maba, _ = MabaProfile.objects.update_or_create(
+            npm="2506000001",
+            defaults={"nama_lengkap": "Marwa Muhlashon", "jurusan": "SI", "angkatan": "2025"},
+        )
         PesertaMentoring.objects.update_or_create(
-            nama_lengkap="Marwa Muhlashon", jurusan="SI",
+            maba=maba,
             defaults={"kelompok": kelompok1},
         )
 

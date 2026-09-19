@@ -13,6 +13,7 @@ from .models import (
     AssignmentReviewHistory,
     AssessmentAspect,
     KelompokMentoring,
+    MabaProfile,
     MenteeAssessment,
     MentoringAttendance,
     MentoringSession,
@@ -67,19 +68,27 @@ class MentorFeatureTests(TestCase):
         self.other_mentor.kelompok = self.other_group
         self.other_mentor.save(update_fields=["kelompok"])
 
-        self.participant = PesertaMentoring.objects.create(
+        self.mentee_profile = MabaProfile.objects.create(
+            user=self.mentee_user,
             nama_lengkap="Mentee A",
             npm="2500000001",
             jurusan="IK",
-            kelompok=self.group,
-            user=self.mentee_user,
+            angkatan="2025",
         )
-        self.other_participant = PesertaMentoring.objects.create(
+        self.other_mentee_profile = MabaProfile.objects.create(
+            user=self.other_mentee_user,
             nama_lengkap="Mentee B",
             npm="2500000002",
             jurusan="SI",
+            angkatan="2025",
+        )
+        self.participant = PesertaMentoring.objects.create(
+            maba=self.mentee_profile,
+            kelompok=self.group,
+        )
+        self.other_participant = PesertaMentoring.objects.create(
+            maba=self.other_mentee_profile,
             kelompok=self.other_group,
-            user=self.other_mentee_user,
         )
         self.session = self.group.mentoring_sessions.get(nomor=1)
         self.session.tanggal = timezone.localdate()

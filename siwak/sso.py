@@ -147,20 +147,34 @@ def handle_cas_login(sender, user, username, attributes, **kwargs):
 
 @transaction.atomic
 def sync_maba_profile(*, user, npm: str, nama_lengkap: str, jurusan: str, angkatan: str = "") -> MabaProfile:
-    profile, _ = MabaProfile.objects.update_or_create(
-        user=user,
-        defaults={
-            "npm": npm,
-            "nama_lengkap": nama_lengkap,
-            "jurusan": jurusan,
-            "angkatan": angkatan
-        },
+    """Satukan data SSO dengan MabaProfile, lalu pastikan maba punya baris peserta.
+
+    Profil dicari dalam tiga langkah, dan urutannya menentukan:
+
+    1. Profil milik akun ini sendiri — selalu menang, supaya satu akun tidak
+       pernah berakhir punya dua profil.
+    2. Profil ber-NPM sama yang *belum* dipegang akun mana pun — inilah baris
+       yang dibuat pengelola di panel SIWAK sebelum maba pernah login, dan
+       inilah yang diklaim sekarang. Profil yang sudah ada pemiliknya sengaja
+       dilewati supaya tidak bisa direbut.
+    3. Kalau tidak ada keduanya, profil baru.
+    """
+    profile = (
+        MabaProfile.objects.filter(user=user).first()
+        or MabaProfile.objects.filter(npm=npm, user__isnull=True).first()
+        or MabaProfile(npm=npm)
     )
 
-    PesertaMentoring.objects.filter(
-        npm=npm,
-        user__isnull=True,
-    ).update(user=user)
+    profile.user = user
+    profile.npm = npm
+    profile.nama_lengkap = nama_lengkap
+    profile.jurusan = jurusan
+    profile.angkatan = angkatan
+    profile.save()
+
+    # Setiap maba yang login otomatis jadi peserta mentoring tanpa kelompok;
+    # pengelola tinggal menempatkannya lewat /siwak/admin/data/peserta/.
+    PesertaMentoring.objects.get_or_create(maba=profile)
 
     # Data mentor dapat disiapkan lebih dulu oleh admin hanya dengan NPM. Saat
     # login CAS pertama, hubungkan baris tersebut dengan User hasil autentikasi.

@@ -1,0 +1,114 @@
+{% comment %}
+  Satu sel tabel. Dipakai dua kali per baris: sekali di tabel layar lebar,
+  sekali di kartu tampilan HP, sehingga isi kolom tidak pernah berbeda antara
+  keduanya. Parameter: sel (judul, tipe, nilai, pk).
+
+  Beberapa tipe bukan sekadar tulisan melainkan penyunting kecil — dropdown
+  kelompok, penugasan mentor, saklar RSVP — supaya perubahan yang paling
+  sering dilakukan tidak perlu membuka form ubah dulu. Semuanya memakai
+  `url_kembali` agar sesudah menyimpan pengelola mendarat di halaman,
+  pencarian, dan urutan yang sama seperti sebelumnya.
+{% endcomment %}
+
+{% if sel.tipe == 'gambar' %}
+  {% if sel.nilai %}
+  <img src="{{ sel.nilai.url }}" alt=""
+       class="h-11 w-16 rounded-lg border border-gold-light object-cover" loading="lazy" />
+  {% else %}
+  <span class="grid h-11 w-16 place-items-center rounded-lg border border-dashed border-gold-light text-[10px] text-navy-400">
+    tanpa foto
+  </span>
+  {% endif %}
+
+{% elif sel.tipe == 'bool' %}
+  {% if sel.nilai %}
+  <span class="inline-flex items-center gap-1 rounded-full bg-cream-300 px-2.5 py-1 text-[11px] font-bold text-navy">
+    <span aria-hidden="true">&#10003;</span> Ya
+  </span>
+  {% else %}
+  <span class="inline-flex items-center gap-1 rounded-full bg-navy/5 px-2.5 py-1 text-[11px] font-semibold text-navy-400">
+    <span aria-hidden="true">&times;</span> Tidak
+  </span>
+  {% endif %}
+
+{% elif sel.tipe == 'pilih_kelompok' %}
+  {% comment %}Memindahkan peserta: cukup ganti pilihan, tersimpan sendiri.{% endcomment %}
+  {% include 'siwak/panel/_dropdown_kelompok.html' with aksi=sel.url terpilih=sel.nilai label_kosong='— Belum ditempatkan —' aria='Kelompok peserta ini' tampil_kapasitas=True %}
+
+{% elif sel.tipe == 'pilih_kelompok_mentor' %}
+  {% comment %}
+    Satu mentor hanya memegang satu kelompok, jadi kolomnya satu dropdown —
+    bukan daftar keping seperti di sisi kelompok.
+  {% endcomment %}
+  {% include 'siwak/panel/_dropdown_kelompok.html' with aksi=sel.url terpilih=sel.nilai label_kosong='— Tanpa kelompok —' aria='Kelompok yang dipegang mentor ini' tampil_kapasitas=False %}
+
+{% elif sel.tipe == 'atur_mentor' %}
+  {% comment %}
+    Satu kelompok boleh dipegang lebih dari satu mentor, jadi di sisi ini
+    isinya daftar keping yang bisa dilepas plus satu dropdown penambah.
+  {% endcomment %}
+  {% include 'siwak/panel/_relasi.html' with terpasang=sel.nilai kelompok_pk=sel.pk %}
+
+{% elif sel.tipe == 'saklar_rsvp' %}
+  {% comment %}
+    Tombol, bukan penanda. Tapi tidak langsung berubah sekali klik: menutup
+    RSVP di waktu yang salah langsung terasa oleh maba yang sedang mendaftar,
+    jadi selalu lewat kotak konfirmasi yang menyebut nama acaranya.
+  {% endcomment %}
+  <div x-data="{ tanya: false }" @keydown.escape.window="tanya = false" class="inline-block">
+    <button type="button" @click="tanya = true"
+            title="Klik untuk {% if sel.nilai.aktif %}menutup{% else %}membuka{% endif %} RSVP"
+            class="inline-flex min-h-[32px] items-center gap-1.5 rounded-full border-2 px-3 text-[11px] font-bold transition
+                   {% if sel.nilai.aktif %}border-navy bg-cream-300 text-navy hover:bg-gold-light{% else %}border-navy-400/40 bg-navy/5 text-navy-400 hover:bg-cream-200{% endif %}">
+      <span aria-hidden="true">{% if sel.nilai.aktif %}&#9679;{% else %}&#9675;{% endif %}</span>
+      {% if sel.nilai.aktif %}Dibuka{% else %}Ditutup{% endif %}
+    </button>
+
+    <div x-cloak x-show="tanya" class="fixed inset-0 z-[60] flex items-end justify-center p-4 sm:items-center"
+         role="dialog" aria-modal="true">
+      <div class="absolute inset-0 bg-navy-900/60" @click="tanya = false"></div>
+      <div class="relative w-full max-w-sm whitespace-normal rounded-2xl border-2 border-gold-light bg-white p-6 text-left shadow-2xl"
+           x-transition:enter="transition duration-150" x-transition:enter-start="translate-y-3 opacity-0">
+        <h2 class="text-lg font-bold leading-snug text-navy">
+          {% if sel.nilai.aktif %}Tutup RSVP untuk Event ini?{% else %}Buka RSVP untuk Event ini?{% endif %}
+        </h2>
+        <p class="mt-2 text-sm leading-relaxed text-navy-400">
+          <span class="font-semibold text-navy">“{{ sel.nilai.judul }}”</span>
+          {% if sel.nilai.aktif %}
+          tidak akan menerima pendaftaran baru sampai RSVP dibuka lagi. Data RSVP yang sudah masuk tetap tersimpan.
+          {% else %}
+          akan langsung bisa menerima pendaftaran dari maba.
+          {% endif %}
+        </p>
+        <div class="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button type="button" @click="tanya = false"
+                  class="min-h-[44px] rounded-xl border-2 border-navy px-5 text-sm font-bold text-navy transition hover:bg-cream-300">
+            Batal
+          </button>
+          <form method="post" action="{{ sel.url }}">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ url_kembali }}" />
+            <button type="submit"
+                    class="min-h-[44px] w-full rounded-xl px-5 text-sm font-bold text-white transition
+                           {% if sel.nilai.aktif %}bg-red-700 hover:bg-red-800{% else %}bg-navy hover:bg-navy-700{% endif %}">
+              {% if sel.nilai.aktif %}Ya, tutup RSVP{% else %}Ya, buka RSVP{% endif %}
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+{% elif sel.tipe == 'tanggal' %}
+  {% if sel.nilai %}<span class="whitespace-nowrap">{{ sel.nilai|date:"j M Y" }}</span>
+  {% else %}<span class="text-navy-400">&mdash;</span>{% endif %}
+
+{% elif sel.tipe == 'tag' %}
+  <span class="inline-block rounded-full bg-badge/60 px-2.5 py-1 text-[11px] font-semibold text-navy">{{ sel.nilai }}</span>
+
+{% elif sel.tipe == 'panjang' %}
+  <span class="block max-w-[34ch] text-navy-400">{{ sel.nilai }}</span>
+
+{% else %}
+  <span class="{% if sel.utama %}font-semibold text-navy{% endif %}">{{ sel.nilai }}</span>
+{% endif %}
