@@ -2,7 +2,13 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 
-from .models import JURUSAN_CHOICES, EventRSVP, Tugas, TugasSubmission
+from .models import (
+    JURUSAN_CHOICES,
+    EventRSVP,
+    Question,
+    Tugas,
+    TugasSubmission,
+)
 
 INPUT_CLASSES = (
     "w-full rounded-xl border-[3px] border-[#3A3A3A] bg-[#EFEFEF] px-4 py-3 "
@@ -101,3 +107,49 @@ class RSVPForm(forms.ModelForm):
         if kehadiran == "izin" and not (alasan_izin or "").strip():
             self.add_error("alasan_izin", "Alasan izin wajib diisi jika kehadiran memilih Izin.")
         return cleaned_data
+
+class TugasAnswerForm(forms.Form):
+    def __init__(self, *args, tugas=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.tugas = tugas
+
+        if not tugas:
+            return
+
+        for question in tugas.questions.prefetch_related("choices").all():
+            field_name = f"question_{question.id}"
+
+            if question.tipe == "text":
+                self.fields[field_name] = forms.CharField(
+                    label=question.pertanyaan,
+                    required=True,
+                    widget=forms.Textarea(
+                        attrs={
+                            "rows": 5,
+                            "class": INPUT_CLASSES,
+                            "placeholder": "Tulis jawaban kamu...",
+                        }
+                    ),
+                )
+
+            elif question.tipe == "choice":
+                self.fields[field_name] = forms.ChoiceField(
+                    label=question.pertanyaan,
+                    required=True,
+                    choices=[
+                        (choice.id, choice.teks)
+                        for choice in question.choices.all()
+                    ],
+                    widget=forms.RadioSelect(),
+                )
+
+            elif question.tipe == "file":
+                self.fields[field_name] = forms.FileField(
+                    label=question.pertanyaan,
+                    required=True,
+                    widget=forms.ClearableFileInput(
+                        attrs={
+                            "accept": ".pdf,.docx,.jpg,.jpeg,.png",
+                        }
+                    ),
+                )
