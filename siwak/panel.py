@@ -299,9 +299,10 @@ SUMBER = [
         form=f.MentorForm,
         kolom=(
             Kolom("Nama", lambda o: o.nama, utama=True, urut="nama"),
+            Kolom("NPM", lambda o: o.npm or "-"),
             Kolom("Memegang kelompok", lambda o: o.kelompok_id, "pilih_kelompok_mentor", urut="kelompok"),
         ),
-        pencarian=("nama",),
+        pencarian=("nama", "npm"),
         kosong="Belum ada mentor yang terdaftar.",
         queryset=lambda: Mentor.objects.select_related("kelompok"),
         pengurutan={

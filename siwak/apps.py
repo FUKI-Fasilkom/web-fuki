@@ -5,4 +5,4 @@ class SiwakConfig(AppConfig):
     name = 'siwak'
 
     def ready(self):
-        from . import sso
+        from . import signals, sso  # noqa: F401
