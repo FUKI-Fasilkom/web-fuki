@@ -1,0 +1,172 @@
+﻿{% extends 'base.html' %}
+{% load static %}
+
+{% block title %} SIWAK-NG RSVP {{ event.judul }}{% endblock %}
+
+{% block content %}
+{% include 'siwak/_messages.html' %}
+
+<div class="relative">
+  {% if rsvp_ditutup %}
+  {% include 'components/redesign_header.html' with page_title="RSVP Telah Ditutup" subtitle=event.judul%}
+  {% elif rsvp %}
+  {% include 'components/redesign_header.html' with page_title="Terima Kasih Telah Mengisi RSVP" %}
+  {% else %}
+  {% include 'components/redesign_header.html' with page_title="SIWAK-NG" subtitle="Isi Data RSVP" logo_miring=True %}
+  {% endif %}
+
+  {# Back button #}
+  <div class="pointer-events-none absolute inset-0 z-20">
+    <div class="relative mx-auto h-full w-full max-w-[1440px] px-6 sm:px-8 lg:px-10">
+      <a
+        href="{{ back_url }}"
+        aria-label="Kembali ke halaman SIWAK-NG"
+        class="pointer-events-auto absolute top-4 left-4 inline-flex h-14 w-14 items-center justify-center rounded-full text-[#001B3D] transition hover:bg-white/25 focus:outline-none focus-visible:ring-4 focus-visible:ring-[#E0BE6B]/60 sm:top-5 sm:left-6 lg:top-6 lg:left-8"
+      >
+        <svg
+          class="h-8 w-8"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="2.2"
+          aria-hidden="true"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M15 19l-7-7 7-7"
+          />
+        </svg>
+      </a>
+    </div>
+  </div>
+</div>
+
+{% if rsvp_ditutup %}
+{% else %}
+{% if not rsvp or rsvp.kehadiran == 'hadir' %}
+<section class="w-full bg-[#F9F8F5] py-12 sm:py-16">
+  {% if not rsvp %}
+  {% comment %}
+    Halaman FORM: kartu info event dihilangkan dan diganti H3 hitam. Tiap field
+    menjadi satu komponen ala Google Forms â€” putih, border #D1D1D1, radius 12px.
+    Lebar komponen memenuhi hampir seluruh halaman (sisakan 78px di tiap sisi),
+    bukan dikekang container 1118px.
+  {% endcomment %}
+  <div class="mx-auto w-full px-4 sm:px-[78px]">
+    <h3 class="text-center text-[32px] font-bold leading-tight text-black">
+      Form data RSVP {{ event.judul }} SIWAK-NG
+    </h3>
+
+    <form method="post" x-data="{ kehadiran: '{{ form.kehadiran.value }}' }" class="mt-8 space-y-6">
+      {% csrf_token %}
+
+      {% for error in form.non_field_errors %}
+      <div class="rounded-[12px] border border-red-300 bg-red-50 p-5">
+        <p class="text-sm font-medium text-red-600">{{ error }}</p>
+      </div>
+      {% endfor %}
+
+      {# ---- Nama (read-only dari SSO) ---- #}
+      <div class="rounded-[12px] border border-[#D1D1D1] bg-white p-5 sm:p-6">
+        <div class="flex items-center gap-4 mb-2">
+          <label for="{{ form.name.id_for_label }}" class="block text-[24px] font-bold leading-[150%] text-black">{{ form.name.label }}</label>
+          <span class="inline-block rounded-full bg-navy/10 px-2.5 py-0.5 text-[11px] font-medium text-navy">Otomatis dari SSO</span>
+        </div>
+        <input type="text" id="{{ form.name.id_for_label }}" name="{{ form.name.html_name }}"
+               value="{{ form.name.value|default:'' }}" disabled readonly
+               class="w-full border-0 border-b-2 border-[#D1D1D1] bg-transparent p-0 pb-2 text-[20px] leading-[150%] text-gray-500 placeholder-gray-400
+                      focus:outline-none focus:ring-0 focus:border-black disabled:opacity-100">
+      </div>
+
+      {# ---- NPM (read-only dari SSO) ---- #}
+      <div class="rounded-[12px] border border-[#D1D1D1] bg-white p-5 sm:p-6">
+        <div class="flex items-center gap-4 mb-2">
+          <label for="{{ form.npm.id_for_label }}" class="block text-[24px] font-bold leading-[150%] text-black">{{ form.npm.label }}</label>
+          <span class="inline-block rounded-full bg-navy/10 px-2.5 py-0.5 text-[11px] font-medium text-navy">Otomatis dari SSO</span>
+        </div>
+        <input type="text" id="{{ form.npm.id_for_label }}" name="{{ form.npm.html_name }}"
+               value="{{ form.npm.value|default:'' }}" disabled readonly
+               class="w-full border-0 border-b-2 border-[#D1D1D1] bg-transparent p-0 pb-2 text-[20px] leading-[150%] text-gray-500 placeholder-gray-400
+                      focus:outline-none focus:ring-0 focus:border-black disabled:opacity-100">
+      </div>
+
+      {# ---- Kehadiran (pilihan bullet vertikal) ---- #}
+      <div class="rounded-[12px] border border-[#D1D1D1] bg-white p-5 sm:p-6">
+        <p class="text-[24px] font-bold leading-[150%] text-black mb-3">{{ form.kehadiran.label }}</p>
+        <div class="space-y-3">
+          {% for value, label in form.kehadiran.field.choices %}
+          <label class="flex items-center gap-3 cursor-pointer">
+            <input type="radio" name="{{ form.kehadiran.html_name }}" value="{{ value }}"
+                   x-model="kehadiran"
+                   class="h-5 w-5 accent-[#12284C]"
+                   {% if form.kehadiran.value == value %}checked{% endif %}>
+            <span class="text-[20px] leading-[150%] font-normal text-[#333]">{{ label }}</span>
+          </label>
+          {% endfor %}
+        </div>
+        {% for error in form.kehadiran.errors %}<p class="text-red-600 text-sm mt-2">{{ error }}</p>{% endfor %}
+      </div>
+
+      {# ---- Alasan izin (muncul hanya jika Izin) ---- #}
+      <div x-show="kehadiran === 'izin'" x-cloak x-transition
+           class="rounded-[12px] border border-[#D1D1D1] bg-white p-5 sm:p-6">
+<label for="{{ form.alasan_izin.id_for_label }}" class="block text-[24px] font-bold leading-[150%] text-black mb-2">{{ form.alasan_izin.label }}</label>
+        <textarea id="{{ form.alasan_izin.id_for_label }}" name="{{ form.alasan_izin.html_name }}" rows="1"
+                  placeholder="{{ form.alasan_izin.field.widget.attrs.placeholder }}"
+                  class="w-full border-0 border-b-2 border-[#D1D1D1] bg-transparent p-0 pb-2 text-[20px] leading-[150%] text-[#333] placeholder-gray-400
+                         focus:outline-none focus:ring-0 focus:border-black resize-y">{{ form.alasan_izin.value|default:'' }}</textarea>
+        {% for error in form.alasan_izin.errors %}<p class="text-red-600 text-sm mt-2">{{ error }}</p>{% endfor %}
+      </div>
+
+      <div class="pt-4 flex justify-end">
+        <button type="submit"
+                class="inline-flex items-center gap-2 rounded-xl bg-navy px-10 py-3 text-sm font-semibold text-white shadow hover:bg-navy-700 transition">
+          Submit
+        </button>
+      </div>
+    </form>
+  </div>
+
+  {% else %}
+  {% comment %}
+    Halaman SETELAH RSVP: QR hanya untuk yang memilih "Hadir". Yang memilih
+    "Tidak Hadir"/"Izin" cukup melihat hero â€” section ini tak dirender.
+    Kartu info event diganti H3 hitam sama seperti halaman form.
+  {% endcomment %}
+  <div class="mx-auto w-full max-w-[1118px] px-6">
+    <h3 class="text-center text-[32px] font-bold leading-tight text-black">
+      QR RSVP {{ event.judul }} SIWAK-NG
+    </h3>
+
+    <p class="text-center text-navy-400 text-base sm:text-lg mt-10">Tunjukkan QR code ini saat hari-H untuk check-in dan penukaran konsumsi.</p>
+    <div class="mx-auto max-w-4xl mt-8">
+      <div class="grid sm:grid-cols-2 gap-8 sm:gap-10">
+        <div>
+          <h2 class="text-[32px] font-bold leading-[150%] text-[#001B3D] mb-3 text-center">QR Kehadiran</h2>
+          <div class="rounded-3xl bg-cream-200 p-6 sm:p-12 text-center">
+            <img src="{{ qr_registrasi }}" alt="QR Kehadiran" class="mx-auto w-full max-w-[300px] h-auto">
+            <span class="inline-block mt-6 px-8 py-3 rounded-full text-base sm:text-lg font-bold
+                         {% if rsvp.status_kehadiran == 'hadir' %}bg-navy text-white{% else %}bg-white text-navy-400{% endif %}">
+              {% if rsvp.status_kehadiran == 'hadir' %}Sudah Check-in{% else %}Belum Check-in{% endif %}
+            </span>
+          </div>
+        </div>
+        <div>
+          <h2 class="text-[32px] font-bold leading-[150%] text-[#001B3D] mb-3 text-center">QR Kupon Makan</h2>
+          <div class="rounded-3xl bg-cream-200 p-6 sm:p-12 text-center">
+            <img src="{{ qr_kupon }}" alt="QR Kupon Makan" class="mx-auto w-full max-w-[300px] h-auto">
+            <span class="inline-block mt-6 px-8 py-3 rounded-full text-base sm:text-lg font-bold
+                         {% if rsvp.status_kupon == 'redeemed' %}bg-navy text-white{% else %}bg-white text-navy-400{% endif %}">
+              {% if rsvp.status_kupon == 'redeemed' %}Sudah Ditukar{% else %}Belum Ditukar{% endif %}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</section>
+{% endif %}
+{% endif %}
+{% endblock %}

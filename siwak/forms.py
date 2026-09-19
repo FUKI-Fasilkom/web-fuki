@@ -1,5 +1,6 @@
 from django import forms
 from django.core.exceptions import ValidationError
+from django.core.validators import RegexValidator
 
 from .models import JURUSAN_CHOICES, EventRSVP, Tugas, TugasSubmission
 
@@ -55,12 +56,48 @@ class TugasSubmissionForm(forms.ModelForm):
 
 
 class RSVPForm(forms.ModelForm):
+    name = forms.CharField(
+        label="Nama",
+        disabled=True,
+    )
+
+    npm = forms.CharField(
+        label="NPM",
+        disabled=True,
+        validators=[
+            RegexValidator(
+                regex=r"^\d+$",
+                message="NPM hanya boleh berisi angka.",
+            )
+        ],
+    )
+
     class Meta:
         model = EventRSVP
-        fields = ["catatan"]
+        fields = ["npm", "kehadiran", "alasan_izin"]
         widgets = {
-            "catatan": forms.Textarea(attrs={
-                "class": INPUT_CLASSES, "rows": 3,
-                "placeholder": "Ada catatan untuk panitia? (opsional)",
+            "kehadiran": forms.RadioSelect(),
+            "alasan_izin": forms.Textarea(attrs={
+                "rows": 3,
+                "placeholder": "Ex: acara keluarga",
             }),
         }
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        if user:
+            profile = getattr(user, "maba_profile", None)
+            self.fields["name"].initial = profile.nama_lengkap if profile else ""
+            self.fields["npm"].initial = profile.npm if profile else ""
+
+        if not self.initial.get("kehadiran"):
+            self.initial["kehadiran"] = "hadir"
+
+    def clean(self):
+        cleaned_data = super().clean()
+        kehadiran = cleaned_data.get("kehadiran")
+        alasan_izin = cleaned_data.get("alasan_izin")
+        if kehadiran == "izin" and not (alasan_izin or "").strip():
+            self.add_error("alasan_izin", "Alasan izin wajib diisi jika kehadiran memilih Izin.")
+        return cleaned_data

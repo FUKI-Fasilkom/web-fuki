@@ -25,8 +25,82 @@ from .models import MabaProfile, PesertaMentoring
 
 from django.dispatch import receiver
 from django_cas_ng.signals import cas_user_authenticated
+from cas import CASClientV2
+from lxml import etree
 
 User = get_user_model()
+
+
+# ---------------------------------------------------------------------------
+# SSO UI XML parsing tolerance
+#
+# Akar masalah login yang gagal ternyata bukan XML serviceValidate yang rusak:
+# nginx di depan `sso.ui.ac.id` menolak User-Agent default `python-requests/*`
+# dan membalas HTTP 400 dengan halaman HTML (ada tag <hr> yang tidak ditutup),
+# sehingga parser python-cas melempar `ParseError: mismatched tag`. Perbaikan
+# primer ada di `CAS_SESSION_FACTORY` (settings.py) yang memakai User-Agent
+# browser. Shim ini tetap kita pertahankan sebagai pengaman: selain tahan
+# terhadap XML yang tidak seimbang, ia juga mengenali wrapper atribut `<info>`
+# yang dipakai SSO UI (python-cas hanya membaca `<attributes>`/`<norEduPerson>`).
+# Respons mentah tetap terlihat lewat log DEBUG logger "cas" (settings.py).
+# ---------------------------------------------------------------------------
+
+CAS_NAMESPACE = "http://www.yale.edu/tp/cas"
+_ATTRIBUTE_WRAPPER_TAGS = {"attributes", "norEduPerson", "info"}
+
+
+def _put_attribute(attributes, name, value):
+    if name in attributes:
+        if isinstance(attributes[name], list):
+            attributes[name].append(value)
+        else:
+            attributes[name] = [attributes[name], value]
+    else:
+        attributes[name] = value
+
+
+def _parse_response_xml(response):
+    """Tolerant twin of cas.CASClientV2.parse_response_xml.
+
+    Returns the same (user, attributes, pgtiou) triple, but parses with lxml in
+    `recover` mode so SSO UI's stray closing tag no longer raises ParseError.
+    """
+    parser = etree.XMLParser(recover=True)
+    tree = etree.fromstring(response, parser=parser)
+    if tree is None:
+        return None, {}, None
+
+    user = None
+    attributes = {}
+    pgtiou = None
+
+    success = tree.find(f"{{{CAS_NAMESPACE}}}authenticationSuccess")
+    if success is None:
+        return user, attributes, pgtiou
+
+    user_el = success.find(f"{{{CAS_NAMESPACE}}}user")
+    if user_el is not None and user_el.text:
+        user = user_el.text.strip()
+
+    for element in success:
+        local = etree.QName(element).localname
+        if element.tag.endswith("proxyGrantingTicket"):
+            pgtiou = element.text
+        elif local in _ATTRIBUTE_WRAPPER_TAGS:
+            for attribute in element:
+                _put_attribute(attributes, etree.QName(attribute).localname, attribute.text)
+        elif local not in ("user", "attraStyle"):
+            _put_attribute(attributes, local, element.text)
+
+    return user, attributes, pgtiou
+
+
+def _apply_ui_sso_xml_patch():
+    """Swaps python-cas' strict stdlib parse for the lxml recover twin."""
+    CASClientV2.parse_response_xml = staticmethod(_parse_response_xml)
+
+
+_apply_ui_sso_xml_patch()
 
 # TODO: verifikasi mapping ini dengan mapping yang asli. assume the program mapping is true
 KD_ORG_PROGRAM_MAP = {
