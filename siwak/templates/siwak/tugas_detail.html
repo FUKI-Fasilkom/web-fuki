@@ -6,183 +6,364 @@
 {% block content %}
 {% include 'siwak/_messages.html' %}
 
-<div class="bg-[#F8FBEF] min-h-screen">
-  <div class="max-w-xl mx-auto px-6 py-10">
+{% include 'components/redesign_header.html' with page_title="SIWAK-NG" subtitle=tugas.judul_tugas %}
 
-    <p class="text-sm text-gray-500 mb-6">
-      <a href="{% url 'siwak:tugas_list' %}" class="hover:text-gray-700">
-        Daftar Tugas
-      </a>
-      <span class="mx-1">&gt;</span>
-      <span class="text-gray-800">{{ tugas.judul_tugas }}</span>
-    </p>
+<section class="bg-[#F9F8F5] min-h-screen px-5 py-8 sm:px-8 sm:py-12">
+  <div class="mx-auto w-full max-w-[1000px]">
 
-    <div class="rounded-3xl bg-[#417BB1] border-[3px] border-[#3A3A3A] p-8 text-white">
+    <div
+      class="overflow-hidden rounded-xl
+             border border-[#BDBDBD]
+             bg-[#FAF5E3]
+             shadow-[0_4px_12px_rgba(0,0,0,0.10)]"
+    >
 
-      <h1 class="text-2xl font-bold">
-        {{ tugas.judul_tugas }}
-      </h1>
-
-      <div class="flex flex-wrap items-center gap-2 mt-3">
-        {% if submission %}
-          <span class="px-3 py-1 rounded-full text-xs font-semibold
-            {% if submission.status == 'submitted' %}
-              bg-[#A6CE39] text-gray-800
-            {% else %}
-              bg-orange-300 text-gray-800
-            {% endif %}">
-            {% if submission.status == 'submitted' %}
-              Submitted
-            {% else %}
-              Late
-            {% endif %}
-          </span>
-        {% else %}
-          <span class="px-3 py-1 rounded-full bg-red-200 text-gray-800 text-xs font-semibold">
-            Not Submitted
-          </span>
-        {% endif %}
-
-        <span class="px-3 py-1 rounded-full border border-white/60 text-xs">
-          Due : {{ tugas.deadline|date:"d F Y H:i" }}
-        </span>
+      <div class="px-5 py-5 sm:px-7 sm:py-6">
+        <h1 class="text-xl sm:text-2xl font-bold text-[#333333]">
+          {{ tugas.judul_tugas }}
+        </h1>
       </div>
 
-      <p class="mt-5 text-sm whitespace-pre-line leading-relaxed">
-        {{ tugas.deskripsi }}
-      </p>
-
-      {% if submission %}
-      <div class="mt-6 rounded-xl bg-white/10 border border-white/30 px-4 py-3 text-sm">
-        File terkirim: <a href="{% url 'siwak:submission_download' submission_id=submission.pk %}" class="underline font-semibold">{{ submission.file.name|slice:"-40:" }}</a>
-        &middot; {{ submission.submitted_at|date:"d M Y H:i" }}
-      </div>
-      {% endif %}
-
-      {% if assignment_review %}
-      <div class="mt-6 rounded-xl border border-white/30 bg-white/10 px-4 py-4 text-sm">
-        <div class="flex items-center justify-between gap-4">
-          <p class="font-bold">Penilaian Mentor</p>
-          <span class="rounded-full bg-[#A6CE39] px-3 py-1 font-bold text-gray-800">{{ assignment_review.score }}/100</span>
-        </div>
-        {% if assignment_review.feedback %}
-        <p class="mt-3 whitespace-pre-line leading-relaxed text-white/90">{{ assignment_review.feedback }}</p>
-        {% endif %}
-        <p class="mt-3 text-xs text-white/70">
-          {{ assignment_review.reviewer.nama|default:"Mentor" }} &middot; {{ assignment_review.updated_at|date:"d M Y H:i" }}
-        </p>
-      </div>
-      {% endif %}
-
-      <form method="post" enctype="multipart/form-data" class="mt-6">
+      <form method="post" enctype="multipart/form-data">
         {% csrf_token %}
 
-        {% for field in form %}
-          <div class="mb-6">
+        <div class="border-t border-[#D1D1D1] px-5 py-5 sm:px-7 sm:py-6">
 
-            <label class="block text-sm font-bold mb-2">
-              {{ field.label }}
-            </label>
+          {% for field in form %}
 
-            {% if field.field.widget.input_type == "file" %}
+            <div class="mb-5 last:mb-0 rounded-xl border border-[#D1D1D1] bg-white px-5 py-5">
 
               <label
-                for="{{ field.id_for_label }}"
-                class="flex flex-col items-center justify-center gap-2
-                       rounded-xl bg-[#F6FAEB]
-                       border-2 border-dashed border-[#3A3A3A]
-                       py-8 cursor-pointer hover:bg-[#eef5da]
-                       transition text-gray-700">
-
-                <svg class="w-8 h-8" fill="none"
-                     stroke="currentColor"
-                     viewBox="0 0 24 24">
-                  <path stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M7 16a4 4 0 01-.88-7.903
-                           A5 5 0 1115.9 6L16 6a5 5 0
-                           011 9.9M12 12v9m0-9l-3 3m3-3l3 3" />
-                </svg>
-
-                <span class="text-sm font-semibold">
-                  Ketuk untuk Pilih File
-                </span>
+                class="block mb-4 text-base sm:text-lg font-bold text-[#333333]"
+              >
+                {{ field.label }}
               </label>
 
-              {{ field }}
+              {% if field.field.widget.__class__.__name__ == "Textarea" %}
 
-              <p class="text-white/70 text-xs mt-2">
-                Format: PDF, DOCX, JPG, PNG
+                <textarea
+                  name="{{ field.html_name }}"
+                  id="{{ field.id_for_label }}"
+                  rows="6"
+                  placeholder="Tulis jawaban kamu..."
+                  class="block w-full min-h-[180px] resize-y
+                        !border-0
+                        !bg-transparent
+                        !p-0
+                        !shadow-none
+                        !outline-none
+                        focus:!border-0
+                        focus:!shadow-none
+                        focus:!outline-none
+                        text-[#333333]
+                        placeholder:text-[#8A8A8A]"
+                >{{ field.value|default_if_none:"" }}</textarea>
+
+
+              {% elif field.field.widget.input_type == "radio" %}
+
+                <div class="space-y-3">
+
+                  {% for radio in field %}
+
+                    <label
+                      class="!flex !items-center !gap-3
+                            !p-0
+                            !border-0
+                            !bg-transparent
+                            !shadow-none
+                            cursor-pointer"
+                    >
+                      {{ radio.tag }}
+
+                      <span class="text-sm sm:text-base text-[#333333]">
+                        {{ radio.choice_label }}
+                      </span>
+                    </label>
+
+                  {% endfor %}
+
+                </div>
+
+              {% elif field.field.widget.input_type == "file" %}
+
+                <label
+                  for="{{ field.id_for_label }}"
+                  class="flex flex-col items-center justify-center
+                        gap-2
+                        rounded-xl
+                        border-2 border-dashed border-[#D1D1D1]
+                        bg-[#FAFAFA]
+                        py-8
+                        cursor-pointer
+                        hover:bg-[#F5F5F5]
+                        transition"
+                >
+
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="w-8 h-8 text-[#686868]"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M12 16V4m0 0L8 8m4-4l4 4M5 20h14"
+                    />
+                  </svg>
+
+                  <span class="text-sm font-semibold text-[#333333]">
+                    Upload File
+                  </span>
+
+                </label>
+
+                {{ field }}
+
+                <p class="mt-2 text-xs text-[#686868]">
+                  Format: PDF, DOCX, JPG, PNG
+                </p>
+
+              {% endif %}
+
+
+              {% for error in field.errors %}
+                <p class="mt-2 text-xs text-red-600">
+                  {{ error }}
+                </p>
+              {% endfor %}
+
+            </div>
+
+          {% endfor %}
+
+
+              {% elif field.field.widget.input_type == "file" %}
+
+                <label
+                  for="{{ field.id_for_label }}"
+                  class="flex flex-col
+                         items-center justify-center
+                         gap-2
+                         rounded-xl
+                         border-2 border-dashed
+                         border-[#D1D1D1]
+                         bg-[#FAFAFA]
+                         py-8
+                         cursor-pointer
+                         hover:bg-[#F5F5F5]
+                         transition"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="w-8 h-8 text-[#686868]"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M12 16V4m0 0L8 8m4-4l4 4M5 20h14"
+                    />
+                  </svg>
+
+                  <span class="text-sm font-semibold text-[#333333]">
+                    Ketuk untuk Pilih File
+                  </span>
+
+                </label>
+
+                {{ field }}
+
+                <p class="mt-2 text-xs text-[#686868]">
+                  Format: PDF, DOCX, JPG, PNG
+                </p>
+
+              {% else %}
+
+                {{ field }}
+
+              {% endif %}
+
+
+              <!-- Validation Errors -->
+              {% for error in field.errors %}
+
+                <p class="mt-2 text-xs text-red-600">
+                  {{ error }}
+                </p>
+
+              {% endfor %}
+
+            </div>
+
+          {% endfor %}
+
+        </div>
+
+
+        <div
+          class="border-t border-[#D1D1D1]
+                 px-5 py-4 sm:px-7
+                 flex flex-col gap-3
+                 sm:flex-row
+                 sm:items-end
+                 sm:justify-between"
+        >
+
+          <div>
+
+            {% if submission %}
+
+              <p class="text-xs text-black">
+                Status:
+
+                <span class="font-semibold text-black">
+
+                  {% if submission.status == 'submitted' %}
+                    Sudah dikumpulkan
+                  {% else %}
+                    Terlambat
+                  {% endif %}
+
+                </span>
               </p>
-
-            {% elif field.field.widget.input_type == "radio" %}
-
-              <div class="space-y-3">
-                {% for radio in field %}
-                  <label
-                    class="flex items-center gap-3
-                           rounded-xl bg-white/10
-                           border border-white/30
-                           px-4 py-3 cursor-pointer
-                           hover:bg-white/20">
-
-                    {{ radio.tag }}
-
-                    <span class="text-sm">
-                      {{ radio.choice_label }}
-                    </span>
-                  </label>
-                {% endfor %}
-              </div>
 
             {% else %}
 
-              {{ field }}
+              <p class="text-xs text-[#666666]">
+                Status:
+
+                <span class="font-semibold text-[#333333]">
+                  Belum dikumpulkan
+                </span>
+              </p>
 
             {% endif %}
 
-            {% for error in field.errors %}
-              <p class="text-red-100 text-xs mt-2">
-                {{ error }}
-              </p>
-            {% endfor %}
+
+            <p class="mt-1 text-xs font-bold text-red-600">
+              Due: {{ tugas.deadline|date:"j F Y H:i" }}
+            </p>
 
           </div>
-        {% endfor %}
 
-        {% if is_past_deadline %}
-          <p class="text-yellow-200 text-sm mb-4">
-            Tugas ini sudah melewati deadline.
-          </p>
-        {% else %}
-          <button
-            type="submit"
-            class="w-full mt-5 py-3 rounded-full
-                   bg-[#A6CE39] text-gray-800 font-bold
-                   border-[3px] border-[#3A3A3A]
-                   hover:bg-[#94ba2f] transition">
-            Kirim Tugas
-          </button>
-        {% endif %}
+          {% if is_past_deadline %}
+
+            <p class="text-sm font-semibold text-red-600">
+              Tugas sudah melewati deadline.
+            </p>
+
+          {% else %}
+
+            <button
+              type="submit"
+              class="self-end
+                     rounded-md
+                     bg-[#001B3D]
+                     px-5 py-2
+                     text-xs
+                     font-bold
+                     text-white
+                     hover:bg-[#0A2B52]
+                     transition"
+            >
+
+              {% if submission %}
+                Ubah
+              {% else %}
+                Submit
+              {% endif %}
+
+            </button>
+
+          {% endif %}
+
+        </div>
 
       </form>
 
     </div>
-  </div>
-</div>
 
-<script>
-  document.addEventListener('DOMContentLoaded', function () {
-    var input = document.getElementById('{{ form.file.id_for_label }}');
-    var display = document.getElementById('file-name-display');
-    if (input) {
-      input.addEventListener('change', function () {
-        if (input.files && input.files.length > 0) {
-          display.textContent = input.files[0].name;
-        }
-      });
+  </div>
+</section>
+
+
+<style>
+
+  .text-answer,
+  .text-answer textarea {
+    width: 100% !important;
+  }
+
+  .text-answer textarea {
+    min-height: 180px !important;
+
+    padding: 0 !important;
+
+    border: 0 !important;
+    border-width: 0 !important;
+    border-radius: 0 !important;
+
+    background: transparent !important;
+    background-color: transparent !important;
+
+    box-shadow: none !important;
+    outline: none !important;
+
+    color: #333333 !important;
+
+    resize: vertical;
+  }
+
+  .text-answer textarea:focus {
+    border: 0 !important;
+    border-width: 0 !important;
+
+    background: transparent !important;
+    background-color: transparent !important;
+
+    box-shadow: none !important;
+    outline: none !important;
+  }
+
+
+
+    .choice-answer {
+      width: 100%;
     }
-  });
-</script>
+
+    .choice-answer label {
+      display: flex !important;
+      align-items: center !important;
+
+      gap: 12px !important;
+
+      padding: 4px 0 !important;
+
+      border: 0 !important;
+      background: transparent !important;
+      box-shadow: none !important;
+    }
+
+    .choice-answer input[type="radio"] {
+      width: 18px !important;
+      height: 18px !important;
+
+      margin: 0 !important;
+
+      flex-shrink: 0;
+    }
+
+
+  .file-answer input[type="file"] {
+    display: none;
+  }
+</style>
+
 {% endblock %}

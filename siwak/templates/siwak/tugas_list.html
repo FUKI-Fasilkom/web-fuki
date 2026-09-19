@@ -6,7 +6,6 @@
 {% block content %}
 {% include 'siwak/_messages.html' %}
 
-<!-- Hero -->
 {% include 'components/redesign_header.html' with page_title="SIWAK-NG" subtitle="Pengumpulan Tugas Mentoring" %}
 
 <section class="bg-[#F9F8F5] min-h-screen px-6 py-10 sm:py-14">
@@ -35,7 +34,6 @@
           : 'bg-[#001B3D]'"
       >
 
-        <!-- Accordion Header -->
         <button
           type="button"
           @click="open = open === {{ forloop.counter0 }} ? null : {{ forloop.counter0 }}"
@@ -58,7 +56,6 @@
 
             <div class="flex flex-wrap items-center gap-2 mt-3">
 
-              <!-- Status -->
               <span
                 class="inline-flex items-center rounded-full
                        px-3 py-1 text-[10px] sm:text-xs font-semibold
@@ -73,7 +70,6 @@
                 {{ row.status }}
               </span>
 
-              <!-- Deadline -->
               <span
                 class="inline-flex items-center rounded-full
                        border px-3 py-1 text-[10px] sm:text-xs
@@ -88,7 +84,6 @@
             </div>
           </div>
 
-          <!-- Chevron -->
           <svg
             class="h-5 w-5 sm:h-6 sm:w-6 shrink-0 transition-transform duration-300"
             :class="[
@@ -110,7 +105,6 @@
 
         </button>
 
-        <!-- Accordion Content -->
         <div
           x-show="open === {{ forloop.counter0 }}"
           x-transition
@@ -120,7 +114,6 @@
 
           <div class="px-5 py-6 sm:px-7 sm:py-7">
 
-            <!-- Description -->
             {% if row.tugas.deskripsi %}
             <div class="mb-6">
               <h3 class="text-sm sm:text-base font-bold text-[#001B3D] mb-2">
@@ -133,7 +126,6 @@
             </div>
             {% endif %}
 
-            <!-- Deadline -->
             <div class="mb-6 rounded-xl bg-[#FAF5E3] p-4">
               <p class="text-xs text-[#7A6425] font-medium">
                 Deadline
@@ -144,7 +136,6 @@
               </p>
             </div>
 
-            <!-- Action -->
             <div class="flex justify-end">
               <a
                 href="{% url 'siwak:tugas_detail' pk=row.tugas.pk %}"
@@ -202,7 +193,6 @@
 
     </div>
 
-    <!-- Calendar -->
     <div class="mt-12 rounded-3xl border-2 border-[#DDE8C8]
                 bg-[#F6FAEB] p-5 sm:p-7
                 shadow-[0_8px_24px_rgba(61,78,39,0.12)]">
@@ -317,7 +307,6 @@
     </div>
 
   </div>
-</div>
 
 </section>
 
