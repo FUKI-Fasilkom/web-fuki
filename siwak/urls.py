@@ -57,6 +57,20 @@ urlpatterns = [
     path("admin/data/<slug:slug>/<int:pk>/ubah/", panel_views.panel_ubah, name="panel_ubah"),
     path("admin/data/<slug:slug>/<int:pk>/hapus/", panel_views.panel_hapus, name="panel_hapus"),
 
+    # Penyusun pertanyaan tugas & pemeriksa jawabannya
+    path("admin/sesi/<int:pk>/aktif/", panel_views.panel_sesi_aktif, name="panel_sesi_aktif"),
+    path("admin/tugas/<int:pk>/pertanyaan/", panel_views.panel_pertanyaan, name="panel_pertanyaan"),
+    path(
+        "admin/tugas/<int:pk>/pertanyaan/tambah/",
+        panel_views.panel_pertanyaan_tambah,
+        name="panel_pertanyaan_tambah",
+    ),
+    path("admin/pertanyaan/<int:pk>/ubah/", panel_views.panel_pertanyaan_ubah, name="panel_pertanyaan_ubah"),
+    path("admin/pertanyaan/<int:pk>/hapus/", panel_views.panel_pertanyaan_hapus, name="panel_pertanyaan_hapus"),
+    path("admin/pertanyaan/<int:pk>/urut/", panel_views.panel_pertanyaan_urut, name="panel_pertanyaan_urut"),
+    path("admin/tugas/<int:pk>/jawaban/", panel_views.panel_jawaban, name="panel_jawaban"),
+    path("admin/tugas/<int:pk>/jawaban/csv/", panel_views.panel_jawaban_csv, name="panel_jawaban_csv"),
+
     # Penyunting relasi yang dipanggil dropdown di halaman daftar
     path("admin/peserta/<int:pk>/kelompok/", panel_views.panel_set_kelompok, name="panel_set_kelompok"),
     path("admin/penugasan-mentor/", panel_views.panel_set_mentor, name="panel_set_mentor"),

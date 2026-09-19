@@ -3,6 +3,11 @@
 {% block panel %}
 <header class="mb-5">
   <h1 class="text-2xl font-bold text-navy sm:text-3xl">{{ judul_panel }}</h1>
+  {% if objek %}
+  {% comment %}Sebut barisnya: "Ubah Sesi Mentoring" saja tidak cukup kalau
+  daftarnya panjang dan semua judulnya sama.{% endcomment %}
+  <p class="mt-1 text-sm font-semibold text-navy">{{ objek }}</p>
+  {% endif %}
   <p class="mt-1 max-w-2xl text-sm leading-relaxed text-navy-400">{{ sumber_data.deskripsi }}</p>
 </header>
 

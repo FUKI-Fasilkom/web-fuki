@@ -6,10 +6,12 @@
     <h1 class="text-2xl font-bold text-navy sm:text-3xl">{{ sumber_data.label_jamak }}</h1>
     <p class="mt-1 max-w-2xl text-sm leading-relaxed text-navy-400">{{ sumber_data.deskripsi }}</p>
   </div>
+  {% if url_tambah %}
   <a href="{{ url_tambah }}"
      class="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl bg-navy px-5 text-sm font-bold text-white transition hover:bg-navy-700">
     <span aria-hidden="true">+</span> Tambah {{ sumber_data.label }}
   </a>
+  {% endif %}
 </header>
 
 {% if sumber_data.pencarian %}
@@ -90,16 +92,17 @@
         {% endfor %}
         <td class="px-3.5 py-3">
           <div class="flex items-center justify-end gap-2 whitespace-nowrap">
-            {% if ada_rsvp %}
-            <a href="{% url 'siwak:panel_rsvp' item.pk %}"
+            {% for aksi in item.aksi %}
+            <a href="{{ aksi.url }}"
                class="rounded-lg border-2 border-gold px-3 py-1.5 text-xs font-bold text-navy transition hover:bg-cream-300">
-              RSVP ({{ item.obj.rsvp_list.count }})
+              {{ aksi.label }}
             </a>
-            {% endif %}
+            {% endfor %}
             <a href="{% url 'siwak:panel_ubah' sumber_data.slug item.pk %}"
                class="rounded-lg bg-navy px-3 py-1.5 text-xs font-bold text-white transition hover:bg-navy-700">
               Ubah
             </a>
+            {% if sumber_data.boleh_hapus %}
             <form method="post" action="{% url 'siwak:panel_hapus' sumber_data.slug item.pk %}"
                   onsubmit="return confirm('Hapus {{ sumber_data.label|escapejs }} ini? Tindakan ini tidak bisa dibatalkan.');">
               {% csrf_token %}
@@ -108,6 +111,7 @@
                 Hapus
               </button>
             </form>
+            {% endif %}
           </div>
         </td>
       </tr>
@@ -135,7 +139,7 @@
     <dl class="space-y-2">
       {% for sel in item.sel %}
       {% if not sel.utama and sel.tipe != 'gambar' %}
-      {% if sel.tipe == 'pilih_kelompok' or sel.tipe == 'pilih_kelompok_mentor' or sel.tipe == 'atur_mentor' %}
+      {% if sel.tipe == 'pilih_kelompok' or sel.tipe == 'pilih_kelompok_mentor' or sel.tipe == 'atur_mentor' or sel.tipe == 'pilih_aktif' %}
       {% comment %}
         Kolom yang bisa disunting butuh lebar penuh: dropdown dan keping mentor
         tidak muat kalau dipepetkan ke kanan seperti nilai biasa.
@@ -155,16 +159,17 @@
     </dl>
 
     <div class="mt-4 grid grid-cols-2 gap-2">
-      {% if ada_rsvp %}
-      <a href="{% url 'siwak:panel_rsvp' item.pk %}"
+      {% for aksi in item.aksi %}
+      <a href="{{ aksi.url }}"
          class="col-span-2 inline-flex min-h-[44px] items-center justify-center rounded-xl border-2 border-gold text-sm font-bold text-navy transition hover:bg-cream-300">
-        Lihat daftar RSVP ({{ item.obj.rsvp_list.count }})
+        {{ aksi.label }}
       </a>
-      {% endif %}
+      {% endfor %}
       <a href="{% url 'siwak:panel_ubah' sumber_data.slug item.pk %}"
          class="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-navy text-sm font-bold text-white transition hover:bg-navy-700">
         Ubah
       </a>
+      {% if sumber_data.boleh_hapus %}
       <form method="post" action="{% url 'siwak:panel_hapus' sumber_data.slug item.pk %}"
             onsubmit="return confirm('Hapus {{ sumber_data.label|escapejs }} ini? Tindakan ini tidak bisa dibatalkan.');">
         {% csrf_token %}
@@ -173,6 +178,7 @@
           Hapus
         </button>
       </form>
+      {% endif %}
     </div>
   </article>
   {% endfor %}
@@ -189,10 +195,12 @@
     {% if kata %}Coba kata kunci lain, atau bersihkan pencarian.
     {% else %}{{ sumber_data.deskripsi }}{% endif %}
   </p>
+  {% if url_tambah %}
   <a href="{{ url_tambah }}"
      class="mt-5 inline-flex min-h-[44px] items-center rounded-xl bg-navy px-6 text-sm font-bold text-white transition hover:bg-navy-700">
     + Tambah {{ sumber_data.label }}
   </a>
+  {% endif %}
 </div>
 {% endif %}
 {% endblock %}
