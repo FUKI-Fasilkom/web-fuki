@@ -1,9 +1,11 @@
 import calendar as pycal
+from functools import wraps
 
 from django.contrib import messages
-from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.views import redirect_to_login
 from django.core import signing
+from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -28,6 +30,26 @@ from .services.qrcode_service import (
     registrasi_qr_data_uri,
     unsign_payload,
 )
+
+
+def superuser_required(view_func):
+    """Admin-only decorator for qr_verify.
+
+    django.contrib.auth's `user_passes_test` (Django 6) redirects *every* user
+    who fails the test to the login URL — even already-logged-in non-admins —
+    which produces a redirect loop on `/admin/login/?next=...`. This mirrors
+    Django's own `staff_member_required` instead: anonymous users are sent to
+    the admin login, logged-in non-superusers get a clean 403.
+    """
+    @wraps(view_func)
+    def _wrapped(request, *args, **kwargs):
+        if request.user.is_authenticated:
+            if not request.user.is_superuser:
+                return HttpResponseForbidden()
+            return view_func(request, *args, **kwargs)
+        return redirect_to_login(request.get_full_path(), reverse("admin:login"))
+
+    return _wrapped
 
 
 # ---------------------------------------------------------------------------
@@ -200,8 +222,20 @@ def tugas_detail(request, pk):
 
 @login_required
 def rsvp_event(request, id):
-    event = get_object_or_404(SiwakEvent, id=id, rsvp_dibuka=True)
+    # 404 hanya kalau event benar-benar tidak ada/dihapus (tanpa login: tetap 404).
+    # Kalau event ada tapi RSVP-nya sudah ditutup, tampilkan halaman "RSVP ditutup"
+    # (kecuali user sudah pernah RSVP — mereka tetap bisa melihat QR-nya).
+    event = get_object_or_404(SiwakEvent, id=id)
+    if not request.user.is_authenticated:
+        return redirect_to_login(request.get_full_path())
     rsvp = EventRSVP.objects.filter(event=event, user=request.user).first()
+    if not event.rsvp_dibuka and not rsvp:
+        context = {
+            "event": event,
+            "rsvp_ditutup": True,
+            "back_url": reverse("siwak:landing"),
+        }
+        return render(request, "siwak/rsvp.html", context)
 
     form = RSVPForm(user=request.user)
     if request.method == "POST" and not rsvp:
@@ -227,9 +261,9 @@ def rsvp_event(request, id):
     return render(request, "siwak/rsvp.html", context)
 
 
-# @staff_member_required
+@superuser_required
 def qr_verify(request, signed):
-    """Landing page for a scanned QR (PRD 6.1/6.2). Staff-only, one-time use."""
+    """Landing page for a scanned QR (PRD 6.1/6.2). Superuser-only, one-time use."""
     error = None
     rsvp = None
     kind = None
@@ -301,12 +335,7 @@ def qr_verify(request, signed):
         "rsvp": rsvp,
         "kind": kind,
         "already": already,
+        "back_url": reverse("siwak:landing"),
     }
 
     return render(request, "siwak/qr_verify.html", context)
-
-
-# @staff_member_required
-def admin_scan(request):
-    """Camera-based scanner UI for panitia (PRD 8 — Scan QR attendance / kupon)."""
-    return render(request, "siwak/admin_scan.html", {})

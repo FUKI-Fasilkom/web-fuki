@@ -24,5 +24,4 @@ urlpatterns = [
     # 5.2 / 6 — RSVP & QR
     path("rsvp/<int:id>/", views.rsvp_event, name="rsvp"),
     path("qr/<str:signed>/", views.qr_verify, name="qr_verify"),
-    path("panitia/scan/", views.admin_scan, name="admin_scan"),
 ]

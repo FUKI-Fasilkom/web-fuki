@@ -354,6 +354,10 @@ class EventRSVP(models.Model):
         ("unused", "Unused"),
         ("redeemed", "Redeemed"),
     ]
+    KEHADIRAN_STATUS_CHOICES = [
+        ("hadir", "Hadir"),
+        ("belum_hadir", "Belum Hadir"),
+    ]
 
     event = models.ForeignKey(SiwakEvent, on_delete=models.CASCADE, related_name="rsvp_list")
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="event_rsvps")
@@ -363,7 +367,7 @@ class EventRSVP(models.Model):
 
     # QR Registrasi Ulang (6.1)
     qr_registrasi_token = models.CharField(null=True, max_length=64, unique=True, default=_new_token, editable=False)
-    status_kehadiran = models.CharField(null=True, max_length=12, choices=QR_CHOICES, default="unused")
+    status_kehadiran = models.CharField(max_length=12, choices=KEHADIRAN_STATUS_CHOICES, default="belum_hadir")
     checked_in_at = models.DateTimeField(null=True, blank=True)
 
     # QR Kupon Makan (6.2)
