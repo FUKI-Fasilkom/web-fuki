@@ -1,0 +1,207 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}SIWAK-NG - {{ event.judul }}{% endblock %}
+
+{% block content %}
+{% include 'siwak/_messages.html' %}
+
+<!-- ===================================================== -->
+<!-- Event Hero                                            -->
+<!-- ===================================================== -->
+<div class="relative">
+
+  <!--
+    Hero background + logo tetap menggunakan komponen yang sama.
+    page_title dikosongkan karena judul SIWAK-NG dan nama event
+    diposisikan bersama di bawah agar jaraknya sesuai desain.
+  -->
+  {% include 'hero_gold.html' with page_title="" logo_miring=True %}
+
+  <!-- Back button -->
+  <div class="pointer-events-none absolute inset-0 z-20">
+    <div class="relative mx-auto h-full w-full max-w-[1440px] px-6 sm:px-8 lg:px-10">
+      <a
+        href="{% url 'siwak:landing' %}"
+        aria-label="Kembali ke halaman SIWAK-NG"
+        class="pointer-events-auto absolute top-4 left-4 inline-flex h-14 w-14 items-center justify-center rounded-full text-[#001B3D] transition hover:bg-white/25 focus:outline-none focus-visible:ring-4 focus-visible:ring-[#E0BE6B]/60 sm:top-5 sm:left-6 lg:top-6 lg:left-8"
+      >
+        <svg
+          class="h-8 w-8"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="2.2"
+          aria-hidden="true"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M15 19l-7-7 7-7"
+          />
+        </svg>
+      </a>
+    </div>
+  </div>
+
+  <!--
+    SIWAK-NG + nama event sekarang berada dalam satu group
+    supaya jaraknya rapat seperti desain Figma.
+  -->
+  <div class="pointer-events-none absolute inset-0 z-10">
+    <div
+      class="mx-auto flex h-full w-full max-w-[1118px] items-center px-6 sm:px-8 lg:px-6"
+    >
+      <div class="-translate-y-1 sm:-translate-y-2">
+
+        <h1
+          class="text-[28px] font-bold leading-none text-[#001B3D] sm:text-4xl lg:text-[48px]"
+        >
+          SIWAK-NG
+        </h1>
+
+        <p
+          class="mt-2 text-sm font-medium leading-none text-[#001B3D] sm:mt-3 sm:text-lg lg:text-xl"
+        >
+          {{ event.judul }}
+        </p>
+
+      </div>
+    </div>
+  </div>
+
+  <!--
+    Fade dari hero menuju background halaman.
+    Ini menghilangkan garis batas warna yang sebelumnya terlihat jelas.
+  -->
+  <div
+    class="pointer-events-none absolute inset-x-0 bottom-0 z-[5] h-20 bg-gradient-to-b from-transparent via-[#F9F8F5]/60 to-[#F9F8F5] sm:h-28 lg:h-32"
+    aria-hidden="true"
+  ></div>
+
+</div>
+
+
+<!-- ===================================================== -->
+<!-- Event Content                                         -->
+<!-- ===================================================== -->
+<section class="bg-[#F9F8F5]">
+  <div
+    class="mx-auto w-full max-w-[1118px] px-6 py-10 sm:px-8 sm:py-14 lg:px-6 lg:py-16"
+  >
+
+    <!-- Event image -->
+    <div class="mx-auto max-w-[1000px]">
+
+      {% if event.gambar %}
+      <img
+        src="{{ event.gambar.url }}"
+        alt="{{ event.judul }}"
+        class="w-full object-cover"
+      >
+      {% else %}
+      <div
+        class="aspect-[16/5] w-full bg-[#D9D9D9] sm:aspect-[16/4]"
+        aria-hidden="true"
+      ></div>
+      {% endif %}
+
+    </div>
+
+
+    <!-- Event description -->
+    <div class="mx-auto mt-5 max-w-[1000px] sm:mt-6">
+
+      <h1
+        class="text-base font-medium leading-snug text-[#222222] sm:text-xl lg:text-2xl"
+      >
+        Apa itu {{ event.judul }} SIWAK?
+      </h1>
+
+      {% if event.deskripsi %}
+      <div
+        class="mt-1 whitespace-pre-line text-sm leading-relaxed text-[#333333] sm:mt-2 sm:text-base"
+      >
+        {{ event.deskripsi }}
+      </div>
+      {% else %}
+      <p
+        class="mt-1 text-sm leading-relaxed text-[#333333] sm:mt-2 sm:text-base"
+      >
+        Informasi mengenai {{ event.judul }} akan segera diumumkan.
+      </p>
+      {% endif %}
+
+
+      <!-- Optional event information -->
+      {% if event.tanggal or event.lokasi %}
+      <div
+        class="mt-6 flex flex-col gap-3 border-t border-[#001B3D]/10 pt-5 text-sm text-[#4A4A4A] sm:flex-row sm:items-center sm:gap-6"
+      >
+
+        {% if event.tanggal %}
+        <div class="flex items-center gap-2">
+
+          <svg
+            class="h-4 w-4 shrink-0 text-[#001B3D]"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="2"
+            aria-hidden="true"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M8 7V3m8 4V3M5 11h14M5 5h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2z"
+            />
+          </svg>
+
+          <span>
+            {{ event.tanggal|date:"j F Y" }}
+          </span>
+
+        </div>
+        {% endif %}
+
+
+        {% if event.lokasi %}
+        <div class="flex items-center gap-2">
+
+          <svg
+            class="h-4 w-4 shrink-0 text-[#001B3D]"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="2"
+            aria-hidden="true"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M12 21s6-5.3 6-11a6 6 0 10-12 0c0 5.7 6 11 6 11z"
+            />
+
+            <circle
+              cx="12"
+              cy="10"
+              r="2"
+            />
+          </svg>
+
+          <span>
+            {{ event.lokasi }}
+          </span>
+
+        </div>
+        {% endif %}
+
+      </div>
+      {% endif %}
+
+    </div>
+
+  </div>
+</section>
+
+{% endblock %}
