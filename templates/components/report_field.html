@@ -1,0 +1,4 @@
+<div class="flex w-full flex-col gap-[17px] lg:gap-5">
+  <label for="{{ name }}" class="text-xs leading-[22px] text-[#001B3D] lg:text-base lg:leading-6">{{ label }}{% if optional %} <span class="text-[#001B3D]/60">(opsional)</span>{% endif %}</label>
+  <input id="{{ name }}" name="{{ name }}" type="{{ type|default:'text' }}" {% if not optional %}required{% endif %} {% if autocomplete %}autocomplete="{{ autocomplete }}"{% endif %} placeholder="{{ placeholder }}" class="h-[45px] w-full rounded-[30px] border-[3px] border-[#001B3D] bg-[linear-gradient(180deg,#FFF6DA_0%,#F2E5BB_116.35%)] px-6 text-[10px] leading-[1.5] text-[#001B3D] shadow-[0_0_16px_#00000026] placeholder:text-[#001B3D]/50 focus:outline-none focus:ring-2 focus:ring-[#6090BD] focus:ring-offset-2 focus:ring-offset-[#F9F8F5] min-[390px]:px-12 lg:h-[54px] lg:text-base" />
+</div>
