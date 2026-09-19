@@ -666,3 +666,94 @@ class PanelRsvpStatusTests(TestCase):
         kepala = response.content.decode("utf-8").splitlines()[0]
         self.assertIn("QR Kehadiran", kepala)
         self.assertIn("QR Kupon", kepala)
+
+
+class PanelRsvpPencarianTests(TestCase):
+    """Verify the search box on the RSVP list of one event."""
+
+    def setUp(self):
+        self.client.force_login(User.objects.create_user(username="pengurus", is_staff=True))
+        self.event = SiwakEvent.objects.create(judul="Main Event", rsvp_dibuka=True)
+        self.url = reverse("siwak:panel_rsvp", args=[self.event.pk])
+        self.budi = self._rsvp("2306000001", "Budi Santoso")
+        self.citra = self._rsvp("2306000002", "Citra Lestari")
+
+    def _rsvp(self, npm, nama, event=None):
+        user = User.objects.create_user(username=npm)
+        MabaProfile.objects.create(user=user, npm=npm, nama_lengkap=nama, jurusan="IK")
+        return EventRSVP.objects.create(event=event or self.event, user=user)
+
+    def _nama(self, response):
+        return [
+            r.user.maba_profile.nama_lengkap
+            for r in response.context["halaman"].object_list
+        ]
+
+    def test_searching_by_name_keeps_only_the_matching_participants(self):
+        response = self.client.get(self.url, {"q": "citra"})
+
+        self.assertEqual(self._nama(response), ["Citra Lestari"])
+
+    def test_searching_by_npm_works_too(self):
+        """Panitia at the door reads the NPM off a card, not the full name."""
+        response = self.client.get(self.url, {"q": "2306000001"})
+
+        self.assertEqual(self._nama(response), ["Budi Santoso"])
+
+    def test_a_participant_without_a_profile_is_still_searchable(self):
+        """SSO may not have filled the profile yet; the username is the fallback."""
+        user = User.objects.create_user(username="tamu-khusus")
+        EventRSVP.objects.create(event=self.event, user=user)
+
+        response = self.client.get(self.url, {"q": "tamu"})
+
+        self.assertEqual(
+            [r.user.username for r in response.context["halaman"].object_list],
+            ["tamu-khusus"],
+        )
+
+    def test_the_search_never_reaches_into_another_event(self):
+        """Two events may well share the same participants."""
+        lain = SiwakEvent.objects.create(judul="Acara Lain")
+        self._rsvp("2306000003", "Citra Kembar", event=lain)
+
+        response = self.client.get(self.url, {"q": "citra"})
+
+        self.assertEqual(self._nama(response), ["Citra Lestari"])
+
+    def test_the_summary_still_counts_every_participant_of_the_event(self):
+        """The three tiles describe the event, so a search must not shrink them."""
+        self.budi.status_kehadiran = "hadir"
+        self.budi.save()
+
+        response = self.client.get(self.url, {"q": "citra"})
+
+        self.assertEqual(
+            response.context["ringkasan_rsvp"],
+            [("Total RSVP", 2), ("Sudah check-in", 1), ("Kupon ditukar", 0)],
+        )
+
+    def test_an_empty_search_shows_everyone_again(self):
+        response = self.client.get(self.url, {"q": "   "})
+
+        self.assertEqual(self._nama(response), ["Budi Santoso", "Citra Lestari"])
+
+    def test_the_export_follows_the_search(self):
+        """Otherwise the downloaded file differs from what is on screen."""
+        response = self.client.get(
+            reverse("siwak:panel_rsvp_csv", args=[self.event.pk]), {"q": "citra"}
+        )
+
+        isi = response.content.decode("utf-8")
+        self.assertIn("Citra Lestari", isi)
+        self.assertNotIn("Budi Santoso", isi)
+
+    def test_a_status_change_returns_to_the_search_results(self):
+        """The dropdowns post `next`, so a correction must not drop the filter."""
+        halaman = f"{self.url}?q=citra"
+        response = self.client.post(
+            reverse("siwak:panel_rsvp_status", args=[self.citra.pk]),
+            {"medan": "kehadiran", "nilai": "hadir", "next": halaman},
+        )
+
+        self.assertRedirects(response, halaman)

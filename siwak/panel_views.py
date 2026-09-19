@@ -536,18 +536,39 @@ def panel_info(request):
 # Halaman khusus 2 — RSVP per acara
 # ---------------------------------------------------------------------------
 
-def _rsvp_queryset(event):
-    return (
+# Nama diambil dari profil maba, tapi peserta yang belum punya profil tetap
+# harus bisa dicari, jadi username ikut dicocokkan.
+CARI_RSVP = (
+    "user__maba_profile__nama_lengkap",
+    "user__maba_profile__npm",
+    "user__username",
+)
+
+
+def _rsvp_queryset(event, kata=""):
+    qs = (
         EventRSVP.objects.filter(event=event)
         .select_related("user__maba_profile")
         .order_by("user__maba_profile__nama_lengkap", "user__username")
     )
+    if kata:
+        saringan = Q()
+        for nama_field in CARI_RSVP:
+            saringan |= Q(**{f"{nama_field}__icontains": kata})
+        qs = qs.filter(saringan)
+    return qs
 
 
 @staf_required
 def panel_rsvp(request, pk):
     event = get_object_or_404(SiwakEvent, pk=pk)
-    daftar = _rsvp_queryset(event)
+    kata = (request.GET.get("q") or "").strip()
+    daftar = _rsvp_queryset(event, kata)
+
+    # Ringkasan di atas tabel sengaja dihitung dari seluruh peserta acara, bukan
+    # dari hasil pencarian: angka "Sudah check-in" yang ikut menyusut saat
+    # panitia mengetik satu nama akan terbaca seperti data yang hilang.
+    semua = _rsvp_queryset(event)
 
     bagian = PETA_BAGIAN["event"]
     return render(request, "siwak/panel/rsvp.html", _kerangka(
@@ -562,14 +583,18 @@ def panel_rsvp(request, pk):
         ],
         event=event,
         halaman=Paginator(daftar, PER_HALAMAN).get_page(request.GET.get("page")),
-        kueri="",
+        kata=kata,
+        # Kotak cari disembunyikan kalau acaranya memang belum punya peserta:
+        # mencari di daftar kosong hanya menambah pertanyaan.
+        ada_rsvp=semua.exists(),
+        kueri=urlencode({"q": kata}) if kata else "",
         url_kembali=request.get_full_path(),
         pilihan_kehadiran=EventRSVP.KEHADIRAN_STATUS_CHOICES,
         pilihan_kupon=EventRSVP.QR_CHOICES,
         ringkasan_rsvp=[
-            ("Total RSVP", daftar.count()),
-            ("Sudah check-in", daftar.filter(status_kehadiran="hadir").count()),
-            ("Kupon ditukar", daftar.filter(status_kupon="redeemed").count()),
+            ("Total RSVP", semua.count()),
+            ("Sudah check-in", semua.filter(status_kehadiran="hadir").count()),
+            ("Kupon ditukar", semua.filter(status_kupon="redeemed").count()),
         ],
     ))
 
@@ -577,6 +602,9 @@ def panel_rsvp(request, pk):
 @staf_required
 def panel_rsvp_csv(request, pk):
     event = get_object_or_404(SiwakEvent, pk=pk)
+    # Unduhan mengikuti pencarian yang sedang aktif. Kalau tidak, tombol unduh
+    # akan memberi berkas yang isinya berbeda dari yang sedang dilihat panitia.
+    kata = (request.GET.get("q") or "").strip()
 
     respons = HttpResponse(content_type="text/csv; charset=utf-8")
     aman = "".join(c if c.isalnum() else "-" for c in event.judul).strip("-").lower()
@@ -584,7 +612,7 @@ def panel_rsvp_csv(request, pk):
 
     penulis = csv.writer(respons)
     penulis.writerow(["Nama", "NPM", "Kehadiran", "Alasan izin", "QR Kehadiran", "QR Kupon"])
-    for rsvp in _rsvp_queryset(event):
+    for rsvp in _rsvp_queryset(event, kata):
         profil = getattr(rsvp.user, "maba_profile", None)
         penulis.writerow([
             profil.nama_lengkap if profil else rsvp.user.username,
