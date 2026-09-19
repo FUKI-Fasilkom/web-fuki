@@ -346,27 +346,29 @@ class EventRSVP(models.Model):
     """RSVP + QR registrasi ulang & QR kupon makan (PRD 5.2, 6.1, 6.2)."""
 
     ATTENDANCE_CHOICES = [
-        ("registered", "Registered"),
         ("hadir", "Hadir"),
+        ("tidak_hadir", "Tidak Hadir"),
+        ("izin", "Izin")
     ]
-    KUPON_CHOICES = [
+    QR_CHOICES = [
         ("unused", "Unused"),
         ("redeemed", "Redeemed"),
     ]
 
     event = models.ForeignKey(SiwakEvent, on_delete=models.CASCADE, related_name="rsvp_list")
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="event_rsvps")
-    catatan = models.CharField(max_length=300, blank=True, verbose_name="Catatan tambahan (opsional)")
+    kehadiran = models.CharField(max_length=12, choices=ATTENDANCE_CHOICES, default="hadir")
+    alasan_izin = models.CharField(max_length=300, blank=True, verbose_name="Jika Izin, Alasannya Kenapa?")
     created_at = models.DateTimeField(auto_now_add=True)
 
     # QR Registrasi Ulang (6.1)
-    qr_registrasi_token = models.CharField(max_length=64, unique=True, default=_new_token, editable=False)
-    status_kehadiran = models.CharField(max_length=12, choices=ATTENDANCE_CHOICES, default="registered")
+    qr_registrasi_token = models.CharField(null=True, max_length=64, unique=True, default=_new_token, editable=False)
+    status_kehadiran = models.CharField(null=True, max_length=12, choices=QR_CHOICES, default="unused")
     checked_in_at = models.DateTimeField(null=True, blank=True)
 
     # QR Kupon Makan (6.2)
-    qr_kupon_token = models.CharField(max_length=64, unique=True, default=_new_token, editable=False)
-    status_kupon = models.CharField(max_length=10, choices=KUPON_CHOICES, default="unused")
+    qr_kupon_token = models.CharField(null=True, max_length=64, unique=True, default=_new_token, editable=False)
+    status_kupon = models.CharField(null=True, max_length=10, choices=QR_CHOICES, default="unused")
     redeemed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
