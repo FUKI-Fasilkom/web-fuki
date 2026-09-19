@@ -311,7 +311,46 @@ class Tugas(models.Model):
             return None
         return self.submissions.filter(user=user).first()
 
+class Question(models.Model):
+    TYPE_CHOICES = [
+        ("text", "Text"),
+        ("choice", "Choice"),
+        ("file", "File"),
+    ]
 
+    tugas = models.ForeignKey(
+        Tugas,
+        on_delete=models.CASCADE,
+        related_name="questions",
+    )
+    pertanyaan = models.TextField()
+    tipe = models.CharField(
+        max_length=10,
+        choices=TYPE_CHOICES,
+    )
+    urutan = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["urutan"]
+
+    def __str__(self):
+        return self.pertanyaan[:80]
+
+class Choice(models.Model):
+    question = models.ForeignKey(
+        Question,
+        on_delete=models.CASCADE,
+        related_name="choices",
+    )
+    teks = models.CharField(max_length=300)
+    urutan = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["urutan"]
+
+    def __str__(self):
+        return self.teks
+        
 class TugasSubmission(models.Model):
     """Submission mentee untuk satu Tugas (PRD 5.1 - Task Fields / Submission Rules)."""
 
@@ -340,6 +379,39 @@ class TugasSubmission(models.Model):
 
 def _new_token():
     return uuid.uuid4().hex
+
+class Answer(models.Model):
+    submission = models.ForeignKey(
+        TugasSubmission,
+        on_delete=models.CASCADE,
+        related_name="answers",
+    )
+    question = models.ForeignKey(
+        Question,
+        on_delete=models.CASCADE,
+        related_name="answers",
+    )
+
+    text_answer = models.TextField(blank=True)
+    selected_choice = models.ForeignKey(
+        Choice,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="answers",
+    )
+    file_answer = models.FileField(
+        upload_to="siwak/jawaban/",
+        blank=True,
+        null=True,
+    )
+
+    class Meta:
+        verbose_name = "Jawaban Tugas"
+        unique_together = [("submission", "question")]
+
+    def __str__(self):
+        return f"{self.submission} - {self.question}"
 
 
 class EventRSVP(models.Model):
