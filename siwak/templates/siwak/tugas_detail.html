@@ -2,11 +2,16 @@
 {% block title %}{{ tugas.judul_tugas }}{% endblock %}
 {% block content %}
 {% include 'siwak/_messages.html' %}
-{% include 'components/redesign_header.html' with page_title="SIWAK-NG" subtitle=tugas.judul_tugas %}
+<div class="relative">
+  {% include 'components/redesign_header.html' with page_title="Kumpulkan Tugas" subtitle=tugas.judul_tugas %}
+  {% url 'siwak:tugas_list' as tugas_list_url %}
+  {% include 'siwak/_back_button.html' with href=tugas_list_url label="Kembali ke daftar tugas" %}
+</div>
 <section class="bg-[#F9F8F5] min-h-screen px-5 py-8 sm:px-8 sm:py-12">
   <div class="mx-auto w-full max-w-[1000px] overflow-hidden rounded-xl border border-[#BDBDBD] bg-[#FAF5E3] shadow-lg">
     <div class="px-5 py-5 sm:px-7">
-      <h1 class="text-xl font-bold text-[#001B3D]">{{ tugas.judul_tugas }}</h1>
+      <p class="text-xs font-semibold uppercase tracking-wide text-[#7A6425]">Detail Tugas</p>
+      <h1 class="mt-1 text-xl font-bold text-[#001B3D]">{{ tugas.judul_tugas }}</h1>
       <div class="mt-3 whitespace-pre-line">{{ tugas.deskripsi }}</div>
       <p class="mt-3 font-semibold">Deadline: {{ tugas.deadline|date:"j F Y H:i" }}</p>
       {% if submission %}
@@ -35,6 +40,7 @@
     {% endif %}
     <form method="post" enctype="multipart/form-data" class="border-t border-[#D1D1D1] px-5 py-5 sm:px-7">
       {% csrf_token %}
+      <h2 class="mb-4 text-lg font-bold text-[#001B3D]">{% if submission %}Jawaban Kamu{% else %}Form Pengumpulan{% endif %}</h2>
       {{ submission_form.non_field_errors }}
       {{ form.non_field_errors }}
       <fieldset {% if not can_submit %}disabled{% endif %}>

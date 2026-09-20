@@ -352,6 +352,28 @@ class AuthenticationProtectionTests(TestCase):
         self.client.force_login(mentee)
         self.assertContains(self.client.get(reverse("siwak:kelompok_search")), link)
 
+    def test_landing_cta_kumpulkan_tugas_only_once_and_only_for_mentee(self):
+        cta = "Kumpulkan Tugas Mentoring"
+        landing = reverse("siwak:landing")
+        self.assertNotContains(self.client.get(landing), cta)  # anonim
+        mentee = User.objects.create_user(username="mentee")
+        MahasiswaProfile.objects.create(user=mentee, npm="2500000003", role=MahasiswaProfile.ROLE_MENTEE)
+        self.client.force_login(mentee)
+        self.assertContains(self.client.get(landing), cta, count=1)
+
+    def test_tugas_pages_have_back_buttons(self):
+        mentee = User.objects.create_user(username="mentee")
+        MahasiswaProfile.objects.create(user=mentee, npm="2500000004", role=MahasiswaProfile.ROLE_MENTEE)
+        tugas = Tugas.objects.create(
+            judul_tugas="T", deskripsi="d", deadline=timezone.now() + datetime.timedelta(days=1)
+        )
+        self.client.force_login(mentee)
+
+        daftar = self.client.get(reverse("siwak:tugas_list"))
+        self.assertContains(daftar, f'href="{reverse("siwak:landing")}"\n      aria-label="Kembali ke halaman SIWAK-NG"')
+        detail = self.client.get(reverse("siwak:tugas_detail", args=[tugas.pk]))
+        self.assertContains(detail, f'href="{reverse("siwak:tugas_list")}"\n      aria-label="Kembali ke daftar tugas"')
+
     def test_navbar_shows_panel_admin_only_for_staff(self):
         panel = reverse("siwak:panel_beranda")
         self.assertNotContains(self.client.get(reverse("siwak:landing")), f'href="{panel}"')

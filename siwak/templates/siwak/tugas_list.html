@@ -6,15 +6,23 @@
 {% block content %}
 {% include 'siwak/_messages.html' %}
 
-{% include 'components/redesign_header.html' with page_title="SIWAK-NG" subtitle="Pengumpulan Tugas Mentoring" %}
+<div class="relative">
+  {% include 'components/redesign_header.html' with page_title="Tugas Mentoring" subtitle="Daftar tugas dari mentor" %}
+  {% url 'siwak:landing' as landing_url %}
+  {% include 'siwak/_back_button.html' with href=landing_url label="Kembali ke halaman SIWAK-NG" %}
+</div>
 
 <section class="bg-[#F9F8F5] min-h-screen px-6 py-10 sm:py-14">
   <div class="mx-auto w-full max-w-[1000px]">
 
-    <div class="mb-6 flex justify-end">
+    <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <p class="text-sm sm:text-base text-[#4A4A4A]">
+        Ketuk sebuah tugas untuk melihat deskripsi dan deadline-nya.
+        Pengumpulan dilakukan di halaman detail tugas.
+      </p>
       <a
         href="{% url 'siwak:mentee_feedback_history' %}"
-        class="rounded-full border-2 border-navy px-4 py-2 text-center text-sm font-semibold text-navy hover:bg-navy hover:text-white"
+        class="shrink-0 rounded-full border-2 border-navy px-4 py-2 text-center text-sm font-semibold text-navy hover:bg-navy hover:text-white"
       >
         Lihat Feedback Mentor
       </a>
@@ -59,7 +67,7 @@
               <span
                 class="inline-flex items-center rounded-full
                        px-3 py-1 text-[10px] sm:text-xs font-semibold
-                    {% if row.submission %}
+                    {% if row.status == 'Submitted' %}
                          bg-[#A6CE39] text-[#281F0C]
                        {% elif row.status == 'Late' %}
                          bg-[#E0BE6B] text-[#281F0C]
@@ -67,7 +75,7 @@
                          bg-[#FAF5E3] text-[#001B3D]
                        {% endif %}"
               >
-                {{ row.status }}
+                {% if row.status == 'Submitted' %}Sudah dikumpulkan{% elif row.status == 'Late' %}Dikumpulkan terlambat{% else %}Belum dikumpulkan{% endif %}
               </span>
 
               <span
@@ -152,11 +160,7 @@
                        transition"
               >
                 <span>
-                  {% if row.status == 'Submitted' %}
-                    Lihat / Ubah Jawaban
-                  {% else %}
-                    Kumpulkan Tugas
-                  {% endif %}
+                  {% if row.submission %}Lihat Pengumpulan{% else %}Buka Tugas{% endif %}
                 </span>
 
                 <svg
