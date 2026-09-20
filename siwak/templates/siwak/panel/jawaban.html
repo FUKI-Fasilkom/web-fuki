@@ -95,6 +95,9 @@
         <p class="text-sm font-semibold text-navy">{{ forloop.counter }}. {{ pasangan.pertanyaan.pertanyaan }}</p>
         {% if pasangan.isi %}
         <p class="mt-1 whitespace-pre-line rounded-xl bg-cream-50 px-4 py-2.5 text-sm text-navy">{{ pasangan.isi }}</p>
+        {% if pasangan.jawaban.file_answer %}
+        <a class="font-semibold underline" href="{% url 'siwak:answer_download' item.obj.pk pasangan.jawaban.pk %}">Unduh lampiran jawaban</a>
+        {% endif %}
         {% else %}
         <p class="mt-1 rounded-xl border-2 border-dashed border-gold-light px-4 py-2.5 text-sm text-navy-400">
           Belum dijawab.

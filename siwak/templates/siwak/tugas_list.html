@@ -59,7 +59,7 @@
               <span
                 class="inline-flex items-center rounded-full
                        px-3 py-1 text-[10px] sm:text-xs font-semibold
-                       {% if row.status == 'Submitted' %}
+                    {% if row.submission %}
                          bg-[#A6CE39] text-[#281F0C]
                        {% elif row.status == 'Late' %}
                          bg-[#E0BE6B] text-[#281F0C]

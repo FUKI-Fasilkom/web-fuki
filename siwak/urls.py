@@ -27,6 +27,12 @@ urlpatterns = [
         name="submission_download",
     ),
 
+    path(
+        "submission/<int:submission_id>/answer/<int:answer_id>/download/",
+        mentor_views.submission_download,
+        name="answer_download",
+    ),
+
     # 6 — Mentor Page. Pembuatan MentoringSession belum diekspos sampai
     # kepemilikan prosesnya disepakati dengan divisi terkait.
     path("mentor/", mentor_views.mentor_dashboard, name="mentor_dashboard"),

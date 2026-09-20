@@ -1,4 +1,5 @@
 import calendar as pycal
+import logging
 from functools import wraps
 
 from django.contrib import messages
@@ -181,59 +182,59 @@ def tugas_list(request):
 
 
 @login_required
+@require_http_methods(["GET", "POST"])
 def tugas_detail(request, pk):
     tugas = get_object_or_404(Tugas, pk=pk, is_active=True)
-    submission = tugas.submission_for(request.user)
-    is_past_deadline = timezone.now() > tugas.deadline
+    uploaded_files = []
+    try:
+        with transaction.atomic():
+            profiles = MahasiswaProfile.objects.filter(
+                user=request.user, role=MahasiswaProfile.ROLE_MENTEE
+            )
+            if request.method == "POST":
+                # Kunci profil juga menserialkan dua pengumpulan pertama sekaligus.
+                profiles = profiles.select_for_update()
+            if not profiles.first():
+                return HttpResponseForbidden("Hanya mentee yang dapat mengumpulkan tugas.")
 
-    form = TugasAnswerForm(tugas=tugas)
+            submission = tugas.submission_for(request.user)
+            is_past_deadline = timezone.now() > tugas.deadline
+            if request.method == "POST" and submission and is_past_deadline:
+                messages.error(request, "Submission tidak dapat diubah setelah deadline.")
+                return redirect("siwak:tugas_detail", pk=pk)
 
-    if request.method == "POST":
-        if is_past_deadline:
-            messages.error(request, "Tugas sudah melewati deadline.")
-            return redirect("siwak:tugas_detail", pk=pk)
+            data = request.POST if request.method == "POST" else None
+            files = request.FILES if request.method == "POST" else None
+            submission_form = TugasSubmissionForm(data, files, tugas=tugas, instance=submission)
+            form = TugasAnswerForm(data, files, tugas=tugas, submission=submission)
+            if request.method == "POST":
+                main_valid = submission_form.is_valid()
+                answers_valid = form.is_valid()
+                if main_valid and answers_valid:
+                    submission = submission_form.save(commit=False)
+                    submission.tugas = tugas
+                    submission.user = request.user
+                    _save_tugas_upload(submission, "file", uploaded_files)
 
-        form = TugasAnswerForm(
-            request.POST,
-            request.FILES,
-            tugas=tugas,
-        )
+                    for question in tugas.questions.all():
+                        value = form.cleaned_data[f"question_{question.pk}"]
+                        answer, _ = submission.answers.get_or_create(question=question)
+                        answer.text_answer = value if question.tipe == "text" else ""
+                        answer.selected_choice_id = value if question.tipe == "choice" else None
+                        answer.file_answer = value if question.tipe == "file" else None
+                        _save_tugas_upload(answer, "file_answer", uploaded_files)
 
-        if form.is_valid():
-            if not submission:
-                submission = tugas.submissions.model(
-                    tugas=tugas,
-                    user=request.user,
-                )
-                submission.save()
-
-            for question in tugas.questions.all():
-                field_name = f"question_{question.id}"
-                value = form.cleaned_data.get(field_name)
-
-                answer, _ = submission.answers.get_or_create(
-                    question=question
-                )
-
-                if question.tipe == "text":
-                    answer.text_answer = value
-                    answer.selected_choice = None
-                    answer.file_answer = None
-
-                elif question.tipe == "choice":
-                    answer.selected_choice_id = value
-                    answer.text_answer = ""
-                    answer.file_answer = None
-
-                elif question.tipe == "file":
-                    answer.file_answer = value
-                    answer.text_answer = ""
-                    answer.selected_choice = None
-
-                answer.save()
-
-            messages.success(request, "Tugas berhasil dikirim.")
-            return redirect("siwak:tugas_detail", pk=pk)
+                    messages.success(request, "Tugas berhasil dikirim.")
+                    return redirect("siwak:tugas_detail", pk=pk)
+    except Exception:
+        # Storage tidak ikut rollback DB. Bersihkan hanya upload baru yang gagal.
+        from .signals import delete_unused_tugas_file
+        for storage, name in uploaded_files:
+            try:
+                delete_unused_tugas_file(storage, name, "default")
+            except Exception:
+                logging.getLogger(__name__).exception("Gagal membersihkan upload tugas %s", name)
+        raise
 
     context = {
         "tugas": tugas,
@@ -243,9 +244,22 @@ def tugas_detail(request, pk):
         ),
         "is_past_deadline": is_past_deadline,
         "form": form,
+        "submission_form": submission_form,
+        "can_submit": not (submission and is_past_deadline),
     }
 
     return render(request, "siwak/tugas_detail.html", context)
+
+
+def _save_tugas_upload(instance, field_name, uploaded_files):
+    file = getattr(instance, field_name)
+    is_new_upload = file and not file._committed
+    try:
+        instance.save()
+    finally:
+        file = getattr(instance, field_name)
+        if is_new_upload and file._committed:
+            uploaded_files.append((file.storage, file.name))
 
 # ---------------------------------------------------------------------------
 # 5.2 / 6 — RSVP + QR Registrasi Ulang & QR Kupon Makan

@@ -451,6 +451,7 @@ SUMBER = [
         ),
         aksi_baris=(
             AksiBaris(lambda o: f"Pertanyaan ({o.jumlah_pertanyaan})", "siwak:panel_pertanyaan"),
+            AksiBaris(lambda o: "Lihat Jawaban / Submissions", "siwak:panel_jawaban"),
         ),
         kosong="Belum ada tugas mentoring.",
         queryset=lambda: Tugas.objects.annotate(

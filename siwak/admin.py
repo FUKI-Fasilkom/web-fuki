@@ -4,6 +4,9 @@ from io import BytesIO
 
 from django.contrib import admin
 from django.http import HttpResponse
+from django.urls import reverse
+from django.utils.html import format_html
+from django.utils.text import slugify
 
 from .models import (
     Answer,
@@ -177,7 +180,8 @@ class TugasAdmin(admin.ModelAdmin):
                 for sub in tugas.submissions.select_related("user"):
                     if not sub.file:
                         continue
-                    arcname = f"{tugas.judul_tugas}/{sub.user.username}_{sub.file.name.split('/')[-1]}"
+                    folder = f"{tugas.pk}-{slugify(tugas.judul_tugas) or 'tugas'}"
+                    arcname = f"{folder}/{sub.pk}_{sub.file.name.split('/')[-1]}"
                     with sub.file.open("rb") as fh:
                         zf.writestr(arcname, fh.read())
         buffer.seek(0)
@@ -351,13 +355,19 @@ class TugasSubmissionAdmin(admin.ModelAdmin):
     """Standalone selain inline di TugasAdmin, supaya relasi Answer &
     AssignmentReview bisa ditelusuri dari satu submission."""
 
-    list_display = ["tugas", "user", "status", "nilai", "jumlah_jawaban", "submitted_at"]
+    list_display = ["tugas", "user", "status", "berkas_tugas", "nilai", "jumlah_jawaban", "submitted_at"]
     list_filter = ["status", "tugas"]
     search_fields = ["tugas__judul_tugas", "user__username", "user__mahasiswa_profile__nama_lengkap"]
     autocomplete_fields = ["tugas"]
     list_select_related = ["tugas", "user"]
     readonly_fields = ["status", "submitted_at"]
     inlines = [AnswerInline, AssignmentReviewInline]
+
+    @admin.display(description="Berkas tugas")
+    def berkas_tugas(self, obj):
+        if not obj.file:
+            return "-"
+        return format_html('<a href="{}">Unduh berkas</a>', reverse("siwak:submission_download", args=[obj.pk]))
 
     @admin.display(description="Nilai")
     def nilai(self, obj):

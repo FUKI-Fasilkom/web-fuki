@@ -8,6 +8,8 @@ from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils.http import urlencode
+from django.utils.http import content_disposition_header
+from storages.backends.s3 import S3Storage
 
 from .mentor_forms import (
     AssignmentReviewForm,
@@ -193,7 +195,7 @@ def mentee_detail(request, participant_id):
             "submissions",
             queryset=TugasSubmission.objects.filter(user=participant.user).select_related(
                 "mentor_review__reviewer"
-            )
+            ).prefetch_related("answers__question", "answers__selected_choice")
             if participant.user_id
             else TugasSubmission.objects.none(),
             to_attr="participant_submissions",
@@ -394,7 +396,7 @@ def mentee_feedback_history(request):
 
 
 @login_required
-def submission_download(request, submission_id):
+def submission_download(request, submission_id, answer_id=None):
     submission = get_object_or_404(
         TugasSubmission.objects.select_related("user", "tugas"),
         pk=submission_id,
@@ -415,13 +417,27 @@ def submission_download(request, submission_id):
     )
     if not (is_owner or is_responsible_mentor or request.user.is_staff):
         raise Http404
-    if not submission.file:
+    file = submission.file
+    if answer_id is not None:
+        file = get_object_or_404(submission.answers, pk=answer_id).file_answer
+    if not file:
         raise Http404
 
+    if isinstance(file.storage, S3Storage):
+        response = redirect(file.storage.url(
+            file.name,
+            parameters={"ResponseContentDisposition": content_disposition_header(
+                True, Path(file.name).name
+            )},
+            expire=300,
+        ))
+        response["Cache-Control"] = "private, no-store"
+        return response
+
     return FileResponse(
-        submission.file.open("rb"),
+        file.open("rb"),
         as_attachment=True,
-        filename=Path(submission.file.name).name,
+        filename=Path(file.name).name,
     )
 
 
@@ -635,7 +651,9 @@ def mentor_task_reviews(request):
 
     submissions = TugasSubmission.objects.filter(
         user_id__in=participants.keys(), tugas__in=tasks
-    ).select_related("tugas", "user", "mentor_review__reviewer")
+    ).select_related("tugas", "user", "mentor_review__reviewer").prefetch_related(
+        "answers__question", "answers__selected_choice"
+    )
     if tugas_filter.isdigit():
         submissions = submissions.filter(tugas_id=int(tugas_filter))
     if status_filter == "belum":

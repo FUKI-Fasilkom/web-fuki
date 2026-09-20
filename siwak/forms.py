@@ -1,6 +1,7 @@
 from django import forms
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
+from django.core.files.uploadedfile import UploadedFile
 
 from .models import (
     JURUSAN_CHOICES,
@@ -32,13 +33,26 @@ class CariKelompokForm(forms.Form):
 
 
 
+def validate_tugas_file(file, tugas):
+    # File lama boleh dipertahankan tanpa membaca ulang objek dari S3.
+    if not isinstance(file, UploadedFile):
+        return file
+    ext = file.name.rsplit(".", 1)[-1].lower() if "." in file.name else ""
+    if ext not in Tugas.ALLOWED_EXTENSIONS:
+        raise ValidationError("Format file tidak didukung. Gunakan PDF, DOCX, atau gambar (JPG/PNG).")
+    limit = tugas.max_file_size_mb if tugas else 10
+    if file.size > limit * 1024 * 1024:
+        raise ValidationError(f"Ukuran file melebihi batas {limit} MB.")
+    return file
+
+
 class TugasSubmissionForm(forms.ModelForm):
     class Meta:
         model = TugasSubmission
         fields = ["file"]
         widgets = {
-            "file": forms.ClearableFileInput(attrs={
-                "class": "hidden",
+            "file": forms.FileInput(attrs={
+                "class": INPUT_CLASSES,
                 "accept": ".pdf,.docx,.jpg,.jpeg,.png",
             }),
         }
@@ -48,17 +62,7 @@ class TugasSubmissionForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
     def clean_file(self):
-        f = self.cleaned_data["file"]
-        ext = f.name.rsplit(".", 1)[-1].lower() if "." in f.name else ""
-        if ext not in Tugas.ALLOWED_EXTENSIONS:
-            raise ValidationError(
-                "Format file tidak didukung. Gunakan PDF, DOCX, atau gambar (JPG/PNG)."
-            )
-        max_bytes = (self.tugas.max_file_size_mb if self.tugas else 10) * 1024 * 1024
-        if f.size > max_bytes:
-            limit = self.tugas.max_file_size_mb if self.tugas else 10
-            raise ValidationError(f"Ukuran file melebihi batas {limit} MB.")
-        return f
+        return validate_tugas_file(self.cleaned_data["file"], self.tugas)
 
 
 class RSVPForm(forms.ModelForm):
@@ -109,12 +113,14 @@ class RSVPForm(forms.ModelForm):
         return cleaned_data
 
 class TugasAnswerForm(forms.Form):
-    def __init__(self, *args, tugas=None, **kwargs):
+    def __init__(self, *args, tugas=None, submission=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.tugas = tugas
 
         if not tugas:
             return
+
+        answers = {a.question_id: a for a in submission.answers.all()} if submission else {}
 
         for question in tugas.questions.prefetch_related("choices").all():
             field_name = f"question_{question.id}"
@@ -147,9 +153,27 @@ class TugasAnswerForm(forms.Form):
                 self.fields[field_name] = forms.FileField(
                     label=question.pertanyaan,
                     required=True,
-                    widget=forms.ClearableFileInput(
+                    widget=forms.FileInput(
                         attrs={
                             "accept": ".pdf,.docx,.jpg,.jpeg,.png",
                         }
                     ),
                 )
+
+            answer = answers.get(question.pk)
+            if answer:
+                self.initial[field_name] = {
+                    "text": answer.text_answer,
+                    "choice": answer.selected_choice_id,
+                    "file": answer.file_answer,
+                }[question.tipe]
+
+    def clean(self):
+        cleaned = super().clean()
+        for name, field in self.fields.items():
+            if isinstance(field, forms.FileField) and cleaned.get(name):
+                try:
+                    validate_tugas_file(cleaned[name], self.tugas)
+                except ValidationError as exc:
+                    self.add_error(name, exc)
+        return cleaned

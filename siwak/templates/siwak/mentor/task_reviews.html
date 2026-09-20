@@ -73,7 +73,10 @@
                 <p class="text-xs text-slate-500">{{ row.participant.npm }}</p>
               </td>
               <td class="px-4 py-3">
+                {% if row.submission.file %}
                 <a href="{% url 'siwak:submission_download' submission_id=row.submission.pk %}" class="inline-block rounded-lg bg-cream px-3 py-2 text-xs font-bold text-navy hover:bg-gold-light">Unduh berkas</a>
+                {% else %}<span class="text-xs">Berkas utama belum tersedia.</span>{% endif %}
+                {% include 'siwak/mentor/_submission_answers.html' with submission=row.submission only %}
                 <p class="mt-1 text-xs text-slate-500">{{ row.submission.submitted_at|date:"d M Y H:i" }}</p>
                 <span class="mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-bold {% if row.submission.status == 'late' %}bg-orange-100 text-orange-700{% else %}bg-green-100 text-green-700{% endif %}">{{ row.submission.get_status_display }}</span>
               </td>

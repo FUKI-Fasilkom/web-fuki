@@ -32,7 +32,13 @@ class MentorFeatureTests(TestCase):
     def setUpClass(cls):
         super().setUpClass()
         cls._media_root = tempfile.mkdtemp(prefix="web-fuki-mentor-tests-")
-        cls._media_override = override_settings(MEDIA_ROOT=cls._media_root)
+        cls._media_override = override_settings(
+            MEDIA_ROOT=cls._media_root,
+            STORAGES={
+                "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+                "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+            },
+        )
         cls._media_override.enable()
 
     @classmethod

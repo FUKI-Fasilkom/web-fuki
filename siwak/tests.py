@@ -18,11 +18,18 @@ Security/functional notes asserted here (regression guards):
 
 import base64
 import time
+import datetime
+import zipfile
+from io import BytesIO
+from unittest.mock import patch
 from urllib.parse import unquote
 
 from django.contrib.auth import get_user_model
 from django.core import signing
-from django.test import Client, TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.contrib import admin
+from django.db import transaction
+from django.test import Client, RequestFactory, TestCase, override_settings
 from django.urls import reverse
 from .models import (
     Answer,
@@ -1572,11 +1579,11 @@ class PanelTugasDaftarTests(TestCase):
 
         self.assertContains(response, reverse("siwak:panel_pertanyaan", args=[self.tugas.pk]))
 
-    def test_the_row_no_longer_offers_the_answer_viewer(self):
-        """Tombol Jawaban dilepas atas permintaan pengurus."""
+    def test_the_row_offers_the_answer_viewer(self):
+        """Pengurus dapat membuka submission dari daftar tugas."""
         response = self.client.get(reverse("siwak:panel_daftar", args=["tugas"]))
 
-        self.assertNotContains(response, reverse("siwak:panel_jawaban", args=[self.tugas.pk]))
+        self.assertContains(response, reverse("siwak:panel_jawaban", args=[self.tugas.pk]))
 
     def test_neither_short_list_carries_a_search_box(self):
         """Tugas dan aspek penilaian isinya sedikit; kotak cari cuma jadi bising."""
@@ -1841,3 +1848,373 @@ class PanelJawabanTests(TestCase):
         # bisa dikirim balik untuk mengubahnya.
         self.assertNotContains(response, 'name="text_answer"')
         self.assertNotContains(response, 'name="selected_choice"')
+
+
+class TugasUploadTests(TestCase):
+    """Alur upload utama, pertanyaan tambahan, otorisasi, dan lifecycle storage."""
+
+    def setUp(self):
+        self.enterContext(override_settings(STORAGES={
+            "default": {"BACKEND": "django.core.files.storage.InMemoryStorage"},
+            "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+        }))
+        self.user = User.objects.create_user(username="upload-mentee")
+        self.group = KelompokMentoring.objects.create(nama_kelompok="Upload group")
+        self.profile = MahasiswaProfile.objects.create(
+            user=self.user, npm="2600000001", nama_lengkap="Mentee Upload",
+            role=MahasiswaProfile.ROLE_MENTEE, kelompok=self.group,
+        )
+        self.tugas = Tugas.objects.create(
+            judul_tugas="Tugas Upload", deskripsi="Kumpulkan berkas dan jawaban.",
+            deadline=timezone.now() + datetime.timedelta(days=1), max_file_size_mb=1,
+        )
+        self.url = reverse("siwak:tugas_detail", args=[self.tugas.pk])
+        self.client.force_login(self.user)
+
+    def upload(self, name="tugas.pdf", content=b"%PDF-1.7\ncontoh"):
+        return SimpleUploadedFile(name, content)
+
+    def submit(self, **data):
+        return self.client.post(self.url, {"file": self.upload(), **data})
+
+    def submission(self):
+        return TugasSubmission.objects.get(tugas=self.tugas, user=self.user)
+
+    def questions(self):
+        text = Question.objects.create(tugas=self.tugas, pertanyaan="Refleksi", tipe="text")
+        choice = Question.objects.create(tugas=self.tugas, pertanyaan="Pilihan", tipe="choice")
+        option = Choice.objects.create(question=choice, teks="Setuju")
+        file = Question.objects.create(tugas=self.tugas, pertanyaan="Lampiran", tipe="file")
+        return text, choice, option, file
+
+    def test_valid_extensions_and_main_file_are_saved(self):
+        for extension in ("pdf", "docx", "jpg", "jpeg", "png", "PDF"):
+            with self.subTest(extension=extension):
+                response = self.submit(file=self.upload(f"tugas.{extension}"))
+                self.assertRedirects(response, self.url)
+                submission = self.submission()
+                self.assertTrue(submission.file.storage.exists(submission.file.name))
+                self.assertEqual(submission.status, "submitted")
+        self.assertEqual(TugasSubmission.objects.count(), 1)
+
+    def test_main_file_required_even_without_questions(self):
+        response = self.client.post(self.url, {})
+        self.assertFormError(response.context["submission_form"], "file", "This field is required.")
+        self.assertFalse(TugasSubmission.objects.exists())
+
+    def test_extension_and_size_are_validated_on_server(self):
+        for name, content, error in (
+            ("tugas.exe", b"executable", "Format file tidak didukung"),
+            ("tugas", b"no extension", "Format file tidak didukung"),
+            ("tugas.pdf", b"x" * (1024 * 1024 + 1), "Ukuran file melebihi batas 1 MB"),
+        ):
+            with self.subTest(name=name):
+                response = self.submit(file=self.upload(name, content))
+                self.assertContains(response, error)
+                self.assertFalse(TugasSubmission.objects.exists())
+
+    def test_file_exactly_at_limit_is_accepted(self):
+        self.assertEqual(self.submit(file=self.upload(content=b"x" * 1024 * 1024)).status_code, 302)
+
+    def test_first_submission_after_deadline_is_late(self):
+        self.tugas.deadline = timezone.now() - datetime.timedelta(seconds=1)
+        self.tugas.save()
+        page = self.client.get(self.url)
+        self.assertTrue(page.context["can_submit"])
+        self.assertEqual(self.submit().status_code, 302)
+        self.assertEqual(self.submission().status, "late")
+
+    def test_at_deadline_is_submitted(self):
+        with patch("siwak.models.timezone.now", return_value=self.tugas.deadline):
+            self.assertEqual(self.submit().status_code, 302)
+        self.assertEqual(self.submission().status, "submitted")
+
+    def test_resubmit_updates_timestamp_status_and_deletes_old_file_after_commit(self):
+        self.submit()
+        previous = self.submission()
+        old_name = previous.file.name
+        TugasSubmission.objects.filter(pk=previous.pk).update(
+            submitted_at=timezone.now() - datetime.timedelta(hours=1), status="late"
+        )
+        with self.captureOnCommitCallbacks(execute=True) as callbacks:
+            self.assertEqual(self.submit(file=self.upload("updated.pdf")).status_code, 302)
+            self.assertTrue(previous.file.storage.exists(old_name))
+        self.assertEqual(len(callbacks), 1)
+        current = self.submission()
+        self.assertEqual(current.pk, previous.pk)
+        self.assertGreater(current.submitted_at, previous.submitted_at)
+        self.assertEqual(current.status, "submitted")
+        self.assertFalse(current.file.storage.exists(old_name))
+        self.assertTrue(current.file.storage.exists(current.file.name))
+
+    def test_resubmit_after_deadline_is_rejected(self):
+        self.submit()
+        previous = self.submission()
+        self.tugas.deadline = timezone.now() - datetime.timedelta(seconds=1)
+        self.tugas.save()
+        response = self.submit(file=self.upload("updated.pdf"))
+        self.assertEqual(response.status_code, 302)
+        current = self.submission()
+        self.assertEqual(current.file.name, previous.file.name)
+        self.assertEqual(current.submitted_at, previous.submitted_at)
+        self.assertFalse(self.client.get(self.url).context["can_submit"])
+
+    def test_answers_are_prefilled_and_files_can_be_retained(self):
+        text, choice, option, file = self.questions()
+        data = {f"question_{text.pk}": "Refleksi lama", f"question_{choice.pk}": option.pk,
+                f"question_{file.pk}": self.upload("lampiran.pdf")}
+        self.assertEqual(self.submit(**data).status_code, 302)
+        submission = self.submission()
+        page = self.client.get(self.url)
+        form = page.context["form"]
+        self.assertEqual(form[f"question_{text.pk}"].value(), "Refleksi lama")
+        self.assertEqual(form[f"question_{choice.pk}"].value(), option.pk)
+        self.assertTrue(form[f"question_{file.pk}"].value())
+        self.assertContains(page, reverse("siwak:submission_download", args=[submission.pk]))
+        old_file = submission.answers.get(question=file).file_answer.name
+        response = self.client.post(self.url, {
+            f"question_{text.pk}": "Refleksi baru", f"question_{choice.pk}": option.pk,
+        })
+        self.assertEqual(response.status_code, 302)
+        submission.refresh_from_db()
+        self.assertEqual(submission.answers.get(question=text).text_answer, "Refleksi baru")
+        self.assertEqual(submission.answers.get(question=file).file_answer.name, old_file)
+
+    def test_invalid_dynamic_answers_do_not_create_submission(self):
+        text, choice, option, file = self.questions()
+        data = {f"question_{text.pk}": "Refleksi", f"question_{choice.pk}": option.pk}
+        for upload in (self.upload("bad.exe"), self.upload(content=b"x" * (1024 * 1024 + 1))):
+            response = self.submit(**data, **{f"question_{file.pk}": upload})
+            self.assertTrue(response.context["form"].errors)
+            self.assertFalse(TugasSubmission.objects.exists())
+            self.assertFalse(Answer.objects.exists())
+        response = self.submit()
+        self.assertTrue(response.context["form"].errors)
+        self.assertFalse(TugasSubmission.objects.exists())
+
+    def test_only_authenticated_mentees_can_access(self):
+        self.client.logout()
+        for method in (self.client.get, self.client.post):
+            self.assertEqual(method(self.url).status_code, 302)
+        for role in (None, MahasiswaProfile.ROLE_MENTOR):
+            user = User.objects.create_user(username=f"non-mentee-{role}", is_staff=True)
+            if role:
+                MahasiswaProfile.objects.create(user=user, npm="2600000002", role=role)
+            self.client.force_login(user)
+            self.assertEqual(self.client.get(self.url).status_code, 403)
+            self.assertEqual(self.submit().status_code, 403)
+        self.assertFalse(TugasSubmission.objects.exists())
+
+    def test_inactive_task_rejects_upload(self):
+        self.tugas.is_active = False
+        self.tugas.save()
+        self.assertEqual(self.submit().status_code, 404)
+
+    def test_failure_rolls_back_database_and_new_file(self):
+        question = Question.objects.create(tugas=self.tugas, tipe="text", pertanyaan="Refleksi")
+        from django.core.files.storage import default_storage
+        with self.assertLogs("django.request", level="ERROR"), patch.object(
+            Answer, "save", side_effect=RuntimeError("Simulated write failure")
+        ):
+            with self.assertRaisesMessage(RuntimeError, "Simulated write failure"):
+                self.submit(**{f"question_{question.pk}": "Jawaban"})
+        self.assertFalse(TugasSubmission.objects.exists())
+        self.assertFalse(Answer.objects.exists())
+        self.assertEqual(default_storage.listdir(f"siwak/tugas/{self.tugas.pk}/{self.user.pk}")[1], [])
+
+    def test_failed_resubmit_preserves_previous_file_and_answers(self):
+        question = Question.objects.create(tugas=self.tugas, tipe="text", pertanyaan="Refleksi")
+        self.submit(**{f"question_{question.pk}": "Lama"})
+        old = self.submission()
+        with self.captureOnCommitCallbacks(execute=True) as callbacks:
+            with self.assertLogs("django.request", level="ERROR"), patch.object(
+                Answer, "save", side_effect=RuntimeError("Write failed")
+            ):
+                with self.assertRaises(RuntimeError):
+                    self.submit(file=self.upload("baru.pdf"), **{f"question_{question.pk}": "Baru"})
+        self.assertEqual(callbacks, [])
+        self.assertEqual(self.submission().file.name, old.file.name)
+        self.assertTrue(old.file.storage.exists(old.file.name))
+        self.assertEqual(old.answers.get().text_answer, "Lama")
+
+    def test_delete_submission_cleans_primary_and_answer_files_only_after_commit(self):
+        question = Question.objects.create(tugas=self.tugas, tipe="file", pertanyaan="Lampiran")
+        self.submit(**{f"question_{question.pk}": self.upload("lampiran.png")})
+        sub = self.submission()
+        files = [sub.file, sub.answers.get().file_answer]
+        with self.captureOnCommitCallbacks(execute=True):
+            sub.delete()
+            for file in files:
+                self.assertTrue(file.storage.exists(file.name))
+        for file in files:
+            self.assertFalse(file.storage.exists(file.name))
+
+    def test_delete_rollback_keeps_files(self):
+        self.submit()
+        sub = self.submission()
+        pk, file = sub.pk, sub.file
+        with self.captureOnCommitCallbacks(execute=True) as callbacks:
+            with self.assertRaises(RuntimeError):
+                with transaction.atomic():
+                    sub.delete()
+                    raise RuntimeError("Rollback")
+        self.assertEqual(callbacks, [])
+        self.assertTrue(TugasSubmission.objects.filter(pk=pk).exists())
+        self.assertTrue(file.storage.exists(file.name))
+
+    def test_replaced_answer_file_is_deleted_after_commit(self):
+        question = Question.objects.create(tugas=self.tugas, tipe="file", pertanyaan="Lampiran")
+        self.submit(**{f"question_{question.pk}": self.upload("lampiran.png")})
+        answer = self.submission().answers.get()
+        old_name = answer.file_answer.name
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.submit(**{f"question_{question.pk}": self.upload("baru.png")})
+            self.assertEqual(response.status_code, 302)
+            self.assertTrue(answer.file_answer.storage.exists(old_name))
+        self.assertFalse(answer.file_answer.storage.exists(old_name))
+
+    def test_shared_file_is_not_deleted(self):
+        self.submit()
+        sub = self.submission()
+        question = Question.objects.create(tugas=self.tugas, tipe="file", pertanyaan="Lampiran")
+        answer = Answer.objects.create(submission=sub, question=question, file_answer=sub.file.name)
+        with self.captureOnCommitCallbacks(execute=True):
+            answer.delete()
+        self.assertTrue(sub.file.storage.exists(sub.file.name))
+
+    def test_mentor_and_staff_can_download_primary_file(self):
+        self.submit()
+        url = reverse("siwak:submission_download", args=[self.submission().pk])
+        mentor = User.objects.create_user(username="download-mentor")
+        profile = MahasiswaProfile.objects.create(
+            user=mentor, npm="2600000002", role=MahasiswaProfile.ROLE_MENTOR, kelompok=self.group,
+        )
+        staff = User.objects.create_user(username="download-staff", is_staff=True)
+        for user in (self.user, mentor, staff):
+            self.client.force_login(user)
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(b"".join(response.streaming_content), b"%PDF-1.7\ncontoh")
+        profile.kelompok = None
+        profile.save()
+        self.client.force_login(mentor)
+        self.assertEqual(self.client.get(url).status_code, 404)
+
+    def test_answer_download_is_owner_scoped(self):
+        question = Question.objects.create(tugas=self.tugas, tipe="file", pertanyaan="Lampiran")
+        self.submit(**{f"question_{question.pk}": self.upload("lampiran.pdf")})
+        sub = self.submission()
+        url = reverse("siwak:answer_download", args=[sub.pk, sub.answers.get().pk])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(b"".join(response.streaming_content), b"%PDF-1.7\ncontoh")
+        self.client.force_login(User.objects.create_user(username="outsider"))
+        self.assertEqual(self.client.get(url).status_code, 404)
+
+    def s3_storage(self):
+        from storages.backends.s3 import S3Storage
+        return S3Storage(
+            access_key="testing", secret_key="testing", bucket_name="siwak-test-bucket",
+            region_name="ap-southeast-3", endpoint_url="https://s3.ap-southeast-3.amazonaws.com",
+            signature_version="s3v4", addressing_style="virtual",
+        )
+
+    def test_s3_download_is_signed_only_after_authorization(self):
+        storage = self.s3_storage()
+        with patch.object(TugasSubmission._meta.get_field("file"), "storage", storage):
+            sub = TugasSubmission.objects.create(tugas=self.tugas, user=self.user, file="siwak/tugas/test.pdf")
+            url = reverse("siwak:submission_download", args=[sub.pk])
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 302)
+            self.assertIn("X-Amz-Signature=", response.url)
+            self.assertIn("X-Amz-Expires=300", response.url)
+            self.assertIn("ap-southeast-3", response.url)
+            self.assertEqual(response["Cache-Control"], "private, no-store")
+            self.client.force_login(User.objects.create_user(username="s3-outsider"))
+            with patch.object(storage, "url") as sign:
+                self.assertEqual(self.client.get(url).status_code, 404)
+                sign.assert_not_called()
+
+    def test_s3_delete_object_runs_after_commit(self):
+        from botocore.stub import Stubber
+        storage = self.s3_storage()
+        with patch.object(TugasSubmission._meta.get_field("file"), "storage", storage):
+            sub = TugasSubmission.objects.create(tugas=self.tugas, user=self.user, file="siwak/tugas/test.pdf")
+            with Stubber(storage.connection.meta.client) as stub:
+                stub.add_response("delete_object", {}, {"Bucket": "siwak-test-bucket", "Key": sub.file.name})
+                with self.captureOnCommitCallbacks(execute=True) as callbacks:
+                    sub.delete()
+                self.assertEqual(len(callbacks), 1)
+                stub.assert_no_pending_responses()
+
+    def test_admin_zip_contains_primary_submission_bytes(self):
+        from .admin import TugasAdmin
+        self.submit()
+        request = RequestFactory().post("/admin/")
+        response = TugasAdmin(Tugas, admin.site).download_all_submissions(
+            request, Tugas.objects.filter(pk=self.tugas.pk)
+        )
+        self.assertEqual(response["Content-Type"], "application/zip")
+        with zipfile.ZipFile(BytesIO(response.content)) as archive:
+            self.assertEqual(len(archive.namelist()), 1)
+            self.assertEqual(archive.read(archive.namelist()[0]), b"%PDF-1.7\ncontoh")
+
+    def test_admin_panel_links_primary_download(self):
+        self.submit()
+        self.client.force_login(User.objects.create_user(username="panel-staff", is_staff=True))
+        response = self.client.get(reverse("siwak:panel_jawaban", args=[self.tugas.pk]))
+        self.assertContains(response, reverse("siwak:submission_download", args=[self.submission().pk]))
+
+    def test_mentor_pages_show_primary_file_and_dynamic_answers(self):
+        text, choice, option, file = self.questions()
+        self.submit(**{
+            f"question_{text.pk}": "Refleksi mentee", f"question_{choice.pk}": option.pk,
+            f"question_{file.pk}": self.upload("tambahan.pdf"),
+        })
+        sub = self.submission()
+        mentor = User.objects.create_user(username="review-mentor")
+        MahasiswaProfile.objects.create(
+            user=mentor, npm="2600000002", role=MahasiswaProfile.ROLE_MENTOR, kelompok=self.group,
+        )
+        self.client.force_login(mentor)
+        attachment_url = reverse("siwak:answer_download", args=[sub.pk, sub.answers.get(question=file).pk])
+        for url in (
+            reverse("siwak:mentor_mentee_detail", args=[self.profile.pk]),
+            reverse("siwak:mentor_task_reviews"),
+        ):
+            response = self.client.get(url)
+            self.assertContains(response, reverse("siwak:submission_download", args=[sub.pk]))
+            self.assertContains(response, "Refleksi mentee")
+            self.assertContains(response, "Setuju")
+            self.assertContains(response, attachment_url)
+        response = self.client.get(attachment_url)
+        self.assertEqual(b"".join(response.streaming_content), b"%PDF-1.7\ncontoh")
+
+    def test_cascade_task_deletion_cleans_all_uploads(self):
+        question = Question.objects.create(tugas=self.tugas, tipe="file", pertanyaan="Lampiran")
+        self.submit(**{f"question_{question.pk}": self.upload("lampiran.pdf")})
+        sub = self.submission()
+        files = [sub.file, sub.answers.get().file_answer]
+        with self.captureOnCommitCallbacks(execute=True):
+            Tugas.objects.filter(pk=self.tugas.pk).delete()
+        for file in files:
+            self.assertFalse(file.storage.exists(file.name))
+
+    def test_failure_after_answer_upload_cleans_new_objects(self):
+        question = Question.objects.create(tugas=self.tugas, tipe="file", pertanyaan="Lampiran")
+        uploaded = []
+        original_save = Answer.save
+
+        def fail_after_upload(answer, *args, **kwargs):
+            original_save(answer, *args, **kwargs)
+            if answer.file_answer:
+                uploaded.append(answer.file_answer)
+                raise RuntimeError("Failure after storage write")
+
+        with self.assertLogs("django.request", level="ERROR"), patch.object(Answer, "save", fail_after_upload):
+            with self.assertRaisesMessage(RuntimeError, "Failure after storage write"):
+                self.submit(**{f"question_{question.pk}": self.upload("lampiran.pdf")})
+        self.assertFalse(TugasSubmission.objects.exists())
+        self.assertFalse(Answer.objects.exists())
+        self.assertEqual(len(uploaded), 1)
+        self.assertFalse(uploaded[0].storage.exists(uploaded[0].name))
