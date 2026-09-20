@@ -109,13 +109,13 @@ class TugasAnswerForm(forms.Form):
                 self.fields[field_name] = forms.CharField(
                     label=question.pertanyaan,
                     required=True,
-                    # Gaya "garis bawah" ala Figma; tinggi minimal 3 baris lalu
-                    # menyesuaikan isi (rows=1 sebelumnya membuat jawaban tak terlihat).
+                    # Gaya "garis bawah" ala Figma; 1 baris lalu tinggi menyesuaikan
+                    # isi (lihat fitTextareas di tugas_detail.html).
                     widget=forms.Textarea(
                         attrs={
-                            "rows": 3,
+                            "rows": 1,
                             "class": (
-                                "block w-full min-h-[6rem] resize-none overflow-hidden border-0 "
+                                "block w-full resize-none overflow-hidden border-0 "
                                 "border-b border-[#8A8A8A] bg-transparent px-0 py-1 "
                                 "text-base text-black placeholder-[#9A9A9A] "
                                 "focus:border-[#001B3D] focus:outline-none focus:ring-0"
