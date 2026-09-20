@@ -12,7 +12,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
-from .forms import CariKelompokForm, RSVPForm, TugasSubmissionForm
+from .forms import CariKelompokForm, RSVPForm, TugasAnswerForm, TugasSubmissionForm
 from .models import (
     EventRSVP,
     FAQMentoring,
@@ -186,26 +186,52 @@ def tugas_detail(request, pk):
     submission = tugas.submission_for(request.user)
     is_past_deadline = timezone.now() > tugas.deadline
 
-    form = TugasSubmissionForm(tugas=tugas)
+    form = TugasAnswerForm(tugas=tugas)
 
     if request.method == "POST":
-        form = TugasSubmissionForm(
+        if is_past_deadline:
+            messages.error(request, "Tugas sudah melewati deadline.")
+            return redirect("siwak:tugas_detail", pk=pk)
+
+        form = TugasAnswerForm(
             request.POST,
             request.FILES,
             tugas=tugas,
         )
 
         if form.is_valid():
-            if submission:
-                submission.file = form.cleaned_data["file"]
-            else:
+            if not submission:
                 submission = tugas.submissions.model(
                     tugas=tugas,
                     user=request.user,
-                    file=form.cleaned_data["file"],
+                )
+                submission.save()
+
+            for question in tugas.questions.all():
+                field_name = f"question_{question.id}"
+                value = form.cleaned_data.get(field_name)
+
+                answer, _ = submission.answers.get_or_create(
+                    question=question
                 )
 
-            submission.save()
+                if question.tipe == "text":
+                    answer.text_answer = value
+                    answer.selected_choice = None
+                    answer.file_answer = None
+
+                elif question.tipe == "choice":
+                    answer.selected_choice_id = value
+                    answer.text_answer = ""
+                    answer.file_answer = None
+
+                elif question.tipe == "file":
+                    answer.file_answer = value
+                    answer.text_answer = ""
+                    answer.selected_choice = None
+
+                answer.save()
+
             messages.success(request, "Tugas berhasil dikirim.")
             return redirect("siwak:tugas_detail", pk=pk)
 
@@ -220,7 +246,6 @@ def tugas_detail(request, pk):
     }
 
     return render(request, "siwak/tugas_detail.html", context)
-
 
 # ---------------------------------------------------------------------------
 # 5.2 / 6 — RSVP + QR Registrasi Ulang & QR Kupon Makan
