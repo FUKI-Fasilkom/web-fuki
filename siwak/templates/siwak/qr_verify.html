@@ -8,30 +8,7 @@
   {% include 'components/redesign_header.html' with page_title="Verifikasi QR" subtitle="Scan QR kehadiran & kupon makan peserta" ringkas=True %}
 
   {# Back button #}
-  <div class="pointer-events-none absolute inset-0 z-20">
-    <div class="relative mx-auto h-full w-full max-w-[1440px] px-6 sm:px-8 lg:px-10">
-      <a
-        href="{{ back_url }}"
-        aria-label="Kembali ke halaman SIWAK-NG"
-        class="pointer-events-auto absolute top-4 left-4 inline-flex h-14 w-14 items-center justify-center rounded-full text-[#001B3D] transition hover:bg-white/25 focus:outline-none focus-visible:ring-4 focus-visible:ring-[#E0BE6B]/60 sm:top-5 sm:left-6 lg:top-6 lg:left-8"
-      >
-        <svg
-          class="h-8 w-8"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          stroke-width="2.2"
-          aria-hidden="true"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            d="M15 19l-7-7 7-7"
-          />
-        </svg>
-      </a>
-    </div>
-  </div>
+  {% include 'siwak/_back_button.html' with href=back_url label="Kembali ke halaman SIWAK-NG" %}
 </div>
 
 <section class="w-full bg-[#F9F8F5] py-12 sm:py-16">

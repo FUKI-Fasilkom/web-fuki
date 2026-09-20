@@ -1,11 +1,14 @@
 import calendar as pycal
 import logging
+import re
+import unicodedata
 from functools import wraps
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import redirect_to_login
 from django.core import signing
+from django.core.files.uploadedfile import UploadedFile
 from django.db import transaction
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
@@ -215,7 +218,8 @@ def tugas_detail(request, pk):
             if request.method == "POST":
                 # Kunci profil juga menserialkan dua pengumpulan pertama sekaligus.
                 profiles = profiles.select_for_update()
-            if not profiles.first():
+            profile = profiles.select_related("kelompok").first()
+            if not profile:
                 return HttpResponseForbidden("Hanya mentee yang dapat mengumpulkan tugas.")
 
             submission = tugas.submission_for(request.user)
@@ -236,8 +240,19 @@ def tugas_detail(request, pk):
                         submission = TugasSubmission(tugas=tugas, user=request.user)
                     submission.save()
 
-                    for question in tugas.questions.all():
+                    questions = list(tugas.questions.all())
+                    file_total = sum(1 for q in questions if q.tipe == "file")
+                    file_index = 0
+                    for question in questions:
                         value = form.cleaned_data[f"question_{question.pk}"]
+                        if question.tipe == "file":
+                            file_index += 1
+                            # Hanya upload baru yang di-rename; file lama (bukan UploadedFile) dibiarkan.
+                            if isinstance(value, UploadedFile):
+                                value.name = _nama_berkas_tugas(
+                                    tugas, profile, value.name,
+                                    nomor=file_index if file_total > 1 else None,
+                                )
                         answer, _ = submission.answers.get_or_create(question=question)
                         answer.text_answer = value if question.tipe == "text" else ""
                         answer.selected_choice_id = value if question.tipe == "choice" else None
@@ -286,6 +301,32 @@ def tugas_detail(request, pk):
     }
 
     return render(request, "siwak/tugas_detail.html", context)
+
+
+def _bersihkan_bagian_nama(teks, batas):
+    """ASCII saja, spasi/simbol jadi '-', dipotong `batas` (kolom FileField cuma 100 karakter)."""
+    teks = unicodedata.normalize("NFKD", teks or "").encode("ascii", "ignore").decode()
+    return re.sub(r"[^A-Za-z0-9]+", "-", teks).strip("-")[:batas].strip("-")
+
+
+def _nama_berkas_tugas(tugas, profile, nama_asli, nomor=None):
+    """<namaTugas>_<namaKelompok>_<namaMentee>_<NPM>.<ext>, dipakai sebelum upload ke S3.
+
+    Bagian variabel dipotong agar NPM (pembeda utama) tidak terpotong oleh batas
+    panjang path FileField. `nomor` hanya diisi bila tugas punya >1 pertanyaan file.
+    """
+    ext = nama_asli.rsplit(".", 1)[-1].lower() if "." in nama_asli else ""
+    kelompok = profile.kelompok.nama_kelompok if profile.kelompok else "tanpa-kelompok"
+    bagian = [
+        _bersihkan_bagian_nama(tugas.judul_tugas, 20) or "tugas",
+        _bersihkan_bagian_nama(kelompok, 12) or "kelompok",
+        _bersihkan_bagian_nama(profile.nama_lengkap, 22) or "mentee",
+        _bersihkan_bagian_nama(profile.npm, 20) or "npm",
+    ]
+    if nomor:
+        bagian.append(str(nomor))
+    nama = "_".join(bagian)
+    return f"{nama}.{ext}" if ext else nama
 
 
 def _save_tugas_upload(instance, field_name, uploaded_files):
