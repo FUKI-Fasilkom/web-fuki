@@ -40,6 +40,9 @@ urlpatterns = [
         mentor_views.assignments,
         name="mentor_assignments",
     ),
+    path("mentor/presensi/", mentor_views.mentor_attendance, name="mentor_attendance"),
+    path("mentor/nilai-mentee/", mentor_views.mentor_assessments, name="mentor_assessments"),
+    path("mentor/penilaian-tugas/", mentor_views.mentor_task_reviews, name="mentor_task_reviews"),
     # 5.2 / 6 — RSVP & QR
     path("rsvp/<int:id>/", views.rsvp_event, name="rsvp"),
     path("qr/<str:signed>/", views.qr_verify, name="qr_verify"),

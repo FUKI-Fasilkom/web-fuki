@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+
+{% block title %}Nilai Mentee | Portal Mentor{% endblock %}
+
+{% block content %}
+{% include 'siwak/_messages.html' %}
+<div class="min-h-screen bg-[#F8F7F3] px-5 py-10 sm:px-8">
+  <div class="mx-auto max-w-7xl">
+    {% if not group %}
+    <a href="{% url 'siwak:mentor_dashboard' %}" class="text-sm font-semibold text-navy hover:underline">&larr; Portal Mentor</a>
+    <div class="mt-4 rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
+      <h2 class="text-xl font-bold text-navy">Kelompok belum ditetapkan</h2>
+      <p class="mx-auto mt-2 max-w-lg text-sm text-slate-500">Hubungi admin SIWAK untuk melakukan pembagian kelompok.</p>
+    </div>
+    {% else %}
+    {% include 'siwak/mentor/_group_nav.html' %}
+
+    <div class="mb-6">
+      <p class="text-sm font-semibold text-gold-dark">Rekap kelompok</p>
+      <h2 class="mt-1 text-2xl font-bold text-navy">Nilai Mentee</h2>
+      <p class="mt-2 text-sm text-slate-500">Nilai 0&ndash;100 untuk setiap aspek penilaian. Catatan hanya bisa diisi jika nilainya sudah ada.</p>
+    </div>
+
+    <form method="get" class="mb-5 grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-[1fr_auto] sm:items-end">
+      <label class="block text-xs font-semibold text-slate-500">Cari mentee
+        <input type="search" name="q" value="{{ q }}" placeholder="Nama atau NPM"
+               class="mt-1 w-full rounded-xl border-2 border-[#CBD5E1] bg-white px-3 py-2 text-sm text-slate-800 focus:border-navy focus:outline-none">
+      </label>
+      <div class="flex gap-2">
+        <button type="submit" class="rounded-xl bg-navy px-5 py-2 text-sm font-bold text-white hover:bg-navy-700">Cari</button>
+        {% if q %}<a href="{% url 'siwak:mentor_assessments' %}" class="rounded-xl border-2 border-navy px-4 py-2 text-sm font-bold text-navy hover:bg-cream-300">Reset</a>{% endif %}
+      </div>
+    </form>
+
+    {% if not aspects %}
+    <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500">
+      Belum ada aspek penilaian aktif. Pengurus SIWAK perlu menambahkannya lebih dulu.
+    </div>
+    {% elif rows %}
+    <form method="post" action="{{ request.get_full_path }}">
+      {% csrf_token %}
+      <div class="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <table class="w-full text-left text-sm">
+          <thead class="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <tr>
+              <th rowspan="2" class="sticky left-0 z-10 min-w-[12rem] bg-slate-50 px-4 py-3 align-bottom">Nama Mentee</th>
+              {% for aspect in aspects %}
+              <th colspan="2" class="border-l border-slate-200 px-4 py-2 text-center text-navy">{{ aspect.nama }}</th>
+              {% endfor %}
+            </tr>
+            <tr>
+              {% for aspect in aspects %}
+              <th class="min-w-[6rem] border-l border-slate-200 px-3 py-2">Nilai</th>
+              <th class="min-w-[14rem] px-3 py-2">Catatan</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 align-top">
+            {% for row in rows %}
+            <tr>
+              <td class="sticky left-0 z-10 bg-white px-4 py-3">
+                <a href="{% url 'siwak:mentor_mentee_detail' participant_id=row.participant.pk %}" class="font-semibold text-navy hover:underline">{{ row.participant.nama_lengkap }}</a>
+                <p class="text-xs text-slate-500">{{ row.participant.npm }}</p>
+              </td>
+              {% for cell in row.cells %}
+              <td class="border-l border-slate-100 px-3 py-3">
+                <label class="sr-only" for="{{ cell.score_field.id_for_label }}">Nilai {{ cell.aspect.nama }} {{ row.participant.nama_lengkap }}</label>
+                {{ cell.score_field }}
+                {% for error in cell.score_field.errors %}<p class="mt-1 text-xs font-semibold text-red-600">{{ error }}</p>{% endfor %}
+              </td>
+              <td class="px-3 py-3">
+                <label class="sr-only" for="{{ cell.note_field.id_for_label }}">Catatan {{ cell.aspect.nama }} {{ row.participant.nama_lengkap }}</label>
+                {{ cell.note_field }}
+                {% for error in cell.note_field.errors %}<p class="mt-1 text-xs font-semibold text-red-600">{{ error }}</p>{% endfor %}
+              </td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <p class="text-xs text-slate-500">{{ halaman.paginator.count }} mentee &middot; {{ aspects|length }} aspek penilaian</p>
+        <button type="submit" class="rounded-xl bg-navy px-6 py-3 text-sm font-bold text-white hover:bg-navy-700">Simpan Perubahan</button>
+      </div>
+    </form>
+    {% include 'siwak/panel/_paginasi.html' %}
+    {% else %}
+    <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500">
+      {% if q %}Tidak ada mentee yang cocok dengan pencarian.{% else %}Belum ada mentee dalam kelompok ini.{% endif %}
+    </div>
+    {% endif %}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
