@@ -84,4 +84,5 @@ urlpatterns = [
     # Penyunting relasi yang dipanggil dropdown di halaman daftar
     # `pk` adalah MahasiswaProfile — dipakai baik untuk mentee maupun mentor.
     path("admin/peserta/<int:pk>/kelompok/", panel_views.panel_set_kelompok, name="panel_set_kelompok"),
+    path("admin/profil/<int:pk>/role/", panel_views.panel_set_role, name="panel_set_role"),
 ]

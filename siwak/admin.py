@@ -193,7 +193,7 @@ class TugasAdmin(admin.ModelAdmin):
 @admin.register(MahasiswaProfile)
 class MahasiswaProfileAdmin(admin.ModelAdmin):
     """Satu-satunya tempat mentee dan mentor. Untuk pengelolaan sehari-hari pakai
-    panel SIWAK di /siwak/admin/data/peserta/ dan /siwak/admin/data/mentor/,
+    panel SIWAK di /siwak/admin/data/peserta/ (Mentee) dan /siwak/admin/data/mentor/,
     yang punya dropdown kelompok langsung di daftarnya; halaman ini cadangan
     teknis dan sumber autocomplete untuk presensi, penilaian, dan feedback."""
 

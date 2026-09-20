@@ -21,7 +21,7 @@ class MahasiswaProfile(models.Model):
 
     Satu baris ini menggantikan MabaProfile + PesertaMentoring + Mentor. `role`
     menentukan perannya di `kelompok`: mentee berarti dia peserta kelompok itu,
-    mentor berarti dia yang memegangnya.
+    mentor berarti dia yang memegangnya, dan NULL berarti belum ditentukan.
 
     Dibuat 1-1 dengan auth.User. Barisnya boleh disiapkan pengelola lebih dulu
     hanya dengan NPM (`user` masih kosong); saat orangnya login lewat SSO UI,
@@ -52,8 +52,17 @@ class MahasiswaProfile(models.Model):
         max_length=10, choices=JURUSAN_CHOICES, blank=True, verbose_name="Jurusan"
     )
     angkatan = models.CharField(max_length=4, blank=True, verbose_name="Angkatan")
+    # NULL = belum ditentukan. Akun yang baru login belum tentu mentee, belum
+    # tentu mentor; pengelola yang memilihnya lewat daftar Profile di panel.
+    # Selama NULL, akun ini bukan mentee maupun mentor (tidak lolos filter role
+    # di mana pun), jadi tidak ada hak akses yang ikut terbuka.
     role = models.CharField(
-        max_length=10, choices=ROLE_CHOICES, default=ROLE_MENTEE, verbose_name="Peran"
+        max_length=10,
+        choices=ROLE_CHOICES,
+        null=True,
+        blank=True,
+        default=None,
+        verbose_name="Peran",
     )
     kelompok = models.ForeignKey(
         "KelompokMentoring",

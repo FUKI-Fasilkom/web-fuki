@@ -1,0 +1,78 @@
+{% comment %}
+  Dropdown pemilih yang menyimpan begitu pilihannya berubah.
+
+  Dipakai untuk semua penyunting satu-nilai di daftar panel: kelompok mentee
+  (daftar Mentee), kelompok mentor (daftar Mentor), dan role (daftar Profile).
+  Bentuk dan perilakunya sama; yang berbeda hanya alamat tujuan, nama isian,
+  dan daftar pilihannya.
+
+  Parameter: aksi (url tujuan), nama (nama isian yang dikirim), pilihan (daftar
+  dengan nilai, label, dan opsional detail), terpilih (nilai sekarang, boleh
+  None), label_kosong, aria, tampil_detail (tulis `detail` di samping label,
+  mis. terisi/kapasitas kelompok).
+
+  Opsional: konfirmasi (judul kotak konfirmasi; kalau diisi, mengganti pilihan
+  tidak langsung menyimpan melainkan membuka kotak konfirmasi dulu, seperti
+  saklar RSVP), konfirmasi_nama (siapa yang diubah, ditulis di kotak), dan
+  keterangan (akibat perubahannya). Kalau dibatalkan, pilihan dikembalikan ke
+  nilai semula.
+{% endcomment %}
+
+<form method="post" action="{{ aksi }}" class="flex items-center gap-1.5"
+      {% if konfirmasi %}
+      x-data="{ tanya: false, awal: '{{ terpilih|default_if_none:''|escapejs }}', awalLabel: '', label: '',
+                batal() { this.tanya = false; this.$refs.pilih.value = this.awal; } }"
+      x-init="awalLabel = $refs.pilih.selectedOptions[0].text.trim()"
+      @keydown.escape.window="if (tanya) batal()"
+      {% endif %}>
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ url_kembali }}" />
+  <select name="{{ nama }}" aria-label="{{ aria }}"
+          {% if konfirmasi %}
+          x-ref="pilih"
+          @change="label = $event.target.selectedOptions[0].text.trim(); tanya = true"
+          {% else %}
+          onchange="this.form.submit()"
+          {% endif %}
+          class="min-h-[38px] w-full min-w-[9.5rem] max-w-[15rem] rounded-xl border-2 bg-white px-2.5 py-1.5 text-[13px] font-semibold text-navy transition focus:border-gold focus:outline-none focus:ring-4 focus:ring-gold/25
+                 {% if terpilih %}border-gold-light{% else %}border-dashed border-navy-400/50 text-navy-400{% endif %}">
+    <option value="">{{ label_kosong }}</option>
+    {% for p in pilihan %}
+    <option value="{{ p.nilai }}" {% if p.nilai == terpilih %}selected{% endif %}>
+      {{ p.label }}{% if tampil_detail %} ({{ p.detail }}){% endif %}
+    </option>
+    {% endfor %}
+  </select>
+  {% comment %}Jaring pengaman kalau JavaScript mati atau pengguna memakai keyboard.{% endcomment %}
+  <button type="submit"
+          class="sr-only focus:not-sr-only focus:rounded-lg focus:bg-navy focus:px-3 focus:py-1.5 focus:text-xs focus:font-bold focus:text-white">
+    Simpan
+  </button>
+
+  {% if konfirmasi %}
+  <div x-cloak x-show="tanya" class="fixed inset-0 z-[60] flex items-end justify-center p-4 sm:items-center"
+       role="dialog" aria-modal="true">
+    <div class="absolute inset-0 bg-navy-900/60" @click="batal()"></div>
+    <div class="relative w-full max-w-sm whitespace-normal rounded-2xl border-2 border-gold-light bg-white p-6 text-left shadow-2xl"
+         x-transition:enter="transition duration-150" x-transition:enter-start="translate-y-3 opacity-0">
+      <h2 class="text-lg font-bold leading-snug text-navy">{{ konfirmasi }}</h2>
+      <p class="mt-2 text-sm leading-relaxed text-navy-400">
+        <span class="font-semibold text-navy">“{{ konfirmasi_nama }}”</span>
+        akan diubah dari <span class="font-semibold text-navy" x-text="awalLabel"></span>
+        menjadi <span class="font-semibold text-navy" x-text="label"></span>.
+        {{ keterangan }}
+      </p>
+      <div class="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <button type="button" @click="batal()"
+                class="min-h-[44px] rounded-xl border-2 border-navy px-5 text-sm font-bold text-navy transition hover:bg-cream-300">
+          Batal
+        </button>
+        <button type="submit"
+                class="min-h-[44px] rounded-xl bg-navy px-5 text-sm font-bold text-white transition hover:bg-navy-700">
+          Ya, ubah
+        </button>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</form>

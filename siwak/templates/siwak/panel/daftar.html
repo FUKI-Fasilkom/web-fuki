@@ -75,7 +75,9 @@
           {% else %}{{ kol.judul }}{% endif %}
         </th>
         {% endfor %}
+        {% if sumber_data.punya_aksi %}
         <th scope="col" class="whitespace-nowrap px-3.5 py-3 text-right text-xs font-bold uppercase tracking-wide">Aksi</th>
+        {% endif %}
       </tr>
     </thead>
     <tbody>
@@ -90,6 +92,7 @@
         {% endcomment %}
         <td class="px-3.5 py-3 text-navy {% if sel.tipe != 'panjang' and sel.tipe != 'tag' %}whitespace-nowrap{% endif %}">{% include 'siwak/panel/_sel.html' %}</td>
         {% endfor %}
+        {% if sumber_data.punya_aksi %}
         <td class="px-3.5 py-3">
           <div class="flex items-center justify-end gap-2 whitespace-nowrap">
             {% for aksi in item.aksi %}
@@ -98,10 +101,12 @@
               {{ aksi.label }}
             </a>
             {% endfor %}
+            {% if sumber_data.boleh_ubah %}
             <a href="{% url 'siwak:panel_ubah' sumber_data.slug item.pk %}"
                class="rounded-lg bg-navy px-3 py-1.5 text-xs font-bold text-white transition hover:bg-navy-700">
               Ubah
             </a>
+            {% endif %}
             {% if sumber_data.boleh_hapus %}
             <form method="post" action="{% url 'siwak:panel_hapus' sumber_data.slug item.pk %}"
                   onsubmit="return confirm('Hapus {{ sumber_data.label|escapejs }} ini? Tindakan ini tidak bisa dibatalkan.');">
@@ -114,6 +119,7 @@
             {% endif %}
           </div>
         </td>
+        {% endif %}
       </tr>
       {% endfor %}
     </tbody>
@@ -139,7 +145,7 @@
     <dl class="space-y-2">
       {% for sel in item.sel %}
       {% if not sel.utama and sel.tipe != 'gambar' %}
-      {% if sel.tipe == 'pilih_kelompok' or sel.tipe == 'pilih_kelompok_mentor' or sel.tipe == 'pilih_aktif' %}
+      {% if sel.tipe == 'pilih_kelompok' or sel.tipe == 'pilih_kelompok_mentor' or sel.tipe == 'pilih_role' or sel.tipe == 'pilih_aktif' %}
       {% comment %}
         Kolom yang bisa disunting butuh lebar penuh: dropdown dan keping mentor
         tidak muat kalau dipepetkan ke kanan seperti nilai biasa.
@@ -158,6 +164,7 @@
       {% endfor %}
     </dl>
 
+    {% if sumber_data.punya_aksi %}
     <div class="mt-4 grid grid-cols-2 gap-2">
       {% for aksi in item.aksi %}
       <a href="{{ aksi.url }}"
@@ -165,10 +172,12 @@
         {{ aksi.label }}
       </a>
       {% endfor %}
+      {% if sumber_data.boleh_ubah %}
       <a href="{% url 'siwak:panel_ubah' sumber_data.slug item.pk %}"
          class="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-navy text-sm font-bold text-white transition hover:bg-navy-700">
         Ubah
       </a>
+      {% endif %}
       {% if sumber_data.boleh_hapus %}
       <form method="post" action="{% url 'siwak:panel_hapus' sumber_data.slug item.pk %}"
             onsubmit="return confirm('Hapus {{ sumber_data.label|escapejs }} ini? Tindakan ini tidak bisa dibatalkan.');">
@@ -180,6 +189,7 @@
       </form>
       {% endif %}
     </div>
+    {% endif %}
   </article>
   {% endfor %}
 </div>

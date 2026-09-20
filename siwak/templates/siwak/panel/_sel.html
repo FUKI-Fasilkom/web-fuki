@@ -4,7 +4,7 @@
   keduanya. Parameter: sel (judul, tipe, nilai, pk).
 
   Beberapa tipe bukan sekadar tulisan melainkan penyunting kecil — dropdown
-  kelompok, saklar RSVP — supaya perubahan yang paling sering dilakukan
+  kelompok, role, saklar RSVP — supaya perubahan yang paling sering dilakukan
   tidak perlu membuka form ubah dulu. Semuanya memakai
   `url_kembali` agar sesudah menyimpan pengelola mendarat di halaman,
   pencarian, dan urutan yang sama seperti sebelumnya.
@@ -33,7 +33,7 @@
 
 {% elif sel.tipe == 'pilih_kelompok' %}
   {% comment %}Memindahkan peserta: cukup ganti pilihan, tersimpan sendiri.{% endcomment %}
-  {% include 'siwak/panel/_dropdown_kelompok.html' with aksi=sel.url terpilih=sel.nilai label_kosong='— Belum ditempatkan —' aria='Kelompok peserta ini' tampil_kapasitas=True %}
+  {% include 'siwak/panel/_dropdown_pilih.html' with aksi=sel.url nama='kelompok' pilihan=daftar_kelompok terpilih=sel.nilai label_kosong='— Belum ditempatkan —' aria='Kelompok mentee ini' tampil_detail=True %}
 
 {% elif sel.tipe == 'pilih_kelompok_mentor' %}
   {% comment %}
@@ -41,7 +41,15 @@
     Menyimpan ke alamat yang sama dengan dropdown peserta; bedanya hanya
     label dan tanpa hitungan kapasitas (kapasitas menghitung mentee saja).
   {% endcomment %}
-  {% include 'siwak/panel/_dropdown_kelompok.html' with aksi=sel.url terpilih=sel.nilai label_kosong='— Tanpa kelompok —' aria='Kelompok yang dipegang mentor ini' tampil_kapasitas=False %}
+  {% include 'siwak/panel/_dropdown_pilih.html' with aksi=sel.url nama='kelompok' pilihan=daftar_kelompok terpilih=sel.nilai label_kosong='— Tanpa kelompok —' aria='Kelompok yang dipegang mentor ini' tampil_detail=False %}
+
+{% elif sel.tipe == 'pilih_role' %}
+  {% comment %}
+    Role kosong (NULL) sampai pengelola memilih Mentee atau Mentor. Berbeda
+    dengan dropdown kelompok, mengganti role selalu bertanya dulu: role
+    menentukan akses orangnya, dan kelompoknya ikut dilepas.
+  {% endcomment %}
+  {% include 'siwak/panel/_dropdown_pilih.html' with aksi=sel.url nama='role' pilihan=daftar_role terpilih=sel.nilai label_kosong='— Belum ditentukan —' aria='Role profil ini' tampil_detail=False konfirmasi='Ubah role profil ini?' konfirmasi_nama=item.obj.nama_lengkap keterangan='Kalau dia sedang punya kelompok, penempatannya ikut dilepas. Presensi, nilai, dan feedback yang sudah tercatat tetap tersimpan.' %}
 
 {% elif sel.tipe == 'saklar_rsvp' %}
   {% comment %}

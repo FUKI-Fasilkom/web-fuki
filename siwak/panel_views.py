@@ -6,7 +6,7 @@ membedakan satu menu dengan menu lain hanyalah isi `Sumber`-nya, bukan kodenya.
 
 Di luar itu ada dua kelompok view kecil: halaman khusus yang memang tidak
 berbentuk CRUD biasa (konten halaman utama dan daftar RSVP per acara), dan
-penyunting relasi (`panel_set_kelompok`, `panel_set_mentor`) yang dipanggil
+penyunting relasi (`panel_set_kelompok`, `panel_set_role`) yang dipanggil
 langsung dari dropdown di halaman daftar tanpa membuka form ubah.
 """
 
@@ -45,6 +45,7 @@ from .panel import (
     PETA_BAGIAN,
     PETA_SUMBER,
     daftar_kelompok,
+    daftar_role,
     sumber_bagian,
 )
 from .panel_forms import InfoSiwakForm, PertanyaanForm, PilihanForm
@@ -54,6 +55,7 @@ PER_HALAMAN = 25
 # Tipe kolom yang isinya dropdown penyunting relasi, bukan sekadar tulisan.
 # Dipakai untuk menentukan daftar pilihan apa yang perlu ikut dikirim ke templat.
 TIPE_BUTUH_KELOMPOK = {"pilih_kelompok", "pilih_kelompok_mentor"}
+TIPE_BUTUH_ROLE = {"pilih_role"}
 
 
 def staf_required(view_func):
@@ -130,17 +132,20 @@ URL_SEL = {
     "pilih_kelompok": "siwak:panel_set_kelompok",
     # Sama dengan "pilih_kelompok": beda hanya di label dan hitungan kapasitas.
     "pilih_kelompok_mentor": "siwak:panel_set_kelompok",
+    "pilih_role": "siwak:panel_set_role",
     "saklar_rsvp": "siwak:panel_rsvp_toggle",
     "pilih_aktif": "siwak:panel_sesi_aktif",
 }
 
 
-def _sel(obj, sumber):
-    """Ubah satu objek jadi daftar sel siap render."""
+def _sel(obj, sumber, nomor):
+    """Ubah satu objek jadi daftar sel siap render. `nomor` = urutan baris ini
+    di seluruh daftar (bukan di halamannya), dipakai kolom bertipe "nomor"."""
     daftar = []
     for k in sumber.kolom:
         butir = {
-            "judul": k.judul, "tipe": k.tipe, "nilai": k.ambil(obj),
+            "judul": k.judul, "tipe": k.tipe,
+            "nilai": nomor if k.tipe == "nomor" else k.ambil(obj),
             "utama": k.utama, "pk": obj.pk,
         }
         nama_url = URL_SEL.get(k.tipe)
@@ -237,7 +242,7 @@ def panel_beranda(request):
 
     mentee = MahasiswaProfile.objects.filter(role=MahasiswaProfile.ROLE_MENTEE)
     ringkasan = [
-        ("Peserta mentoring", mentee.count()),
+        ("Mentee", mentee.count()),
         ("Kelompok mentoring", KelompokMentoring.objects.count()),
         ("Mentor", MahasiswaProfile.objects.filter(role=MahasiswaProfile.ROLE_MENTOR).count()),
         ("Belum punya kelompok", mentee.filter(kelompok__isnull=True).count()),
@@ -308,8 +313,8 @@ def panel_daftar(request, slug):
 
     halaman = Paginator(qs, PER_HALAMAN).get_page(request.GET.get("page"))
     baris = [
-        {"obj": o, "pk": o.pk, "sel": _sel(o, sumber), "aksi": _aksi(o, sumber)}
-        for o in halaman.object_list
+        {"obj": o, "pk": o.pk, "sel": _sel(o, sumber, nomor), "aksi": _aksi(o, sumber)}
+        for nomor, o in enumerate(halaman.object_list, start=halaman.start_index())
     ]
 
     # Judul kolom yang bisa diklik untuk mengurutkan. Sekali klik = menaik,
@@ -340,6 +345,8 @@ def panel_daftar(request, slug):
     ekstra = {}
     if tipe_kolom & TIPE_BUTUH_KELOMPOK:
         ekstra["daftar_kelompok"] = daftar_kelompok()
+    if tipe_kolom & TIPE_BUTUH_ROLE:
+        ekstra["daftar_role"] = daftar_role()
 
     return render(request, "siwak/panel/daftar.html", _kerangka(
         request,
@@ -417,6 +424,8 @@ def panel_tambah(request, slug):
 @staf_required
 def panel_ubah(request, slug, pk):
     sumber = _sumber_atau_404(slug)
+    if not sumber.boleh_ubah:
+        raise Http404("Jenis data ini tidak bisa diubah dari panel.")
     return _simpan(request, sumber, get_object_or_404(sumber.ambil_queryset(), pk=pk))
 
 
@@ -461,6 +470,13 @@ def panel_set_kelompok(request, pk):
     mentor = profil.is_mentor
     cadangan = reverse("siwak:panel_daftar", args=["mentor" if mentor else "peserta"])
 
+    if profil.role is None:
+        messages.error(
+            request,
+            f"{profil.nama_lengkap} belum punya role, jadi belum bisa ditempatkan di kelompok.",
+        )
+        return _kembali(request, reverse("siwak:panel_daftar", args=["profil"]))
+
     pilihan = _angka(request.POST.get("kelompok"))
     kelompok = KelompokMentoring.objects.filter(pk=pilihan).first() if pilihan else None
     if pilihan and kelompok is None:
@@ -480,6 +496,41 @@ def panel_set_kelompok(request, pk):
                 f"{profil.nama_lengkap} dipindahkan ke {kelompok.nama_kelompok}." if kelompok
                 else f"{profil.nama_lengkap} dikeluarkan dari kelompoknya."
             )
+        messages.success(request, pesan)
+    return _kembali(request, cadangan)
+
+
+@staf_required
+@require_POST
+def panel_set_role(request, pk):
+    """Tetapkan role satu profil (Mentee / Mentor / kosong) dari daftar Profile.
+
+    Role menentukan daftar mana yang memuatnya, dan `kelompok` berarti hal yang
+    berbeda di tiap role (mentee: kelompok tempat dia jadi peserta, mentor:
+    kelompok yang dia pegang). Karena itu kelompoknya dilepas setiap kali role
+    berubah — kalau tidak, mentee yang dijadikan mentor otomatis memegang
+    kelompok tempat dia tadinya jadi peserta. Presensi, nilai, dan feedback
+    yang sudah tercatat menempel di profilnya, jadi tidak ikut hilang.
+    """
+    profil = get_object_or_404(MahasiswaProfile, pk=pk)
+    cadangan = reverse("siwak:panel_daftar", args=["profil"])
+
+    role = (request.POST.get("role") or "").strip() or None
+    if role is not None and role not in dict(MahasiswaProfile.ROLE_CHOICES):
+        messages.error(request, "Role yang dipilih tidak dikenal.")
+        return _kembali(request, cadangan)
+
+    if profil.role != role:
+        lepas = profil.kelompok_id is not None
+        profil.role = role
+        profil.kelompok = None
+        profil.save(update_fields=["role", "kelompok"])
+        pesan = (
+            f"{profil.nama_lengkap} sekarang {profil.get_role_display()}." if role
+            else f"Role {profil.nama_lengkap} dikosongkan."
+        )
+        if lepas:
+            pesan += " Kelompok sebelumnya dilepas."
         messages.success(request, pesan)
     return _kembali(request, cadangan)
 

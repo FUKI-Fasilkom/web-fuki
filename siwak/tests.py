@@ -129,8 +129,8 @@ class SyncMahasiswaProfileTests(TestCase):
         self.assertEqual(profile.angkatan, "2025")
         self.assertIsNone(mahasiswa_lain.user)
 
-    def test_new_login_creates_a_mentee_profile_without_kelompok(self):
-        """A brand-new login is a mentee awaiting a group; staff place them later."""
+    def test_new_login_creates_a_profile_without_role_or_kelompok(self):
+        """A brand-new login is neither mentee nor mentor; staff decide later."""
         profile = sync_mahasiswa_profile(
             user=self.user,
             npm="2506534245",
@@ -139,7 +139,7 @@ class SyncMahasiswaProfileTests(TestCase):
             angkatan="2025",
         )
 
-        self.assertEqual(profile.role, MahasiswaProfile.ROLE_MENTEE)
+        self.assertIsNone(profile.role)
         self.assertIsNone(profile.kelompok)
 
     def test_keeps_existing_group_assignment_on_later_login(self):
@@ -259,7 +259,7 @@ class HandleCasLoginTests(TestCase):
         self.assertEqual(profile.nama_lengkap, "Fiqhi Deski Ismail")
         self.assertEqual(profile.jurusan, "IK")
         self.assertEqual(profile.angkatan, "2025")
-        self.assertEqual(profile.role, MahasiswaProfile.ROLE_MENTEE)
+        self.assertIsNone(profile.role)
         self.assertIsNone(profile.kelompok)
 
     def test_rejects_missing_required_attributes(self):
@@ -426,7 +426,8 @@ class PanelPesertaTests(TestCase):
 
     def test_deleting_a_participant_removes_the_profile_but_not_the_group(self):
         profil = MahasiswaProfile.objects.create(
-            npm="2506000011", nama_lengkap="Hapus Aku", jurusan="KA", kelompok=self.kelompok
+            npm="2506000011", nama_lengkap="Hapus Aku", jurusan="KA", kelompok=self.kelompok,
+            role=MahasiswaProfile.ROLE_MENTEE,
         )
 
         self.client.post(reverse("siwak:panel_hapus", args=["peserta", profil.pk]))
@@ -437,7 +438,7 @@ class PanelPesertaTests(TestCase):
     def test_mentors_and_participants_cannot_be_reached_through_each_others_pages(self):
         """Both lists are the same table now; each page must stay inside its role."""
         mentee = MahasiswaProfile.objects.create(
-            npm="2506000013", nama_lengkap="Si Mentee", jurusan="IK"
+            npm="2506000013", nama_lengkap="Si Mentee", jurusan="IK", role=MahasiswaProfile.ROLE_MENTEE
         )
         mentor = MahasiswaProfile.objects.create(
             npm="2106000002", nama_lengkap="Si Mentor", role=MahasiswaProfile.ROLE_MENTOR
@@ -456,7 +457,9 @@ class PanelPesertaTests(TestCase):
         self.assertTrue(MahasiswaProfile.objects.filter(pk=mentor.pk).exists())
 
     def test_each_list_only_shows_its_own_role(self):
-        MahasiswaProfile.objects.create(npm="2506000014", nama_lengkap="Si Mentee", jurusan="IK")
+        MahasiswaProfile.objects.create(
+            npm="2506000014", nama_lengkap="Si Mentee", jurusan="IK", role=MahasiswaProfile.ROLE_MENTEE
+        )
         MahasiswaProfile.objects.create(
             npm="2106000003", nama_lengkap="Si Mentor", role=MahasiswaProfile.ROLE_MENTOR
         )
@@ -469,7 +472,9 @@ class PanelPesertaTests(TestCase):
         self.assertEqual(nama("mentor"), ["Si Mentor"])
 
     def test_menu_and_dashboard_counts_are_split_by_role(self):
-        MahasiswaProfile.objects.create(npm="2506000015", nama_lengkap="Mentee", jurusan="IK")
+        MahasiswaProfile.objects.create(
+            npm="2506000015", nama_lengkap="Mentee", jurusan="IK", role=MahasiswaProfile.ROLE_MENTEE
+        )
         MahasiswaProfile.objects.create(
             npm="2106000004", nama_lengkap="Mentor", role=MahasiswaProfile.ROLE_MENTOR,
             kelompok=self.kelompok,
@@ -477,18 +482,211 @@ class PanelPesertaTests(TestCase):
 
         menu = self.client.get(reverse("siwak:panel_bagian", args=["kelompok"]))
         jumlah = {butir["label"]: butir["jumlah"] for butir in menu.context["butir"]}
-        self.assertEqual(jumlah["Peserta Mentoring"], 1)
+        self.assertEqual(jumlah["Mentee"], 1)
         self.assertEqual(jumlah["Mentor"], 1)
 
         beranda = self.client.get(reverse("siwak:panel_beranda"))
         self.assertEqual(
             dict(beranda.context["ringkasan"]),
             {
-                "Peserta mentoring": 1,
+                "Mentee": 1,
                 "Kelompok mentoring": 1,
                 "Mentor": 1,
                 "Belum punya kelompok": 1,
             },
+        )
+
+
+class PanelProfilTests(TestCase):
+    """Verify the Profile list and the role dropdown that feeds Mentee/Mentor."""
+
+    def setUp(self):
+        self.client.force_login(User.objects.create_user(username="pengurus", is_staff=True))
+        self.kelompok = KelompokMentoring.objects.create(nama_kelompok="Kelompok 1")
+        self.profil = MahasiswaProfile.objects.create(
+            npm="2506000040", nama_lengkap="Belum Ditentukan", jurusan="IK"
+        )
+        self.url_role = reverse("siwak:panel_set_role", args=[self.profil.pk])
+
+    def _daftar(self, slug):
+        return self.client.get(reverse("siwak:panel_daftar", args=[slug]))
+
+    def _role(self):
+        self.profil.refresh_from_db()
+        return self.profil.role
+
+    def test_new_profiles_have_no_role(self):
+        """NULL, not a silent default to mentee."""
+        self.assertIsNone(self.profil.role)
+
+    def test_a_profile_without_a_role_is_in_neither_role_list(self):
+        for slug in ("peserta", "mentor"):
+            with self.subTest(slug=slug):
+                self.assertEqual(self._daftar(slug).context["baris"], [])
+
+    def test_the_profile_list_shows_everyone_with_a_running_number(self):
+        MahasiswaProfile.objects.create(
+            npm="2506000041", nama_lengkap="Sudah Mentee", jurusan="SI",
+            role=MahasiswaProfile.ROLE_MENTEE,
+        )
+        MahasiswaProfile.objects.create(
+            npm="2106000041", nama_lengkap="Sudah Mentor", role=MahasiswaProfile.ROLE_MENTOR,
+        )
+
+        response = self._daftar("profil")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([b["sel"][0]["nilai"] for b in response.context["baris"]], [1, 2, 3])
+        self.assertEqual(
+            [k["judul"] for k in response.context["kepala"]], ["No", "Nama", "NPM", "Role"]
+        )
+
+    def test_the_running_number_continues_across_pages(self):
+        for i in range(30):
+            MahasiswaProfile.objects.create(npm=f"26000001{i:02d}", nama_lengkap=f"Orang {i:02d}")
+
+        response = self.client.get(reverse("siwak:panel_daftar", args=["profil"]), {"page": 2})
+
+        self.assertEqual(response.context["baris"][0]["sel"][0]["nilai"], 26)
+
+    def test_the_profile_list_is_display_only(self):
+        """Identity comes from SSO; only the role is editable, via the dropdown."""
+        self.assertEqual(
+            self.client.get(reverse("siwak:panel_tambah", args=["profil"])).status_code, 404
+        )
+        self.assertEqual(
+            self.client.get(reverse("siwak:panel_ubah", args=["profil", self.profil.pk])).status_code, 404
+        )
+        self.assertEqual(
+            self.client.post(reverse("siwak:panel_hapus", args=["profil", self.profil.pk])).status_code, 404
+        )
+        response = self._daftar("profil")
+        self.assertFalse(response.context["sumber_data"].punya_aksi())
+        self.assertNotContains(response, "panel_ubah")
+        self.assertNotContains(response, ">Aksi<")
+
+    def test_the_dropdown_offers_mentee_and_mentor(self):
+        response = self._daftar("profil")
+
+        self.assertContains(response, 'name="role"')
+        self.assertContains(response, '<option value="mentee"')
+        self.assertContains(response, '<option value="mentor"')
+
+    def test_the_role_dropdown_asks_for_confirmation_before_saving(self):
+        """Like the RSVP switch: a role decides access, so no one-click save."""
+        response = self._daftar("profil")
+
+        self.assertContains(response, "Ubah role profil ini?")
+        self.assertContains(response, "Belum Ditentukan")  # the row's name, in the dialog
+        self.assertContains(response, "Ya, ubah")
+        self.assertContains(response, "@change=")
+        # It must not also carry the auto-submit handler the plain dropdowns use.
+        self.assertNotContains(response, 'onchange="this.form.submit()"')
+
+    def test_the_group_dropdowns_still_save_without_asking(self):
+        """Only the role dropdown got the dialog; moving groups stays one step."""
+        self.profil.role = MahasiswaProfile.ROLE_MENTEE
+        self.profil.save()
+
+        response = self._daftar("peserta")
+
+        self.assertContains(response, 'onchange="this.form.submit()"')
+        self.assertNotContains(response, "Ya, ubah")
+
+    def test_picking_mentee_moves_the_profile_to_the_mentee_list(self):
+        self.client.post(self.url_role, {"role": "mentee"})
+
+        self.assertEqual(self._role(), MahasiswaProfile.ROLE_MENTEE)
+        nama = [b["obj"].nama_lengkap for b in self._daftar("peserta").context["baris"]]
+        self.assertEqual(nama, ["Belum Ditentukan"])
+        self.assertEqual(self._daftar("mentor").context["baris"], [])
+
+    def test_picking_mentor_moves_the_profile_to_the_mentor_list(self):
+        self.client.post(self.url_role, {"role": "mentor"})
+
+        self.assertEqual(self._role(), MahasiswaProfile.ROLE_MENTOR)
+        nama = [b["obj"].nama_lengkap for b in self._daftar("mentor").context["baris"]]
+        self.assertEqual(nama, ["Belum Ditentukan"])
+
+    def test_changing_role_releases_the_group(self):
+        """`kelompok` means a seat for a mentee but a post for a mentor, so it
+        must not silently carry over."""
+        self.profil.role = MahasiswaProfile.ROLE_MENTEE
+        self.profil.kelompok = self.kelompok
+        self.profil.save()
+
+        self.client.post(self.url_role, {"role": "mentor"})
+
+        self.profil.refresh_from_db()
+        self.assertEqual(self.profil.role, MahasiswaProfile.ROLE_MENTOR)
+        self.assertIsNone(self.profil.kelompok)
+        self.assertEqual(self.kelompok.daftar_mentor.count(), 0)
+
+    def test_picking_the_same_role_again_keeps_the_group(self):
+        self.profil.role = MahasiswaProfile.ROLE_MENTEE
+        self.profil.kelompok = self.kelompok
+        self.profil.save()
+
+        self.client.post(self.url_role, {"role": "mentee"})
+
+        self.profil.refresh_from_db()
+        self.assertEqual(self.profil.kelompok, self.kelompok)
+
+    def test_the_empty_choice_clears_the_role(self):
+        self.client.post(self.url_role, {"role": "mentee"})
+
+        self.client.post(self.url_role, {"role": ""})
+
+        self.assertIsNone(self._role())
+
+    def test_an_unknown_role_is_rejected(self):
+        self.client.post(self.url_role, {"role": "admin"})
+
+        self.assertIsNone(self._role())
+
+    def test_only_staff_may_change_a_role(self):
+        self.client.force_login(User.objects.create_user(username="biasa"))
+
+        response = self.client.post(self.url_role, {"role": "mentee"})
+
+        self.assertEqual(response.status_code, 403)
+        self.assertIsNone(self._role())
+
+    def test_changing_a_role_over_get_is_refused(self):
+        self.assertEqual(self.client.get(self.url_role).status_code, 405)
+
+    def test_a_profile_without_a_role_cannot_be_placed_in_a_group(self):
+        self.client.post(
+            reverse("siwak:panel_set_kelompok", args=[self.profil.pk]),
+            {"kelompok": str(self.kelompok.pk)},
+        )
+
+        self.profil.refresh_from_db()
+        self.assertIsNone(self.profil.kelompok)
+
+    def test_a_role_less_profile_gets_no_mentee_or_mentor_access(self):
+        """The whole point of NULL: nothing is granted until staff decide."""
+        user = User.objects.create_user(username="2506000040")
+        self.profil.user = user
+        self.profil.save()
+        self.client.force_login(user)
+
+        tugas = Tugas.objects.create(
+            judul_tugas="T", deskripsi="d", deadline=timezone.now() + datetime.timedelta(days=1)
+        )
+
+        self.assertEqual(
+            self.client.get(reverse("siwak:tugas_detail", args=[tugas.pk])).status_code, 403
+        )
+        self.assertEqual(self.client.get(reverse("siwak:mentor_dashboard")).status_code, 403)
+
+    def test_the_sidebar_order_is_profile_mentee_mentor_group(self):
+        response = self._daftar("profil")
+
+        bagian = next(m for m in response.context["menu"] if m["bagian"].slug == "kelompok")
+        self.assertEqual(
+            [b["label"] for b in bagian["butir"]],
+            ["Profile", "Mentee", "Mentor", "Kelompok Mentoring"],
         )
 
 
@@ -500,7 +698,8 @@ class PanelRelasiTests(TestCase):
         self.k1 = KelompokMentoring.objects.create(nama_kelompok="Kelompok 1")
         self.k2 = KelompokMentoring.objects.create(nama_kelompok="Kelompok 2")
         self.maba = MahasiswaProfile.objects.create(
-            npm="2506000020", nama_lengkap="Pindah Aku", jurusan="IK", kelompok=self.k1
+            npm="2506000020", nama_lengkap="Pindah Aku", jurusan="IK", kelompok=self.k1,
+            role=MahasiswaProfile.ROLE_MENTEE,
         )
         self.url_kelompok = reverse("siwak:panel_set_kelompok", args=[self.maba.pk])
 
@@ -526,7 +725,7 @@ class PanelRelasiTests(TestCase):
     def test_a_student_without_a_group_can_be_placed(self):
         """Staff-registered students start unplaced and get a group later."""
         baru = MahasiswaProfile.objects.create(
-            npm="2506000022", nama_lengkap="Baru Didaftarkan", jurusan="SI"
+            npm="2506000022", nama_lengkap="Baru Didaftarkan", jurusan="SI", role=MahasiswaProfile.ROLE_MENTEE
         )
 
         self.client.post(
@@ -540,7 +739,8 @@ class PanelRelasiTests(TestCase):
     def test_moving_one_mentee_leaves_the_other_rows_alone(self):
         """Editing a single row must never touch the rest of the list."""
         lain = MahasiswaProfile.objects.create(
-            npm="2506000021", nama_lengkap="Peserta Lain", jurusan="SI", kelompok=self.k1
+            npm="2506000021", nama_lengkap="Peserta Lain", jurusan="SI", kelompok=self.k1,
+            role=MahasiswaProfile.ROLE_MENTEE,
         )
 
         self.client.post(self.url_kelompok, {"kelompok": str(self.k2.pk)})
@@ -630,13 +830,13 @@ class PanelRelasiTests(TestCase):
         self._mentor("Kak Fatimah", "2106000012", self.k1)
 
         response = self.client.get(reverse("siwak:panel_daftar", args=["peserta"]))
-        terisi = {k.nama_kelompok: k.terisi for k in response.context["daftar_kelompok"]}
-        self.assertEqual(terisi["Kelompok 1"], 1)
+        terisi = {k["label"]: k["detail"] for k in response.context["daftar_kelompok"]}
+        self.assertEqual(terisi["Kelompok 1"], "1/15")
 
         response = self.client.get(reverse("siwak:panel_daftar", args=["kelompok"]))
         baris = next(b for b in response.context["baris"] if b["obj"] == self.k1)
         cell = {s["judul"]: s["nilai"] for s in baris["sel"]}
-        self.assertEqual(cell["Peserta"], "1 / 15")
+        self.assertEqual(cell["Mentee"], "1 / 15")
         self.assertEqual(cell["Mentor"], "Kak Ahmad, Kak Fatimah")
 
     def test_editing_a_relation_over_get_is_refused(self):
@@ -672,7 +872,8 @@ class KelompokSearchTests(TestCase):
             nama_kelompok="Kelompok 7", link_grup="https://chat.whatsapp.com/contoh"
         )
         MahasiswaProfile.objects.create(
-            npm="2506000050", nama_lengkap="Aisyah Putri", jurusan="IK", kelompok=self.kelompok
+            npm="2506000050", nama_lengkap="Aisyah Putri", jurusan="IK", kelompok=self.kelompok,
+            role=MahasiswaProfile.ROLE_MENTEE,
         )
         MahasiswaProfile.objects.create(
             npm="2106000050", nama_lengkap="Kak Ahmad", jurusan="IK",
@@ -696,7 +897,9 @@ class KelompokSearchTests(TestCase):
         self.assertEqual(response.context["result_state"], "not_found")
 
     def test_a_mentee_without_a_group_is_told_so(self):
-        MahasiswaProfile.objects.create(npm="2506000051", nama_lengkap="Belum Ada", jurusan="SI")
+        MahasiswaProfile.objects.create(
+            npm="2506000051", nama_lengkap="Belum Ada", jurusan="SI", role=MahasiswaProfile.ROLE_MENTEE
+        )
 
         response = self._cari("Belum Ada", jurusan="SI")
 
@@ -717,7 +920,7 @@ class PanelUrutanTests(TestCase):
 
     def _buat_peserta(self, nama, npm, kelompok):
         MahasiswaProfile.objects.create(
-            npm=npm, nama_lengkap=nama, jurusan="IK", kelompok=kelompok
+            npm=npm, nama_lengkap=nama, jurusan="IK", kelompok=kelompok, role=MahasiswaProfile.ROLE_MENTEE
         )
 
     def test_participants_are_listed_by_name_by_default(self):

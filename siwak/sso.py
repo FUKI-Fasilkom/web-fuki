@@ -159,11 +159,13 @@ def sync_mahasiswa_profile(
        yang dibuat pengelola di panel SIWAK sebelum orangnya pernah login, dan
        inilah yang diklaim sekarang. Profil yang sudah ada pemiliknya sengaja
        dilewati supaya tidak bisa direbut.
-    3. Kalau tidak ada keduanya, profil baru (mentee, tanpa kelompok).
+    3. Kalau tidak ada keduanya, profil baru tanpa role dan tanpa kelompok.
 
-    `role` dan `kelompok` sengaja TIDAK disentuh di sini. Pengelola yang
-    menyiapkan baris berperan mentor lebih dulu, misalnya, tetap mentor setelah
-    orangnya login; penempatan kelompok juga tidak hilang saat login ulang.
+    `role` dan `kelompok` sengaja TIDAK disentuh di sini. Akun yang baru login
+    tetap tanpa role (NULL) sampai pengelola memilih Mentee atau Mentor di
+    daftar Profile panel SIWAK. Pengelola yang menyiapkan baris berperan mentor
+    lebih dulu, misalnya, tetap mentor setelah orangnya login; penempatan
+    kelompok juga tidak hilang saat login ulang.
     """
     profile = (
         MahasiswaProfile.objects.filter(user=user).first()

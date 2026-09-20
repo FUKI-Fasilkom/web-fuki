@@ -219,7 +219,7 @@ class MentorForm(PanelForm):
 
 class KelompokForm(PanelForm):
     """Form kelompok. Anggotanya (mentor dan mentee) tidak disunting di sini:
-    penempatannya lewat dropdown di daftar Mentor dan daftar Peserta."""
+    penempatannya lewat dropdown di daftar Mentor dan daftar Mentee."""
 
     class Meta:
         model = KelompokMentoring
@@ -242,7 +242,7 @@ class PesertaForm(PanelForm):
         help_texts = {
             "npm": "Dipakai untuk mencocokkan data ini dengan akun SSO maba saat dia login.",
             "angkatan": "Contoh: 2025. Boleh dikosongkan.",
-            "kelompok": "Boleh dikosongkan dulu; kelompoknya bisa diganti kapan saja lewat dropdown di daftar Peserta Mentoring.",
+            "kelompok": "Boleh dikosongkan dulu; kelompoknya bisa diganti kapan saja lewat dropdown di daftar Mentee.",
         }
 
     def __init__(self, *args, **kwargs):

@@ -81,6 +81,7 @@ class MentorFeatureTests(TestCase):
             npm="2500000001",
             jurusan="IK",
             angkatan="2025",
+            role=MahasiswaProfile.ROLE_MENTEE,
             kelompok=self.group,
         )
         self.other_participant = MahasiswaProfile.objects.create(
@@ -89,6 +90,7 @@ class MentorFeatureTests(TestCase):
             npm="2500000002",
             jurusan="SI",
             angkatan="2025",
+            role=MahasiswaProfile.ROLE_MENTEE,
             kelompok=self.other_group,
         )
         self.session = self.group.mentoring_sessions.get(nomor=1)
