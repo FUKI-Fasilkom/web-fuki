@@ -1,7 +1,7 @@
 from django_cas_ng import views as cas_views
 from django.urls import path
 
-from . import mentor_views, panel_views, views
+from . import mentor_views, panel_views, sso, views
 
 
 app_name = "siwak"
@@ -14,7 +14,7 @@ urlpatterns = [
     path("kelompok/", views.kelompok_search, name="kelompok_search"),
 
     # 7 — Authentication (with sso ui cas2)
-    path("sso-login/", cas_views.LoginView.as_view(), name="cas_ng_login"),
+    path("sso-login/", sso.RoleRedirectLoginView.as_view(), name="cas_ng_login"),
     path("sso-logout/", cas_views.LogoutView.as_view(), name="cas_ng_logout"),
 
     # 5.1 — Tugas

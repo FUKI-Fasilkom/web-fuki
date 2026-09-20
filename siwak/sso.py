@@ -17,8 +17,11 @@ change instead of a rewrite. See the bottom of this file for that swap.
 """
 
 from django.contrib.auth import get_user_model
+from django.conf import settings
 from django.contrib import messages
 from django.db import transaction
+from django.shortcuts import resolve_url
+from django_cas_ng.views import LoginView
 
 from .models import MahasiswaProfile
 
@@ -180,6 +183,39 @@ def sync_mahasiswa_profile(
     profile.angkatan = angkatan
     profile.save()
     return profile
+
+def role_landing_url(user):
+    """Tujuan default setelah login, ditentukan role di MahasiswaProfile.
+
+    mentee -> daftar tugas, mentor -> dashboard mentor, selain itu (role NULL,
+    belum punya profil, dst.) -> beranda FUKI.
+    """
+    profile = MahasiswaProfile.objects.filter(user=user).only("role").first()
+    role = profile.role if profile else None
+    if role == MahasiswaProfile.ROLE_MENTEE:
+        return resolve_url("siwak:tugas_list")
+    if role == MahasiswaProfile.ROLE_MENTOR:
+        return resolve_url("siwak:mentor_dashboard")
+    return "/"
+
+
+class RoleRedirectLoginView(LoginView):
+    """LoginView CAS yang mengarahkan user berdasarkan role setelah login.
+
+    `?next=` eksplisit (mis. dari @login_required) tetap dihormati supaya deep
+    link tidak hilang; tanpa itu, tujuan ditentukan `role_landing_url`.
+
+    django-cas-ng selalu menyisipkan `next=CAS_REDIRECT_URL` ke service URL, jadi
+    saat callback SSO `?next=` selalu ada. Nilai yang sama dengan default itu
+    dianggap "tidak ada next" — kalau tidak, role tidak pernah dipakai.
+    """
+
+    def successful_login(self, request, next_page):
+        explicit_next = request.GET.get("next")
+        if not explicit_next or explicit_next == resolve_url(settings.CAS_REDIRECT_URL):
+            next_page = role_landing_url(request.user)
+        return super().successful_login(request, next_page)
+
 
 def get_attribute(attributes, key):
     value = attributes.get(key, "")
