@@ -10,6 +10,7 @@ from django.contrib.auth.views import redirect_to_login
 from django.core import signing
 from django.core.files.uploadedfile import UploadedFile
 from django.db import transaction
+from django.db.models import Q
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -97,9 +98,11 @@ def kelompok_search(request):
     peserta = None
 
     if request.method == "POST" and form.is_valid():
+        identitas = form.cleaned_data["nama_lengkap"].strip()
+        jurusan = form.cleaned_data["jurusan"]
         peserta = MahasiswaProfile.objects.filter(
-            nama_lengkap__iexact=form.cleaned_data["nama_lengkap"].strip(),
-            jurusan=form.cleaned_data["jurusan"],
+            Q(nama_lengkap__iexact=identitas) | Q(npm__iexact=identitas),
+            jurusan=jurusan,
             role=MahasiswaProfile.ROLE_MENTEE,
         ).select_related("kelompok").first()
 

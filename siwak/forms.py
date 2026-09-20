@@ -17,12 +17,14 @@ INPUT_CLASSES = (
 
 
 class CariKelompokForm(forms.Form):
-    """Form 'Cari Kelompok' — cocok dengan desain Figma (Nama Lengkap + Jurusan)."""
+    """Form 'Cari Kelompok' — identitas mentee dapat berupa nama atau NPM."""
 
     nama_lengkap = forms.CharField(
-        label="Nama Lengkap",
+        label="Nama Lengkap atau NPM",
         max_length=200,
-        widget=forms.TextInput(attrs={"placeholder": "Masukkan nama lengkap", "class": INPUT_CLASSES}),
+        widget=forms.TextInput(
+            attrs={"placeholder": "Masukkan nama lengkap atau NPM", "class": INPUT_CLASSES}
+        ),
     )
     jurusan = forms.ChoiceField(
         label="Jurusan",
