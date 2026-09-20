@@ -18,7 +18,7 @@
     <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <p class="text-sm sm:text-base text-[#4A4A4A]">
         Ketuk sebuah tugas untuk melihat deskripsi dan deadline-nya.
-        Pengumpulan dilakukan di halaman detail tugas.
+        Tekan tombol "Kumpulkan Tugas" untuk mengumpulkan atau mengedit jawabanmu sebelum deadline.
       </p>
       <a
         href="{% url 'siwak:mentee_feedback_history' %}"
@@ -61,44 +61,32 @@
         </button>
 
         <div x-show="open === {{ forloop.counter0 }}" x-transition x-cloak>
-          <div x-data="{ desc: false }" class="px-5 pb-5 sm:px-6 sm:pb-6">
+          <div class="px-5 pb-5 sm:px-6 sm:pb-6">
 
-            <button
-              type="button"
-              @click="desc = !desc"
-              :aria-expanded="desc.toString()"
-              class="inline-flex max-w-full items-center gap-2 rounded-lg bg-[#001B3D]
-                     px-3 py-2 text-xs sm:text-sm text-white
-                     shadow-[0_4px_10px_rgba(0,0,0,0.25)] transition hover:bg-[#0A2B52]
-                     focus:outline-none focus-visible:ring-4 focus-visible:ring-[#C79A3A]/50"
-            >
-              <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8l-5-5zM14 3v5h5" />
-              </svg>
-              <span class="text-left">Deskripsi {{ row.tugas.judul_tugas }}</span>
-            </button>
-
-            <p
-              x-show="desc" x-transition x-cloak
-              class="mt-3 whitespace-pre-line text-sm sm:text-base leading-relaxed text-[#333333]"
-            >{{ row.tugas.deskripsi }}</p>
+            <p class="whitespace-pre-line text-sm sm:text-base leading-relaxed text-[#333333]">{{ row.tugas.deskripsi }}</p>
 
             <hr class="mt-6 border-[#8A8A8A]">
 
-            <a
-              href="{% url 'siwak:tugas_detail' pk=row.tugas.pk %}"
-              class="mt-3 inline-flex max-w-full items-center gap-2 px-1 text-base sm:text-xl text-black
-                     hover:underline focus:outline-none focus-visible:ring-4 focus-visible:ring-[#C79A3A]/50"
-            >
-              <svg class="h-6 w-6 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8l-5-5zM14 3v5h5M12 17v-5m0 0l-2 2m2-2l2 2" />
-              </svg>
-              <span>Pengumpulan {{ row.tugas.judul_tugas }}</span>
-            </a>
+            <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <a
+                href="{% url 'siwak:tugas_detail' pk=row.tugas.pk %}"
+                class="inline-flex w-full items-center justify-center gap-3 rounded-xl bg-[#001B3D]
+                       px-6 py-3.5 text-base font-bold text-white
+                       shadow-[0_6px_16px_rgba(0,27,61,0.35)] transition
+                       hover:-translate-y-0.5 hover:bg-[#0A2B52]
+                       focus:outline-none focus-visible:ring-4 focus-visible:ring-[#C79A3A]/60
+                       sm:w-auto sm:text-lg"
+              >
+                <svg class="h-6 w-6 shrink-0 text-[#F2C14E]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v3a2 2 0 002 2h12a2 2 0 002-2v-3M12 15V4m0 0l-4 4m4-4l4 4" />
+                </svg>
+                <span>{% if row.submission %}Lihat / Edit Pengumpulan{% else %}Kumpulkan Tugas{% endif %}</span>
+              </a>
 
-            <p class="mt-2 px-1 text-xs sm:text-sm font-bold text-[#D00000]">
-              Due: {{ row.tugas.deadline|date:"j F Y" }}
-            </p>
+              <p class="text-xs sm:text-sm font-bold text-[#D00000]">
+                Due: {{ row.tugas.deadline|date:"j F Y" }}
+              </p>
+            </div>
 
           </div>
         </div>

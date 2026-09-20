@@ -256,19 +256,31 @@ def tugas_detail(request, pk):
                 logging.getLogger(__name__).exception("Gagal membersihkan upload tugas %s", name)
         raise
 
+    # Jawaban terurut per pertanyaan: dipakai tampilan read-only setelah deadline
+    # dan untuk menautkan berkas lama pada form edit sebelum deadline.
+    answers = (
+        list(
+            submission.answers.select_related("question", "selected_choice")
+            .order_by("question__urutan", "question_id")
+        )
+        if submission else []
+    )
+    answer_by_field = {f"question_{a.question_id}": a for a in answers}
+
     context = {
         "tugas": tugas,
         "submission": submission,
         "assignment_review": (
             getattr(submission, "mentor_review", None) if submission else None
         ),
-        # Jawaban terurut per pertanyaan untuk tampilan read-only setelah submit.
-        "answers": (
-            submission.answers.select_related("question", "selected_choice")
-            .order_by("question__urutan", "question_id")
-            if submission else []
-        ),
+        "answers": answers,
+        "form_rows": [
+            {"field": field, "answer": answer_by_field.get(field.name)}
+            for field in form
+        ],
         "is_past_deadline": is_past_deadline,
+        # Submission terkunci (read-only) hanya setelah deadline; sebelumnya bebas diedit.
+        "is_locked": bool(submission and is_past_deadline),
         "form": form,
         "can_submit": bool(form.fields) and not (submission and is_past_deadline),
     }

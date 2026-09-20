@@ -28,8 +28,8 @@
         {% csrf_token %}
         {{ form.non_field_errors }}
 
-        {% if submission %}
-        {# Sudah dikumpulkan: tampilkan jawaban apa adanya, tanpa upload/submit lagi. #}
+        {% if is_locked %}
+        {# Deadline lewat & sudah dikumpulkan: read-only. Sebelum deadline form tetap bisa diedit. #}
         {% for answer in answers %}
         <div class="mb-4 rounded-xl border border-[#D1D1D1] bg-white px-4 py-5 sm:px-6">
           <p class="text-lg font-bold text-black">{{ answer.question.pertanyaan }}</p>
@@ -46,22 +46,36 @@
         </div>
         {% endfor %}
         {% else %}
-        {% for field in form %}
+        {% if submission %}
+        <p class="mb-4 rounded-xl border border-[#C79A3A]/60 bg-white px-4 py-3 text-sm text-[#333333] sm:px-6">
+          Jawabanmu masih bisa diubah sampai deadline ({{ tugas.deadline|date:"j F Y H:i" }}). Simpan perubahan dengan menekan tombol di bawah.
+        </p>
+        {% endif %}
+        {% for row in form_rows %}
+        {% with field=row.field answer=row.answer %}
         <div class="mb-4 rounded-xl border border-[#D1D1D1] bg-white px-4 py-5 sm:px-6">
           <label for="{{ field.id_for_label }}" class="block text-lg font-bold text-black">{{ field.label }}</label>
           {% if field.field.widget.input_type == 'file' %}
+          {% if answer and answer.file_answer %}
+          <p class="mt-2 text-xs text-[#6B6B6B]">Berkas saat ini (tetap dipakai kecuali kamu memilih file baru):</p>
+          {% url 'siwak:answer_download' submission.pk answer.pk as answer_href %}
+          {% include 'siwak/_file_placeholder.html' with name=answer.file_answer|filename href=answer_href %}
+          {% include 'siwak/_upload_button.html' with field=field label="Ganti File" %}
+          {% else %}
           {% include 'siwak/_upload_button.html' with field=field %}
+          {% endif %}
           <p class="mt-2 text-xs text-[#6B6B6B]">PDF, DOCX, JPG, JPEG, PNG. Maksimum {{ tugas.max_file_size_mb }} MB.</p>
           {% else %}
           <div class="mt-1">{{ field }}</div>
           {% endif %}
           {% for error in field.errors %}<p class="mt-2 text-sm text-red-700">{{ error }}</p>{% endfor %}
         </div>
+        {% endwith %}
         {% endfor %}
 
         {% if can_submit %}
         <div class="flex justify-end pb-5 pt-1">
-          <button type="submit" class="rounded-lg bg-[#001B3D] px-5 py-2.5 text-sm font-medium text-white shadow-[0_4px_10px_rgba(0,0,0,0.25)] transition hover:bg-[#0A2B52] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#C79A3A]/50">Submit</button>
+          <button type="submit" class="rounded-lg bg-[#001B3D] px-5 py-2.5 text-sm font-medium text-white shadow-[0_4px_10px_rgba(0,0,0,0.25)] transition hover:bg-[#0A2B52] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#C79A3A]/50">{% if submission %}Simpan Perubahan{% else %}Submit{% endif %}</button>
         </div>
         {% endif %}
         {% endif %}
@@ -92,4 +106,11 @@
 
   </div>
 </section>
+<script>
+  // Jawaban teks yang sudah tersimpan: sesuaikan tinggi textarea dengan isinya.
+  document.querySelectorAll('textarea').forEach(function (el) {
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+  });
+</script>
 {% endblock %}
