@@ -33,11 +33,13 @@ from django.contrib import admin
 from django.db import transaction
 from django.test import Client, RequestFactory, TestCase, override_settings
 from django.urls import reverse
+from .forms import CariKelompokForm
 from .models import (
     Answer,
     AssessmentAspect,
     Choice,
     EventRSVP,
+    JURUSAN_CHOICES,
     KelompokMentoring,
     MahasiswaProfile,
     MenteeAssessment,
@@ -56,7 +58,12 @@ from .services.qrcode_service import (
     sign_payload,
     unsign_payload
 )
-from .sso import get_attribute, handle_cas_login, sync_mahasiswa_profile
+from .sso import (
+    KD_ORG_PROGRAM_MAP,
+    get_attribute,
+    handle_cas_login,
+    sync_mahasiswa_profile,
+)
 
 
 User = get_user_model()
@@ -92,6 +99,20 @@ class GetAttributeTests(TestCase):
         """Missing attributes and empty CAS lists should be treated as empty values."""
         self.assertEqual(get_attribute({}, "npm"), "")
         self.assertEqual(get_attribute({"npm": []}, "npm"), "")
+
+
+class JurusanChoiceTests(TestCase):
+    """Pilihan jurusan aktif harus konsisten di model, form, dan mapping SSO."""
+
+    def test_si_iup_is_not_available_in_model_or_search_form(self):
+        self.assertNotIn("SI-IUP", dict(JURUSAN_CHOICES))
+        self.assertNotIn("SI-IUP", dict(CariKelompokForm().fields["jurusan"].choices))
+
+    def test_sso_mapping_only_uses_supported_departments(self):
+        supported_departments = {value for value, _label in JURUSAN_CHOICES}
+
+        self.assertNotIn("SI-IUP", KD_ORG_PROGRAM_MAP.values())
+        self.assertLessEqual(set(KD_ORG_PROGRAM_MAP.values()), supported_departments)
 
 
 class SyncMahasiswaProfileTests(TestCase):
@@ -370,9 +391,11 @@ class AuthenticationProtectionTests(TestCase):
         self.client.force_login(mentee)
 
         daftar = self.client.get(reverse("siwak:tugas_list"))
-        self.assertContains(daftar, f'href="{reverse("siwak:landing")}"\n      aria-label="Kembali ke halaman SIWAK-NG"')
+        self.assertContains(daftar, f'href="{reverse("siwak:landing")}"')
+        self.assertContains(daftar, 'aria-label="Kembali ke halaman SIWAK-NG"')
         detail = self.client.get(reverse("siwak:tugas_detail", args=[tugas.pk]))
-        self.assertContains(detail, f'href="{reverse("siwak:tugas_list")}"\n      aria-label="Kembali ke daftar tugas"')
+        self.assertContains(detail, f'href="{reverse("siwak:tugas_list")}"')
+        self.assertContains(detail, 'aria-label="Kembali ke daftar tugas"')
 
     def test_navbar_shows_panel_admin_only_for_staff(self):
         panel = reverse("siwak:panel_beranda")
@@ -959,6 +982,18 @@ class KelompokSearchTests(TestCase):
         self.assertContains(response, "Kelompok 7")
         self.assertContains(response, "Kak Ahmad")
         self.assertContains(response, "https://chat.whatsapp.com/contoh")
+
+    def test_a_mentee_can_find_their_group_by_npm(self):
+        response = self._cari("2506000050")
+
+        self.assertEqual(response.context["result_state"], "found")
+        self.assertEqual(response.context["peserta"].nama_lengkap, "Aisyah Putri")
+        self.assertContains(response, "Kelompok 7")
+
+    def test_name_or_npm_still_has_to_match_the_selected_department(self):
+        response = self._cari("2506000050", jurusan="SI")
+
+        self.assertEqual(response.context["result_state"], "not_found")
 
     def test_a_mentor_is_not_found_as_if_they_were_a_participant(self):
         response = self._cari("Kak Ahmad")
@@ -2258,7 +2293,7 @@ class TugasUploadTests(TestCase):
         self.assertEqual(current.answers.get().text_answer, "Lama")
         self.assertFalse(self.client.get(self.url).context["can_submit"])
 
-    def test_submitted_page_is_read_only_with_file_placeholder(self):
+    def test_submitted_page_allows_editing_with_file_placeholder(self):
         text, choice, option, file = self.questions()
         data = {f"question_{text.pk}": "Refleksi lama", f"question_{choice.pk}": option.pk,
                 f"question_{file.pk}": self.upload("lampiran.pdf")}
@@ -2268,9 +2303,11 @@ class TugasUploadTests(TestCase):
         page = self.client.get(self.url)
         self.assertNotContains(page, "Upload File")
         self.assertNotContains(page, ">Submit</button>")
+        self.assertContains(page, "Ganti File")
+        self.assertContains(page, "Simpan Perubahan")
         self.assertContains(page, "Refleksi lama")
         self.assertContains(page, "Setuju")
-        self.assertContains(page, "lampiran.pdf")
+        self.assertContains(page, answer.file_answer.name.rsplit("/", 1)[-1])
         self.assertContains(page, reverse("siwak:answer_download", args=[submission.pk, answer.pk]))
 
     def test_answers_are_prefilled_and_files_can_be_retained(self):

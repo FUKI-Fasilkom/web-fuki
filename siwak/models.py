@@ -12,7 +12,6 @@ JURUSAN_CHOICES = [
     ("SI", "Sistem Informasi"),
     ("KA", "Kecerdasan Artifisial"),
     ("IK-IUP", "Ilmu Komputer (International Undergraduate Program)"),
-    ("SI-IUP", "Sistem Informasi (International Undergraduate Program)"),
 ]
 
 
