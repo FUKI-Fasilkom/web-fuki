@@ -103,9 +103,9 @@
     </div>
 
     {% comment %}
-      Mosaik 5 kotak abu-abu: placeholder prototipe sampai fotonya tersedia.
-      Design mobile dan desktop menyusunnya berbeda, jadi tiap kotak diberi nama
-      area (a-e) dan peta areanya saja yang berganti di breakpoint lg:
+      Mosaik 5 foto. Design mobile dan desktop menyusunnya berbeda, jadi tiap
+      foto diberi nama area (a-e) dan peta areanya saja yang berganti di
+      breakpoint lg:
 
         mobile        desktop
         a b b         a a a b b
@@ -115,19 +115,41 @@
       Rasio kolom & baris diukur dari Figma. Tinggi mosaik berasal dari
       aspect-ratio pembungkusnya, lalu dibagi ke tiap baris lewat satuan fr.
       max-w-md mencegah mosaik membengkak di tablet, saat masih satu kolom.
-      Saat foto siap, isi tiap kotak dengan <img class="w-full h-full object-cover">
-      dan tambahkan overflow-hidden pada kotaknya.
+
+      Fotonya tidak diberi loading="lazy": mosaik ini tepat di bawah hero, jadi
+      sudah terlihat begitu pengunjung menggulir sedikit. Menundanya hanya
+      menyisakan petak abu persis saat orang sampai ke sini.
+
+      Fotonya sengaja ditulis langsung di template, bukan diambil dari model:
+      mosaik ini bagian dari design beranda, bukan galeri yang berganti isi.
+      Tiap petak rasionya beda dan ikut berubah di breakpoint, jadi object-cover
+      yang memotong — karena itu fotonya perlu yang subjeknya di tengah.
     {% endcomment %}
     <div aria-hidden="true"
          class="grid w-full max-w-md mx-auto gap-2 aspect-[207/185] grid-cols-[4fr_3fr_3fr] grid-rows-3
                 [grid-template-areas:'a_b_b'_'a_c_c'_'a_d_e']
                 lg:max-w-none lg:gap-2.5 lg:aspect-[382/358] lg:grid-cols-5 lg:grid-rows-[124fr_124fr_97fr]
                 lg:[grid-template-areas:'a_a_a_b_b'_'c_c_d_d_d'_'e_e_e_e_e']">
-      <div class="[grid-area:a] rounded-lg lg:rounded-xl bg-[#D9D9D9]"></div>
-      <div class="[grid-area:b] rounded-lg lg:rounded-xl bg-[#D9D9D9]"></div>
-      <div class="[grid-area:c] rounded-lg lg:rounded-xl bg-[#D9D9D9]"></div>
-      <div class="[grid-area:d] rounded-lg lg:rounded-xl bg-[#D9D9D9]"></div>
-      <div class="[grid-area:e] rounded-lg lg:rounded-xl bg-[#D9D9D9]"></div>
+      <div class="[grid-area:a] overflow-hidden rounded-lg lg:rounded-xl bg-[#D9D9D9]">
+        <img src="{% static 'images/beranda1.jpg' %}" alt="" decoding="async"
+             class="h-full w-full object-cover" />
+      </div>
+      <div class="[grid-area:b] overflow-hidden rounded-lg lg:rounded-xl bg-[#D9D9D9]">
+        <img src="{% static 'images/beranda2.jpg' %}" alt="" decoding="async"
+             class="h-full w-full object-cover" />
+      </div>
+      <div class="[grid-area:c] overflow-hidden rounded-lg lg:rounded-xl bg-[#D9D9D9]">
+        <img src="{% static 'images/beranda3.jpg' %}" alt="" decoding="async"
+             class="h-full w-full object-cover" />
+      </div>
+      <div class="[grid-area:d] overflow-hidden rounded-lg lg:rounded-xl bg-[#D9D9D9]">
+        <img src="{% static 'images/beranda4.jpg' %}" alt="" decoding="async"
+             class="h-full w-full object-cover" />
+      </div>
+      <div class="[grid-area:e] overflow-hidden rounded-lg lg:rounded-xl bg-[#D9D9D9]">
+        <img src="{% static 'images/beranda5.jpg' %}" alt="" decoding="async"
+             class="h-full w-full object-cover" />
+      </div>
     </div>
   </div>
 </section>
