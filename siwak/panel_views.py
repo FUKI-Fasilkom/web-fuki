@@ -655,6 +655,24 @@ def panel_rsvp_status(request, pk):
 
 @staf_required
 @require_POST
+def panel_rsvp_hapus(request, pk):
+    """Hapus satu baris RSVP dari daftar peserta acara.
+
+    Peserta yang RSVP-nya dihapus bisa mendaftar lagi selama RSVP acara masih
+    dibuka; QR lamanya tidak berlaku lagi karena barisnya sudah tidak ada.
+    """
+    rsvp = get_object_or_404(EventRSVP.objects.select_related("user__mahasiswa_profile"), pk=pk)
+    cadangan = reverse("siwak:panel_rsvp", args=[rsvp.event_id])
+
+    profil = getattr(rsvp.user, "mahasiswa_profile", None)
+    nama = profil.nama_lengkap if profil else rsvp.user.username
+    rsvp.delete()
+    messages.success(request, f"RSVP {nama} berhasil dihapus.")
+    return _kembali(request, cadangan)
+
+
+@staf_required
+@require_POST
 def panel_rsvp_toggle(request, pk):
     """Buka/tutup RSVP langsung dari daftar acara, tanpa membuka form ubah.
 
