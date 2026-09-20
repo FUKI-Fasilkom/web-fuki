@@ -13,7 +13,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
-from .forms import CariKelompokForm, RSVPForm, TugasAnswerForm, TugasSubmissionForm
+from .forms import CariKelompokForm, RSVPForm, TugasAnswerForm
 from .models import (
     EventRSVP,
     FAQMentoring,
@@ -27,6 +27,7 @@ from .models import (
     SiwakInfo,
     TimelineEvent,
     Tugas,
+    TugasSubmission,
 )
 from .services.qrcode_service import (
     kupon_qr_data_uri,
@@ -225,16 +226,15 @@ def tugas_detail(request, pk):
 
             data = request.POST if request.method == "POST" else None
             files = request.FILES if request.method == "POST" else None
-            submission_form = TugasSubmissionForm(data, files, tugas=tugas, instance=submission)
             form = TugasAnswerForm(data, files, tugas=tugas, submission=submission)
             if request.method == "POST":
-                main_valid = submission_form.is_valid()
-                answers_valid = form.is_valid()
-                if main_valid and answers_valid:
-                    submission = submission_form.save(commit=False)
-                    submission.tugas = tugas
-                    submission.user = request.user
-                    _save_tugas_upload(submission, "file", uploaded_files)
+                # Tanpa pertanyaan tidak ada yang bisa dikumpulkan.
+                if not form.fields:
+                    return redirect("siwak:tugas_detail", pk=pk)
+                if form.is_valid():
+                    if submission is None:
+                        submission = TugasSubmission(tugas=tugas, user=request.user)
+                    submission.save()
 
                     for question in tugas.questions.all():
                         value = form.cleaned_data[f"question_{question.pk}"]
@@ -262,10 +262,15 @@ def tugas_detail(request, pk):
         "assignment_review": (
             getattr(submission, "mentor_review", None) if submission else None
         ),
+        # Jawaban terurut per pertanyaan untuk tampilan read-only setelah submit.
+        "answers": (
+            submission.answers.select_related("question", "selected_choice")
+            .order_by("question__urutan", "question_id")
+            if submission else []
+        ),
         "is_past_deadline": is_past_deadline,
         "form": form,
-        "submission_form": submission_form,
-        "can_submit": not (submission and is_past_deadline),
+        "can_submit": bool(form.fields) and not (submission and is_past_deadline),
     }
 
     return render(request, "siwak/tugas_detail.html", context)

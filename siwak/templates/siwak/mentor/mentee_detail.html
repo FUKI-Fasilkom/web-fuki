@@ -136,9 +136,6 @@
           {% if item.submission %}
           <div class="mt-4 flex flex-wrap items-center gap-3 text-xs text-slate-500">
             <span>Dikumpulkan {{ item.submission.submitted_at|date:"d M Y H:i" }}</span>
-            {% if item.submission.file %}
-            <a href="{% url 'siwak:submission_download' submission_id=item.submission.pk %}" class="font-bold text-navy hover:underline">Unduh berkas tugas</a>
-            {% else %}<span>Berkas utama belum tersedia.</span>{% endif %}
           </div>
           {% include 'siwak/mentor/_submission_answers.html' with submission=item.submission only %}
           <form method="post" class="mt-5 space-y-4">

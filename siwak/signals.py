@@ -4,7 +4,7 @@ from django.db import transaction
 from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver
 
-from .models import Answer, GaleriFoto, KelompokMentoring, MentoringSession, TugasSubmission
+from .models import Answer, GaleriFoto, KelompokMentoring, MentoringSession
 
 
 @receiver(post_save, sender=KelompokMentoring)
@@ -44,19 +44,15 @@ def hapus_file_galeri(sender, instance, using, **kwargs):
 
 
 def delete_unused_tugas_file(storage, name, using):
-    """Periksa kedua pemilik file sebelum menghapus objek dari storage."""
-    if name and not (
-        TugasSubmission.objects.using(using).filter(file=name).exists()
-        or Answer.objects.using(using).filter(file_answer=name).exists()
-    ):
+    """Jangan hapus file yang masih dipakai jawaban lain."""
+    if name and not Answer.objects.using(using).filter(file_answer=name).exists():
         storage.delete(name)
 
 
-@receiver(pre_save, sender=TugasSubmission)
 @receiver(pre_save, sender=Answer)
 def remember_replaced_tugas_file(sender, instance, using, raw=False, update_fields=None, **kwargs):
     instance._old_tugas_file = None
-    field = "file" if sender is TugasSubmission else "file_answer"
+    field = "file_answer"
     if raw or not instance.pk or (update_fields is not None and field not in update_fields):
         return
     previous = sender.objects.using(using).filter(pk=instance.pk).first()
@@ -66,7 +62,6 @@ def remember_replaced_tugas_file(sender, instance, using, raw=False, update_fiel
         instance._old_tugas_file = (old_file.storage, old_file.name)
 
 
-@receiver(post_save, sender=TugasSubmission)
 @receiver(post_save, sender=Answer)
 def delete_replaced_tugas_file(sender, instance, using, raw=False, **kwargs):
     previous = getattr(instance, "_old_tugas_file", None)
@@ -78,10 +73,9 @@ def delete_replaced_tugas_file(sender, instance, using, raw=False, **kwargs):
     instance._old_tugas_file = None
 
 
-@receiver(post_delete, sender=TugasSubmission)
 @receiver(post_delete, sender=Answer)
 def delete_tugas_file(sender, instance, using, **kwargs):
-    file = instance.file if sender is TugasSubmission else instance.file_answer
+    file = instance.file_answer
     if file:
         storage, name = file.storage, file.name
         transaction.on_commit(

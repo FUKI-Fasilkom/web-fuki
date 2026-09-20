@@ -4,8 +4,6 @@ from io import BytesIO
 
 from django.contrib import admin
 from django.http import HttpResponse
-from django.urls import reverse
-from django.utils.html import format_html
 from django.utils.text import slugify
 
 from .models import (
@@ -173,16 +171,17 @@ class TugasAdmin(admin.ModelAdmin):
 
     @admin.action(description="Download seluruh submission (ZIP)")
     def download_all_submissions(self, request, queryset):
-        """PRD 5.1 Admin Features: 'Download seluruh submission.'"""
+        """PRD 5.1 Admin Features: 'Download seluruh submission.' (lampiran jawaban)."""
         buffer = BytesIO()
         with zipfile.ZipFile(buffer, "w") as zf:
             for tugas in queryset:
-                for sub in tugas.submissions.select_related("user"):
-                    if not sub.file:
-                        continue
-                    folder = f"{tugas.pk}-{slugify(tugas.judul_tugas) or 'tugas'}"
-                    arcname = f"{folder}/{sub.pk}_{sub.file.name.split('/')[-1]}"
-                    with sub.file.open("rb") as fh:
+                folder = f"{tugas.pk}-{slugify(tugas.judul_tugas) or 'tugas'}"
+                answers = Answer.objects.filter(
+                    submission__tugas=tugas
+                ).exclude(file_answer="").exclude(file_answer=None)
+                for answer in answers:
+                    arcname = f"{folder}/{answer.submission_id}_{answer.pk}_{answer.file_answer.name.split('/')[-1]}"
+                    with answer.file_answer.open("rb") as fh:
                         zf.writestr(arcname, fh.read())
         buffer.seek(0)
         response = HttpResponse(buffer.read(), content_type="application/zip")
@@ -355,19 +354,13 @@ class TugasSubmissionAdmin(admin.ModelAdmin):
     """Standalone selain inline di TugasAdmin, supaya relasi Answer &
     AssignmentReview bisa ditelusuri dari satu submission."""
 
-    list_display = ["tugas", "user", "status", "berkas_tugas", "nilai", "jumlah_jawaban", "submitted_at"]
+    list_display = ["tugas", "user", "status", "nilai", "jumlah_jawaban", "submitted_at"]
     list_filter = ["status", "tugas"]
     search_fields = ["tugas__judul_tugas", "user__username", "user__mahasiswa_profile__nama_lengkap"]
     autocomplete_fields = ["tugas"]
     list_select_related = ["tugas", "user"]
     readonly_fields = ["status", "submitted_at"]
     inlines = [AnswerInline, AssignmentReviewInline]
-
-    @admin.display(description="Berkas tugas")
-    def berkas_tugas(self, obj):
-        if not obj.file:
-            return "-"
-        return format_html('<a href="{}">Unduh berkas</a>', reverse("siwak:submission_download", args=[obj.pk]))
 
     @admin.display(description="Nilai")
     def nilai(self, obj):

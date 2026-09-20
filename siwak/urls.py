@@ -22,14 +22,8 @@ urlpatterns = [
     path("tugas/<int:pk>/", views.tugas_detail, name="tugas_detail"),
     path("feedback/", mentor_views.mentee_feedback_history, name="mentee_feedback_history"),
     path(
-        "submission/<int:submission_id>/download/",
-        mentor_views.submission_download,
-        name="submission_download",
-    ),
-
-    path(
         "submission/<int:submission_id>/answer/<int:answer_id>/download/",
-        mentor_views.submission_download,
+        mentor_views.answer_download,
         name="answer_download",
     ),
 

@@ -8,7 +8,6 @@ from .models import (
     EventRSVP,
     Question,
     Tugas,
-    TugasSubmission,
 )
 
 INPUT_CLASSES = (
@@ -44,25 +43,6 @@ def validate_tugas_file(file, tugas):
     if file.size > limit * 1024 * 1024:
         raise ValidationError(f"Ukuran file melebihi batas {limit} MB.")
     return file
-
-
-class TugasSubmissionForm(forms.ModelForm):
-    class Meta:
-        model = TugasSubmission
-        fields = ["file"]
-        widgets = {
-            "file": forms.FileInput(attrs={
-                "class": INPUT_CLASSES,
-                "accept": ".pdf,.docx,.jpg,.jpeg,.png",
-            }),
-        }
-
-    def __init__(self, *args, tugas: Tugas = None, **kwargs):
-        self.tugas = tugas
-        super().__init__(*args, **kwargs)
-
-    def clean_file(self):
-        return validate_tugas_file(self.cleaned_data["file"], self.tugas)
 
 
 class RSVPForm(forms.ModelForm):
@@ -129,11 +109,18 @@ class TugasAnswerForm(forms.Form):
                 self.fields[field_name] = forms.CharField(
                     label=question.pertanyaan,
                     required=True,
+                    # Gaya "garis bawah" ala Figma; tinggi menyesuaikan isi.
                     widget=forms.Textarea(
                         attrs={
-                            "rows": 5,
-                            "class": INPUT_CLASSES,
+                            "rows": 1,
+                            "class": (
+                                "block w-full resize-none overflow-hidden border-0 "
+                                "border-b border-[#8A8A8A] bg-transparent px-0 py-1 "
+                                "text-base text-black placeholder-[#9A9A9A] "
+                                "focus:border-[#001B3D] focus:outline-none focus:ring-0"
+                            ),
                             "placeholder": "Tulis jawaban kamu...",
+                            "oninput": "this.style.height='auto';this.style.height=this.scrollHeight+'px'",
                         }
                     ),
                 )
@@ -155,6 +142,7 @@ class TugasAnswerForm(forms.Form):
                     required=True,
                     widget=forms.FileInput(
                         attrs={
+                            "class": "sr-only",
                             "accept": ".pdf,.docx,.jpg,.jpeg,.png",
                         }
                     ),

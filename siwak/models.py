@@ -480,6 +480,8 @@ class FAQMentoring(models.Model):
 
 
 def tugas_upload_path(instance, filename):
+    # Tidak dipakai lagi (berkas utama dihapus), tetap ada karena direferensikan
+    # migrasi 0001.
     return f"siwak/tugas/{instance.tugas_id}/{instance.user_id}/{filename}"
 
 
@@ -559,7 +561,6 @@ class TugasSubmission(models.Model):
 
     tugas = models.ForeignKey(Tugas, on_delete=models.CASCADE, related_name="submissions")
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="tugas_submissions")
-    file = models.FileField(upload_to=tugas_upload_path)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="submitted")
     submitted_at = models.DateTimeField(auto_now=True)
 

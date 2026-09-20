@@ -396,7 +396,7 @@ def mentee_feedback_history(request):
 
 
 @login_required
-def submission_download(request, submission_id, answer_id=None):
+def answer_download(request, submission_id, answer_id):
     submission = get_object_or_404(
         TugasSubmission.objects.select_related("user", "tugas"),
         pk=submission_id,
@@ -417,9 +417,7 @@ def submission_download(request, submission_id, answer_id=None):
     )
     if not (is_owner or is_responsible_mentor or request.user.is_staff):
         raise Http404
-    file = submission.file
-    if answer_id is not None:
-        file = get_object_or_404(submission.answers, pk=answer_id).file_answer
+    file = get_object_or_404(submission.answers, pk=answer_id).file_answer
     if not file:
         raise Http404
 

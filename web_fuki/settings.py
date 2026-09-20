@@ -83,7 +83,7 @@ INSTALLED_APPS = [
 
 # 5.1 (Submission Rules: "File size limit"). Applies to every upload in the
 # project; SIWAK task uploads additionally enforce a per-Tugas limit in
-# siwak/forms.py::TugasSubmissionForm.clean_file.
+# siwak/forms.py::validate_tugas_file.
 DATA_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024  # 20 MB
 FILE_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024
 

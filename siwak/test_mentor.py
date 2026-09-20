@@ -11,6 +11,7 @@ from django.utils import timezone
 from .models import (
     AssignmentReview,
     AssignmentReviewHistory,
+    Answer,
     AssessmentAspect,
     KelompokMentoring,
     MahasiswaProfile,
@@ -18,6 +19,7 @@ from .models import (
     MentoringAttendance,
     MentoringSession,
     MentorFeedback,
+    Question,
     Tugas,
     TugasSubmission,
 )
@@ -109,12 +111,23 @@ class MentorFeatureTests(TestCase):
         self.submission = TugasSubmission.objects.create(
             tugas=self.task,
             user=self.mentee_user,
-            file=SimpleUploadedFile("jawaban.pdf", b"test answer", content_type="application/pdf"),
         )
         self.other_submission = TugasSubmission.objects.create(
             tugas=self.task,
             user=self.other_mentee_user,
-            file=SimpleUploadedFile("jawaban-lain.pdf", b"other answer", content_type="application/pdf"),
+        )
+        self.file_question = Question.objects.create(
+            tugas=self.task, pertanyaan="Lampiran", tipe="file"
+        )
+        self.answer = Answer.objects.create(
+            submission=self.submission,
+            question=self.file_question,
+            file_answer=SimpleUploadedFile("jawaban.pdf", b"test answer", content_type="application/pdf"),
+        )
+        Answer.objects.create(
+            submission=self.other_submission,
+            question=self.file_question,
+            file_answer=SimpleUploadedFile("jawaban-lain.pdf", b"other answer", content_type="application/pdf"),
         )
 
     def test_non_mentor_cannot_open_mentor_dashboard(self):
@@ -376,8 +389,11 @@ class MentorFeatureTests(TestCase):
             ).exists()
         )
 
-    def test_submission_download_allows_owner_and_responsible_mentor_only(self):
-        url = reverse("siwak:submission_download", kwargs={"submission_id": self.submission.pk})
+    def test_answer_download_allows_owner_and_responsible_mentor_only(self):
+        url = reverse(
+            "siwak:answer_download",
+            kwargs={"submission_id": self.submission.pk, "answer_id": self.answer.pk},
+        )
 
         self.client.force_login(self.mentee_user)
         self.assertEqual(self.client.get(url).status_code, 200)
@@ -391,7 +407,7 @@ class MentorFeatureTests(TestCase):
     def test_submission_file_is_not_public_through_media_url(self):
         self.client.force_login(self.mentee_user)
 
-        response = self.client.get(self.submission.file.url)
+        response = self.client.get(self.answer.file_answer.url)
 
         self.assertEqual(response.status_code, 404)
 
@@ -484,20 +500,30 @@ class MentorFeatureTests(TestCase):
         ungrouped_submission = TugasSubmission.objects.create(
             tugas=self.task,
             user=ungrouped_user,
-            file=SimpleUploadedFile("rahasia.pdf", b"secret", content_type="application/pdf"),
+        )
+        ungrouped_answer = Answer.objects.create(
+            submission=ungrouped_submission,
+            question=self.file_question,
+            file_answer=SimpleUploadedFile("rahasia.pdf", b"secret", content_type="application/pdf"),
         )
         self.mentor.kelompok = None
         self.mentor.save(update_fields=["kelompok"])
 
         self.client.force_login(self.mentor_user)
         response = self.client.get(
-            reverse("siwak:submission_download", kwargs={"submission_id": ungrouped_submission.pk})
+            reverse(
+                "siwak:answer_download",
+                kwargs={"submission_id": ungrouped_submission.pk, "answer_id": ungrouped_answer.pk},
+            )
         )
 
         self.assertEqual(response.status_code, 404)
 
     def test_mentor_of_another_group_cannot_download_submission(self):
-        url = reverse("siwak:submission_download", kwargs={"submission_id": self.submission.pk})
+        url = reverse(
+            "siwak:answer_download",
+            kwargs={"submission_id": self.submission.pk, "answer_id": self.answer.pk},
+        )
 
         self.client.force_login(self.other_mentor_user)
 

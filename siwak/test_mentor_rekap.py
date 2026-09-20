@@ -3,7 +3,6 @@ import shutil
 import tempfile
 
 from django.contrib.auth import get_user_model
-from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -79,7 +78,6 @@ class MentorRekapPagesTests(TestCase):
         return TugasSubmission.objects.create(
             tugas=task,
             user=profile.user,
-            file=SimpleUploadedFile("j.pdf", b"x", content_type="application/pdf"),
         )
 
     def test_dashboard_buttons_precede_daftar_mentee_in_order(self):
@@ -265,10 +263,6 @@ class MentorRekapPagesTests(TestCase):
         self.assertContains(response, "Ani Mentee")
         self.assertContains(response, "Refleksi Pekan 1")
         self.assertNotContains(response, "Orang Luar")
-        self.assertContains(
-            response,
-            reverse("siwak:submission_download", kwargs={"submission_id": self.sub_ani.pk}),
-        )
         self.assertNotContains(response, "Budi Mentee")  # belum mengumpulkan
 
         self.assertContains(self.client.get(url, {"q": "zzz"}), "Tidak ada submission")

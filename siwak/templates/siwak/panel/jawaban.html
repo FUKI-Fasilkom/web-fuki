@@ -80,16 +80,6 @@
     </summary>
 
     <div class="space-y-4 border-t border-gold-light/70 px-4 py-4">
-      {% if item.obj.file %}
-      <div>
-        <p class="text-xs font-semibold uppercase tracking-wide text-navy-400">Berkas unggahan</p>
-        <a href="{% url 'siwak:submission_download' item.obj.pk %}"
-           class="mt-1 inline-flex min-h-[38px] items-center rounded-xl border-2 border-navy px-4 text-xs font-bold text-navy transition hover:bg-cream-300">
-          Unduh berkas
-        </a>
-      </div>
-      {% endif %}
-
       {% for pasangan in item.jawaban %}
       <div>
         <p class="text-sm font-semibold text-navy">{{ forloop.counter }}. {{ pasangan.pertanyaan.pertanyaan }}</p>
@@ -106,7 +96,7 @@
       </div>
       {% empty %}
       <p class="rounded-xl border-2 border-dashed border-gold-light px-4 py-3 text-sm text-navy-400">
-        Tugas ini belum punya pertanyaan, jadi yang dikumpulkan hanya berkas.
+        Tugas ini belum punya pertanyaan, jadi tidak ada yang bisa dikumpulkan.
       </p>
       {% endfor %}
     </div>

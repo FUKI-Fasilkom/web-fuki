@@ -28,157 +28,77 @@
       </a>
     </div>
 
-    <div x-data="{ open: 0 }" class="space-y-5">
-
-
+    <div x-data="{ open: 0 }" class="space-y-4 sm:space-y-6">
 
       {% for row in rows %}
       <article
-        class="overflow-hidden rounded-2xl sm:rounded-3xl
-               shadow-[0_8px_24px_rgba(0,0,0,0.12)]
-               transition-all duration-300"
-        :class="open === {{ forloop.counter0 }}
-          ? 'bg-[#F6FAEB] ring-2 ring-[#C79A3A]'
-          : 'bg-[#001B3D]'"
+        class="overflow-hidden rounded-xl border bg-[#FAF3DF]
+               shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition-all duration-300"
+        :class="open === {{ forloop.counter0 }} ? 'border-black' : 'border-[#8A8A8A]'"
       >
 
         <button
           type="button"
           @click="open = open === {{ forloop.counter0 }} ? null : {{ forloop.counter0 }}"
           :aria-expanded="(open === {{ forloop.counter0 }}).toString()"
-          class="w-full flex items-center justify-between gap-4
-                 px-5 py-5 sm:px-7 sm:py-6
+          class="flex w-full items-center justify-between gap-4
+                 px-5 py-5 sm:px-6 sm:py-7
                  text-left focus:outline-none
-                 focus-visible:ring-4 focus-visible:ring-[#E0BE6B]/60"
+                 focus-visible:ring-4 focus-visible:ring-[#C79A3A]/50"
         >
-
-          <div class="min-w-0 flex-1">
-            <p
-              class="text-base sm:text-xl font-bold transition-colors"
-              :class="open === {{ forloop.counter0 }}
-                ? 'text-[#001B3D]'
-                : 'text-white'"
-            >
-              {{ row.tugas.judul_tugas }}
-            </p>
-
-            <div class="flex flex-wrap items-center gap-2 mt-3">
-
-              <span
-                class="inline-flex items-center rounded-full
-                       px-3 py-1 text-[10px] sm:text-xs font-semibold
-                    {% if row.status == 'Submitted' %}
-                         bg-[#A6CE39] text-[#281F0C]
-                       {% elif row.status == 'Late' %}
-                         bg-[#E0BE6B] text-[#281F0C]
-                       {% else %}
-                         bg-[#FAF5E3] text-[#001B3D]
-                       {% endif %}"
-              >
-                {% if row.status == 'Submitted' %}Sudah dikumpulkan{% elif row.status == 'Late' %}Dikumpulkan terlambat{% else %}Belum dikumpulkan{% endif %}
-              </span>
-
-              <span
-                class="inline-flex items-center rounded-full
-                       border px-3 py-1 text-[10px] sm:text-xs
-                       transition-colors"
-                :class="open === {{ forloop.counter0 }}
-                  ? 'border-[#001B3D]/30 text-[#4A4A4A]'
-                  : 'border-white/40 text-white'"
-              >
-                Due: {{ row.tugas.deadline|date:"j F Y" }}
-              </span>
-
-            </div>
-          </div>
+          <p
+            class="min-w-0 text-base sm:text-3xl font-bold transition-colors"
+            :class="open === {{ forloop.counter0 }} ? 'text-black' : 'text-[#858585]'"
+          >{{ row.tugas.judul_tugas }}</p>
 
           <svg
             class="h-5 w-5 sm:h-6 sm:w-6 shrink-0 transition-transform duration-300"
-            :class="[
-              open === {{ forloop.counter0 }} ? 'rotate-180' : '',
-              open === {{ forloop.counter0 }} ? 'text-[#001B3D]' : 'text-white'
-            ]"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-            aria-hidden="true"
+            :class="open === {{ forloop.counter0 }} ? 'rotate-180 text-black' : 'text-[#858585]'"
+            fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"
           >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M19 9l-7 7-7-7"
-            />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
           </svg>
-
         </button>
 
-        <div
-          x-show="open === {{ forloop.counter0 }}"
-          x-transition
-          x-cloak
-          class="border-t border-[#DDE8C8]"
-        >
+        <div x-show="open === {{ forloop.counter0 }}" x-transition x-cloak>
+          <div x-data="{ desc: false }" class="px-5 pb-5 sm:px-6 sm:pb-6">
 
-          <div class="px-5 py-6 sm:px-7 sm:py-7">
+            <button
+              type="button"
+              @click="desc = !desc"
+              :aria-expanded="desc.toString()"
+              class="inline-flex max-w-full items-center gap-2 rounded-lg bg-[#001B3D]
+                     px-3 py-2 text-xs sm:text-sm text-white
+                     shadow-[0_4px_10px_rgba(0,0,0,0.25)] transition hover:bg-[#0A2B52]
+                     focus:outline-none focus-visible:ring-4 focus-visible:ring-[#C79A3A]/50"
+            >
+              <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8l-5-5zM14 3v5h5" />
+              </svg>
+              <span class="text-left">Deskripsi {{ row.tugas.judul_tugas }}</span>
+            </button>
 
-            {% if row.tugas.deskripsi %}
-            <div class="mb-6">
-              <h3 class="text-sm sm:text-base font-bold text-[#001B3D] mb-2">
-                Deskripsi Tugas
-              </h3>
+            <p
+              x-show="desc" x-transition x-cloak
+              class="mt-3 whitespace-pre-line text-sm sm:text-base leading-relaxed text-[#333333]"
+            >{{ row.tugas.deskripsi }}</p>
 
-              <p class="text-sm sm:text-base leading-relaxed text-[#333333] whitespace-pre-line">
-                {{ row.tugas.deskripsi }}
-              </p>
-            </div>
-            {% endif %}
+            <hr class="mt-6 border-[#8A8A8A]">
 
-            <div class="mb-6 rounded-xl bg-[#FAF5E3] p-4">
-              <p class="text-xs text-[#7A6425] font-medium">
-                Deadline
-              </p>
+            <a
+              href="{% url 'siwak:tugas_detail' pk=row.tugas.pk %}"
+              class="mt-3 inline-flex max-w-full items-center gap-2 px-1 text-base sm:text-xl text-black
+                     hover:underline focus:outline-none focus-visible:ring-4 focus-visible:ring-[#C79A3A]/50"
+            >
+              <svg class="h-6 w-6 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8l-5-5zM14 3v5h5M12 17v-5m0 0l-2 2m2-2l2 2" />
+              </svg>
+              <span>Pengumpulan {{ row.tugas.judul_tugas }}</span>
+            </a>
 
-              <p class="mt-1 text-sm sm:text-base font-bold text-[#281F0C]">
-                {{ row.tugas.deadline|date:"j F Y, H:i" }}
-              </p>
-            </div>
-
-            <div class="flex justify-end">
-              <a
-                href="{% url 'siwak:tugas_detail' pk=row.tugas.pk %}"
-                class="inline-flex min-h-11 items-center justify-center
-                       gap-2 rounded-lg
-                       bg-gradient-to-r from-[#E0BE6B] to-[#C79A3A]
-                       px-5 py-3
-                       text-sm font-semibold text-[#281F0C]
-                       shadow-lg
-                       hover:brightness-105
-                       focus:outline-none
-                       focus-visible:ring-4
-                       focus-visible:ring-[#C79A3A]/40
-                       transition"
-              >
-                <span>
-                  {% if row.submission %}Lihat Pengumpulan{% else %}Buka Tugas{% endif %}
-                </span>
-
-                <svg
-                  class="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  aria-hidden="true"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M13 7l5 5-5 5M6 12h12"
-                  />
-                </svg>
-              </a>
-            </div>
+            <p class="mt-2 px-1 text-xs sm:text-sm font-bold text-[#D00000]">
+              Due: {{ row.tugas.deadline|date:"j F Y" }}
+            </p>
 
           </div>
         </div>
@@ -187,7 +107,7 @@
 
       {% empty %}
 
-      <div class="rounded-2xl bg-[#FAF5E3] p-8 text-center shadow-sm">
+      <div class="rounded-xl bg-[#FAF3DF] p-8 text-center shadow-sm">
         <p class="text-sm sm:text-base text-[#4A4A4A]">
           Belum ada tugas aktif saat ini.
         </p>

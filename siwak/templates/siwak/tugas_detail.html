@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load siwak_extras %}
 {% block title %}{{ tugas.judul_tugas }}{% endblock %}
 {% block content %}
 {% include 'siwak/_messages.html' %}
@@ -7,68 +8,88 @@
   {% url 'siwak:tugas_list' as tugas_list_url %}
   {% include 'siwak/_back_button.html' with href=tugas_list_url label="Kembali ke daftar tugas" %}
 </div>
-<section class="bg-[#F9F8F5] min-h-screen px-5 py-8 sm:px-8 sm:py-12">
-  <div class="mx-auto w-full max-w-[1000px] overflow-hidden rounded-xl border border-[#BDBDBD] bg-[#FAF5E3] shadow-lg">
-    <div class="px-5 py-5 sm:px-7">
-      <p class="text-xs font-semibold uppercase tracking-wide text-[#7A6425]">Detail Tugas</p>
-      <h1 class="mt-1 text-xl font-bold text-[#001B3D]">{{ tugas.judul_tugas }}</h1>
-      <div class="mt-3 whitespace-pre-line">{{ tugas.deskripsi }}</div>
-      <p class="mt-3 font-semibold">Deadline: {{ tugas.deadline|date:"j F Y H:i" }}</p>
-      {% if submission %}
-      <p class="mt-2">Status: <strong>{{ submission.get_status_display }}</strong> &middot; {{ submission.submitted_at|date:"j F Y H:i" }}</p>
-      {% if submission.file %}
-      <a class="mt-2 inline-block font-semibold underline" href="{% url 'siwak:submission_download' submission.pk %}">Unduh berkas tugas</a>
-      {% endif %}
-      {% endif %}
-      {% for answer in submission.answers.all %}
-      {% if answer.file_answer %}
-      <p class="mt-2"><a class="underline" href="{% url 'siwak:answer_download' submission.pk answer.pk %}">Unduh lampiran: {{ answer.question.pertanyaan }}</a></p>
-      {% endif %}
-      {% endfor %}
-      {% if is_past_deadline %}
-      <p class="mt-3 text-red-700">Deadline sudah lewat. Pengumpulan pertama tetap diterima sebagai Late. Submission yang sudah dikirim tidak dapat diubah.</p>
-      {% else %}
-      <p class="mt-3 text-sm">Kamu dapat mengganti berkas dan jawaban sebelum deadline.</p>
-      {% endif %}
-    </div>
-    {% if assignment_review %}
-    <div class="mx-5 mb-5 rounded-xl border border-[#D1D1D1] bg-white p-5 sm:mx-7">
-      <p class="font-bold">Penilaian Mentor: {{ assignment_review.score }}/100</p>
-      <p class="mt-2 whitespace-pre-line">{{ assignment_review.feedback }}</p>
-      <p class="mt-2 text-sm">{{ assignment_review.reviewer.nama_lengkap|default:"Mentor" }} &middot; {{ assignment_review.updated_at|date:"d M Y H:i" }}</p>
-    </div>
-    {% endif %}
-    <form method="post" enctype="multipart/form-data" class="border-t border-[#D1D1D1] px-5 py-5 sm:px-7">
-      {% csrf_token %}
-      <h2 class="mb-4 text-lg font-bold text-[#001B3D]">{% if submission %}Jawaban Kamu{% else %}Form Pengumpulan{% endif %}</h2>
-      {{ submission_form.non_field_errors }}
-      {{ form.non_field_errors }}
-      <fieldset {% if not can_submit %}disabled{% endif %}>
-        <div class="mb-5 rounded-xl border border-[#D1D1D1] bg-white p-5">
-          <label for="{{ submission_form.file.id_for_label }}" class="mb-3 block font-bold">Berkas tugas utama (wajib)</label>
-          {{ submission_form.file }}
-          {% if submission.file %}<p class="mt-2 text-sm">Biarkan kosong untuk mempertahankan berkas saat ini.</p>{% endif %}
-          <p class="mt-2 text-sm">PDF, DOCX, JPG, JPEG, PNG. Maksimum {{ tugas.max_file_size_mb }} MB per file.</p>
-          {% for error in submission_form.file.errors %}<p class="mt-2 text-sm text-red-700">{{ error }}</p>{% endfor %}
+<section class="bg-[#F8F7F3] min-h-screen px-5 py-8 sm:px-8 sm:py-12">
+  <div x-data="{ open: true }" class="mx-auto w-full max-w-[1000px] overflow-hidden rounded-xl border border-black bg-[#FAF3DF] shadow-[0_8px_24px_rgba(0,0,0,0.15)]">
+
+    <button
+      type="button"
+      @click="open = !open"
+      :aria-expanded="open.toString()"
+      class="flex w-full items-center justify-between gap-4 px-5 py-5 text-left focus:outline-none focus-visible:ring-4 focus-visible:ring-[#C79A3A]/50 sm:px-7"
+    >
+      <h1 class="text-xl font-bold text-black sm:text-3xl">Pengumpulan {{ tugas.judul_tugas }}</h1>
+      <svg class="h-6 w-6 shrink-0 text-black transition-transform duration-300" :class="open ? '' : 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7" />
+      </svg>
+    </button>
+
+    <div x-show="open" x-transition x-cloak>
+      <form method="post" enctype="multipart/form-data" class="px-5 pt-1 sm:px-7">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+
+        {% if submission %}
+        {# Sudah dikumpulkan: tampilkan jawaban apa adanya, tanpa upload/submit lagi. #}
+        {% for answer in answers %}
+        <div class="mb-4 rounded-xl border border-[#D1D1D1] bg-white px-4 py-5 sm:px-6">
+          <p class="text-lg font-bold text-black">{{ answer.question.pertanyaan }}</p>
+          {% if answer.question.tipe == 'file' %}
+            {% if answer.file_answer %}
+            {% url 'siwak:answer_download' submission.pk answer.pk as answer_href %}
+            {% include 'siwak/_file_placeholder.html' with name=answer.file_answer|filename href=answer_href %}
+            {% endif %}
+          {% elif answer.question.tipe == 'choice' %}
+          <p class="mt-1 border-b border-[#8A8A8A] py-1 text-black">{{ answer.selected_choice.teks|default:"-" }}</p>
+          {% else %}
+          <p class="mt-1 whitespace-pre-line border-b border-[#8A8A8A] py-1 text-black">{{ answer.text_answer|default:"-" }}</p>
+          {% endif %}
         </div>
+        {% endfor %}
+        {% else %}
         {% for field in form %}
-        <div class="mb-5 rounded-xl border border-[#D1D1D1] bg-white p-5">
-          <label for="{{ field.id_for_label }}" class="mb-3 block font-bold">{{ field.label }}</label>
-          {{ field }}
+        <div class="mb-4 rounded-xl border border-[#D1D1D1] bg-white px-4 py-5 sm:px-6">
+          <label for="{{ field.id_for_label }}" class="block text-lg font-bold text-black">{{ field.label }}</label>
           {% if field.field.widget.input_type == 'file' %}
-          <p class="mt-2 text-sm">PDF, DOCX, JPG, JPEG, PNG. Maksimum {{ tugas.max_file_size_mb }} MB.</p>
-          {% if field.initial %}<p class="mt-2 text-sm">Berkas sebelumnya tersimpan. Pilih file hanya jika ingin menggantinya.</p>{% endif %}
+          {% include 'siwak/_upload_button.html' with field=field %}
+          <p class="mt-2 text-xs text-[#6B6B6B]">PDF, DOCX, JPG, JPEG, PNG. Maksimum {{ tugas.max_file_size_mb }} MB.</p>
+          {% else %}
+          <div class="mt-1">{{ field }}</div>
           {% endif %}
           {% for error in field.errors %}<p class="mt-2 text-sm text-red-700">{{ error }}</p>{% endfor %}
         </div>
         {% endfor %}
+
         {% if can_submit %}
-        <button type="submit" class="rounded-md bg-[#001B3D] px-5 py-3 font-bold text-white hover:bg-[#0A2B52]">
-          {% if submission %}Simpan perubahan{% else %}Kumpulkan tugas{% endif %}
-        </button>
+        <div class="flex justify-end pb-5 pt-1">
+          <button type="submit" class="rounded-lg bg-[#001B3D] px-5 py-2.5 text-sm font-medium text-white shadow-[0_4px_10px_rgba(0,0,0,0.25)] transition hover:bg-[#0A2B52] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#C79A3A]/50">Submit</button>
+        </div>
         {% endif %}
-      </fieldset>
-    </form>
+        {% endif %}
+      </form>
+
+      {% if assignment_review %}
+      <div class="mx-5 mb-5 rounded-xl border border-[#D1D1D1] bg-white p-5 sm:mx-7">
+        <p class="font-bold">Penilaian Mentor: {{ assignment_review.score }}/100</p>
+        <p class="mt-2 whitespace-pre-line">{{ assignment_review.feedback }}</p>
+        <p class="mt-2 text-sm">{{ assignment_review.reviewer.nama_lengkap|default:"Mentor" }} &middot; {{ assignment_review.updated_at|date:"d M Y H:i" }}</p>
+      </div>
+      {% endif %}
+
+      <div class="mx-5 border-t border-[#8A8A8A] px-2 py-4 sm:mx-7">
+        <p class="text-base text-black sm:text-lg">
+          Status:
+          {% if not submission %}Belum dikumpulkan
+          {% elif submission.status == 'late' %}Dikumpulkan terlambat
+          {% else %}Sudah dikumpulkan{% endif %}
+          {% if submission %}<span class="text-sm text-[#6B6B6B]">&middot; {{ submission.submitted_at|date:"j F Y H:i" }}</span>{% endif %}
+        </p>
+        <p class="mt-2 text-sm font-bold text-[#D00000]">Due: {{ tugas.deadline|date:"j F Y" }}</p>
+        {% if is_past_deadline and not submission %}
+        <p class="mt-2 text-xs text-[#D00000]">Deadline sudah lewat. Pengumpulan tetap diterima dan ditandai terlambat.</p>
+        {% endif %}
+      </div>
+    </div>
+
   </div>
 </section>
 {% endblock %}
