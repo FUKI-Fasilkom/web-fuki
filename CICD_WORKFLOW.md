@@ -241,6 +241,14 @@ different values:
 
 `DJANGO_SECRET`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `ALLOWED_HOSTS`, `DEBUG`
 
+For S3 media storage, configure `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and
+`AWS_STORAGE_BUCKET_NAME` in each environment. `AWS_S3_REGION_NAME` is optional
+and defaults to Jakarta (`ap-southeast-3`). These values are passed through
+`app.env`; an unset or empty bucket keeps uploads on the local media volume.
+Static files continue to use the static volume. Before enabling S3 on an existing
+environment, copy its media files to the bucket with the same relative paths;
+switching the backend does not migrate existing files.
+
 Production additionally has **Required reviewers** enabled — that is the approval gate.
 
 ---

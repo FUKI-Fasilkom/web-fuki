@@ -1586,11 +1586,11 @@ class PanelTugasDaftarTests(TestCase):
 
                 self.assertNotContains(response, 'type="search"')
 
-    def test_the_rubric_list_drops_the_urutan_column(self):
-        """Urutan tetap dipakai model untuk mengurutkan, tapi tidak perlu dilihat."""
+    def test_the_rubric_list_drops_internal_columns(self):
+        """Urutan dan jumlah pemakaian tidak perlu dilihat pengurus."""
         response = self.client.get(reverse("siwak:panel_daftar", args=["aspek"]))
 
-        self.assertContains(response, "Dipakai")
+        self.assertNotContains(response, "Dipakai")
         self.assertNotContains(response, "Urutan")
 
 

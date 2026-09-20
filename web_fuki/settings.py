@@ -71,6 +71,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'django.contrib.sitemaps',
     'django_cas_ng',
+    'storages',
     'main',
     'kegiatan',
     'birdep',
@@ -228,9 +229,25 @@ STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 
+# Uploaded media uses S3 when a bucket is configured; local development can
+# leave the bucket empty to keep using MEDIA_ROOT.
+AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
+AWS_STORAGE_BUCKET_NAME = os.environ.get('AWS_STORAGE_BUCKET_NAME')
+AWS_S3_REGION_NAME = os.environ.get('AWS_S3_REGION_NAME', 'ap-southeast-3')
+# Presigned URLs must use the regional endpoint. The global endpoint rejects
+# Jakarta bucket downloads with IllegalLocationConstraintException.
+AWS_S3_ENDPOINT_URL = f'https://s3.{AWS_S3_REGION_NAME}.amazonaws.com'
+AWS_S3_ADDRESSING_STYLE = 'virtual'
+AWS_S3_SIGNATURE_VERSION = 's3v4'
+AWS_S3_FILE_OVERWRITE = False
+
 STORAGES = {
     'default': {
-        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+        'BACKEND': (
+            'storages.backends.s3.S3Storage' if AWS_STORAGE_BUCKET_NAME
+            else 'django.core.files.storage.FileSystemStorage'
+        ),
     },
     'staticfiles': {
         # The old STATICFILES_STORAGE setting was removed in Django 5.1, so on
