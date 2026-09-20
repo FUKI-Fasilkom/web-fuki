@@ -392,7 +392,7 @@ SUMBER = [
         boleh_hapus=False,
         kolom=(
             Kolom("Kelompok", lambda o: o.kelompok.nama_kelompok, utama=True, urut="kelompok"),
-            Kolom("Sesi", lambda o: o.judul),
+            Kolom("Sesi", lambda o: o.judul, urut="sesi"),
             Kolom("Tanggal", lambda o: o.tanggal, "tanggal", urut="tanggal"),
             # Dropdown, bukan penanda: membuka sesi berikutnya untuk semua
             # kelompok adalah pekerjaan paling sering di halaman ini, dan
@@ -406,6 +406,9 @@ SUMBER = [
         queryset=lambda: MentoringSession.objects.select_related("kelompok"),
         pengurutan={
             "kelompok": _urut_nama_kelompok("kelompok__") + ("nomor",),
+            # Dikelompokkan per nomor sesi (semua "Sesi 1" berdampingan), baru
+            # per kelompok di dalamnya.
+            "sesi": ("nomor",) + _urut_nama_kelompok("kelompok__"),
             "tanggal": ("tanggal", "nomor"),
         },
         urut_awal="kelompok",
@@ -424,15 +427,9 @@ SUMBER = [
         kolom=(
             Kolom("Nama", lambda o: o.nama, utama=True, urut="nama"),
             Kolom("Aktif", lambda o: o.is_active, "bool"),
-            Kolom("Dipakai", lambda o: f"{o.jumlah_nilai} penilaian"),
         ),
         kosong="Belum ada aspek penilaian. Mentor belum bisa memberi nilai sampai ada minimal satu.",
-        # order_by ditulis ulang di sini: annotate() dengan agregat membuang
-        # Meta.ordering, jadi tanpa ini daftarnya jatuh ke urutan acak dari
-        # database begitu kolom urutnya tidak lagi dipilih pengguna.
-        queryset=lambda: AssessmentAspect.objects.annotate(
-            jumlah_nilai=Count("mentee_assessments")
-        ).order_by("urutan", "nama"),
+        queryset=lambda: AssessmentAspect.objects.order_by("urutan", "nama"),
         # Tanpa urut_awal: daftarnya mengikuti urutan rubrik di model, sama
         # dengan yang dilihat mentor saat menilai.
         pengurutan={"nama": ("nama",)},
