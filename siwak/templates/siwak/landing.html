@@ -7,11 +7,27 @@
 <!-- Hero: shared verbatim with Profil so its geometry and logo treatment stay identical. -->
 {% include 'components/redesign_header.html' with page_title=info.hero_judul%}
 
-<div class="bg-[#F9F8F5]">
-  <div class="mx-auto w-full max-w-[1118px] px-6 py-12 sm:py-16">
+<style>
+  /* Pita latar #FAF5E3 selang-seling antar section (full-bleed, satu tinggi section).
+     Section lain tetap #F9F8F5 supaya kartu krem tidak hilang di atas pita. */
+  .siwak-band { position: relative; isolation: isolate; }
+  .siwak-band::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 100vw;
+    transform: translateX(-50%);
+    background: #FAF5E3;
+    z-index: -1;
+  }
+</style>
+<div class="bg-[#F9F8F5] overflow-x-clip">
+  <div class="mx-auto w-full max-w-[1118px] px-6">
 
     <!-- Apa itu SIWAK-NG -->
-    <section id="apa-itu" class="scroll-mt-24">
+    <section id="apa-itu" class="scroll-mt-24 py-12 sm:py-16">
       <h2 class="text-2xl sm:text-4xl font-bold text-[#001B3D] text-center">Apa itu SIWAK-NG?</h2>
 
       <div class="mt-8 sm:mt-12 flex flex-col md:flex-row items-center justify-center gap-7 md:gap-12 max-w-[962px] mx-auto">
@@ -37,7 +53,7 @@
     </section>
 
     <!-- SIWAK Events -->
-    <section class="mt-12 sm:mt-[60px]">
+    <section class="siwak-band py-12 sm:py-[60px]">
       <h2 class="text-2xl sm:text-4xl font-bold text-[#001B3D] text-center">SIWAK Events</h2>
 
       <div class="mt-8 sm:mt-12 max-w-[1001px] mx-auto space-y-8 sm:space-y-12">
@@ -119,7 +135,7 @@
     </section>
 
     <!-- Apa itu Mentoring -->
-    <section class="mt-12 sm:mt-[60px]">
+    <section class="py-12 sm:py-[60px]">
       <h2 class="text-2xl sm:text-4xl font-bold text-[#001B3D] text-center">
         Apa itu mentoring?
       </h2>
@@ -361,7 +377,7 @@
     </section>
 
     <!-- Galeri -->
-    <section class="mt-12 sm:mt-[60px]">
+    <section class="siwak-band py-12 sm:py-[60px]">
       <h2 class="text-2xl sm:text-4xl font-bold text-[#001B3D] text-center">Galeri</h2>
       <p class="mt-2 text-center text-[#4A4A4A] text-sm sm:text-base">Dokumentasi kegiatan SIWAK-NG.</p>
 
@@ -389,7 +405,7 @@
     </section>
 
     <!-- Ketua SIWAK-NG -->
-    <section class="mt-12 sm:mt-[60px]">
+    <section class="py-12 sm:py-[60px]">
 
       <h2 class="text-xl sm:text-2xl font-bold text-[#001B3D] text-center mb-8">
         Ketua SIWAK-NG dari Tahun ke Tahun
@@ -435,7 +451,7 @@
 
     <!-- Kalender / Timeline -->
     {% if timeline_list %}
-    <section id="kalender" class="relative mt-12 sm:mt-[60px] py-12 sm:py-[60px]">
+    <section id="kalender" class="relative py-12 sm:py-[60px]">
 
       <h2 class="text-2xl sm:text-4xl font-bold text-[#001B3D] text-center mb-10 sm:mb-12">
         Kalender
@@ -488,7 +504,7 @@
 
     <!-- FAQ -->
     {% if faq_list %}
-    <section class="mt-12 sm:mt-[60px] py-12 sm:py-[60px]">
+    <section class="siwak-band py-12 sm:py-[60px]">
 
       <h2 class="text-2xl sm:text-4xl font-bold text-[#001B3D] text-center mb-8 sm:mb-12">
         FAQ Mentoring

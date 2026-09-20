@@ -108,9 +108,19 @@
 </section>
 <script>
   // Jawaban teks yang sudah tersimpan: sesuaikan tinggi textarea dengan isinya.
-  document.querySelectorAll('textarea').forEach(function (el) {
-    el.style.height = 'auto';
-    el.style.height = el.scrollHeight + 'px';
+  // Form ada di dalam x-show/x-cloak: saat script jalan ia masih display:none
+  // (scrollHeight 0), jadi ukur ulang setelah Alpine menampilkannya.
+  function fitTextareas() {
+    document.querySelectorAll('textarea').forEach(function (el) {
+      if (!el.offsetParent) return;
+      el.style.height = 'auto';
+      el.style.height = el.scrollHeight + 'px';
+    });
+  }
+  window.addEventListener('load', fitTextareas);
+  document.addEventListener('alpine:initialized', function () { setTimeout(fitTextareas, 0); });
+  document.querySelectorAll('section button[aria-expanded]').forEach(function (btn) {
+    btn.addEventListener('click', function () { setTimeout(fitTextareas, 350); });
   });
 </script>
 {% endblock %}
