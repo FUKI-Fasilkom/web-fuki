@@ -9,7 +9,7 @@ things this environment cannot provide on its own:
   2. A CAS client library talking to that server (e.g. `django-cas-ng`).
 
 So this module implements the same shape a real CAS login would have — a
-"login" entrypoint that resolves to a Django `User` + `MabaProfile`, after
+"login" entrypoint that resolves to a Django `User` + `MahasiswaProfile`, after
 which every other authorized feature (tugas, RSVP, QR) works identically —
 but the entrypoint itself is a simple NPM + Nama + Jurusan form instead of a
 redirect to sso.ui.ac.id. That keeps the swap to real SSO a small, isolated
@@ -20,7 +20,7 @@ from django.contrib.auth import get_user_model
 from django.contrib import messages
 from django.db import transaction
 
-from .models import MabaProfile, Mentor, PesertaMentoring
+from .models import MahasiswaProfile
 
 
 from django.dispatch import receiver
@@ -132,7 +132,7 @@ def handle_cas_login(sender, user, username, attributes, **kwargs):
     if not jurusan:
         raise ValueError(f"Kode program tidak dikenal: {program_code}")
 
-    sync_maba_profile(
+    sync_mahasiswa_profile(
         user=user,
         npm=npm,
         nama_lengkap=nama_lengkap,
@@ -146,23 +146,29 @@ def handle_cas_login(sender, user, username, attributes, **kwargs):
 
 
 @transaction.atomic
-def sync_maba_profile(*, user, npm: str, nama_lengkap: str, jurusan: str, angkatan: str = "") -> MabaProfile:
-    """Satukan data SSO dengan MabaProfile, lalu pastikan maba punya baris peserta.
+def sync_mahasiswa_profile(
+    *, user, npm: str, nama_lengkap: str, jurusan: str, angkatan: str = ""
+) -> MahasiswaProfile:
+    """Satukan data SSO dengan MahasiswaProfile.
 
     Profil dicari dalam tiga langkah, dan urutannya menentukan:
 
     1. Profil milik akun ini sendiri — selalu menang, supaya satu akun tidak
        pernah berakhir punya dua profil.
     2. Profil ber-NPM sama yang *belum* dipegang akun mana pun — inilah baris
-       yang dibuat pengelola di panel SIWAK sebelum maba pernah login, dan
+       yang dibuat pengelola di panel SIWAK sebelum orangnya pernah login, dan
        inilah yang diklaim sekarang. Profil yang sudah ada pemiliknya sengaja
        dilewati supaya tidak bisa direbut.
-    3. Kalau tidak ada keduanya, profil baru.
+    3. Kalau tidak ada keduanya, profil baru (mentee, tanpa kelompok).
+
+    `role` dan `kelompok` sengaja TIDAK disentuh di sini. Pengelola yang
+    menyiapkan baris berperan mentor lebih dulu, misalnya, tetap mentor setelah
+    orangnya login; penempatan kelompok juga tidak hilang saat login ulang.
     """
     profile = (
-        MabaProfile.objects.filter(user=user).first()
-        or MabaProfile.objects.filter(npm=npm, user__isnull=True).first()
-        or MabaProfile(npm=npm)
+        MahasiswaProfile.objects.filter(user=user).first()
+        or MahasiswaProfile.objects.filter(npm=npm, user__isnull=True).first()
+        or MahasiswaProfile(npm=npm)
     )
 
     profile.user = user
@@ -171,18 +177,6 @@ def sync_maba_profile(*, user, npm: str, nama_lengkap: str, jurusan: str, angkat
     profile.jurusan = jurusan
     profile.angkatan = angkatan
     profile.save()
-
-    # Setiap maba yang login otomatis jadi peserta mentoring tanpa kelompok;
-    # pengelola tinggal menempatkannya lewat /siwak/admin/data/peserta/.
-    PesertaMentoring.objects.get_or_create(maba=profile)
-
-    # Data mentor dapat disiapkan lebih dulu oleh admin hanya dengan NPM. Saat
-    # login CAS pertama, hubungkan baris tersebut dengan User hasil autentikasi.
-    mentor = Mentor.objects.filter(npm=npm).first()
-    if mentor and mentor.user_id is None:
-        mentor.user = user
-        mentor.save(update_fields=["user"])
-
     return profile
 
 def get_attribute(attributes, key):

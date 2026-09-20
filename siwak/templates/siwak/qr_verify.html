@@ -69,10 +69,10 @@
           </span>
 
           <p class="mt-4 text-[20px] sm:text-[24px] font-bold leading-[150%] text-navy">
-            {{ rsvp.user.maba_profile.nama_lengkap|default:rsvp.user.username }}
+            {{ rsvp.user.mahasiswa_profile.nama_lengkap|default:rsvp.user.username }}
           </p>
           <p class="mt-1 text-sm sm:text-base text-[#333]">
-            {{ rsvp.user.maba_profile.npm|default:"—" }} &middot; {{ rsvp.event.judul }}
+            {{ rsvp.user.mahasiswa_profile.npm|default:"—" }} &middot; {{ rsvp.event.judul }}
           </p>
 
           <p class="mt-4 text-sm text-navy-400">
@@ -122,10 +122,10 @@
           {% endif %}
 
           <p class="mt-4 text-[20px] sm:text-[24px] font-bold leading-[150%] text-navy">
-            {{ rsvp.user.maba_profile.nama_lengkap|default:rsvp.user.username }}
+            {{ rsvp.user.mahasiswa_profile.nama_lengkap|default:rsvp.user.username }}
           </p>
           <p class="mt-1 text-sm sm:text-base text-[#333]">
-            {{ rsvp.user.maba_profile.npm|default:"—" }} &middot; {{ rsvp.event.judul }}
+            {{ rsvp.user.mahasiswa_profile.npm|default:"—" }} &middot; {{ rsvp.event.judul }}
           </p>
 
           <span class="inline-block mt-6 px-8 py-3 rounded-full text-base sm:text-lg font-bold

@@ -17,20 +17,23 @@ from .models import (
     AssignmentReviewHistory,
     AssessmentAspect,
     KelompokMentoring,
+    MahasiswaProfile,
     MentoringAttendance,
     MentorFeedback,
-    PesertaMentoring,
     Tugas,
     TugasSubmission,
 )
-from .services.mentor import require_mentor, save_assessments, save_session_record
+from .services.mentor import (
+    mentor_for_user,
+    require_mentor,
+    save_assessments,
+    save_session_record,
+)
 
 
 def _mentor_group_or_404(mentor, group_id):
-    return get_object_or_404(
-        KelompokMentoring.objects.filter(mentor_list=mentor).distinct(),
-        pk=group_id,
-    )
+    # `anggota=mentor`: kelompok ini hanya boleh dibuka oleh mentor yang memegangnya.
+    return get_object_or_404(KelompokMentoring, pk=group_id, anggota=mentor)
 
 
 @login_required
@@ -43,7 +46,7 @@ def mentor_dashboard(request):
 
     if group:
         participants = list(
-            group.peserta_list.select_related("maba", "maba__user")
+            group.daftar_mentee.select_related("user")
             .annotate(
                 assessment_count=Count("assessments", distinct=True),
                 attendance_count=Count("mentoring_attendance", distinct=True),
@@ -53,12 +56,12 @@ def mentor_dashboard(request):
                     distinct=True,
                 ),
             )
-            .order_by("maba__nama_lengkap")
+            .order_by("nama_lengkap")
         )
         user_ids = [
-            participant.maba.user_id
+            participant.user_id
             for participant in participants
-            if participant.maba.user_id
+            if participant.user_id
         ]
         active_tasks = list(Tugas.objects.filter(is_active=True))
         task_count = len(active_tasks)
@@ -73,7 +76,7 @@ def mentor_dashboard(request):
         aspect_count = AssessmentAspect.objects.filter(is_active=True).count()
         session_count = group.mentoring_sessions.filter(is_active=True).count()
         for participant in participants:
-            participant_submissions = submissions_by_user.get(participant.maba.user_id, [])
+            participant_submissions = submissions_by_user.get(participant.user_id, [])
             submitted_count = len(participant_submissions)
             mentee_cards.append(
                 {
@@ -107,9 +110,10 @@ def mentee_detail(request, participant_id):
         raise Http404
     group = mentor.kelompok
     participant = get_object_or_404(
-        PesertaMentoring.objects.select_related("maba", "maba__user"),
+        MahasiswaProfile.objects.select_related("user"),
         pk=participant_id,
         kelompok=group,
+        role=MahasiswaProfile.ROLE_MENTEE,
     )
 
     action = request.POST.get("action") if request.method == "POST" else None
@@ -191,7 +195,7 @@ def mentee_detail(request, participant_id):
             queryset=TugasSubmission.objects.filter(user=participant.user).select_related(
                 "mentor_review__reviewer"
             )
-            if participant.maba.user_id
+            if participant.user_id
             else TugasSubmission.objects.none(),
             to_attr="participant_submissions",
         )
@@ -322,14 +326,12 @@ def assignments(request, group_id):
     mentor = require_mentor(request.user)
     group = _mentor_group_or_404(mentor, group_id)
     participants = list(
-        group.peserta_list.select_related("maba", "maba__user").order_by(
-            "maba__nama_lengkap"
-        )
+        group.daftar_mentee.select_related("user").order_by("nama_lengkap")
     )
     user_ids = [
-        participant.maba.user_id
+        participant.user_id
         for participant in participants
-        if participant.maba.user_id
+        if participant.user_id
     ]
     tasks = Tugas.objects.all().prefetch_related(
         Prefetch(
@@ -350,7 +352,7 @@ def assignments(request, group_id):
         participant_tasks = []
         for task in tasks:
             submission = submissions_by_task_and_user.get(
-                (task.pk, participant.maba.user_id)
+                (task.pk, participant.user_id)
             )
             participant_tasks.append(
                 {
@@ -376,8 +378,7 @@ def assignments(request, group_id):
 
 @login_required
 def mentee_feedback_history(request):
-    participants = PesertaMentoring.objects.filter(maba__user=request.user)
-    feedback_entries = MentorFeedback.objects.filter(peserta__in=participants).select_related(
+    feedback_entries = MentorFeedback.objects.filter(peserta__user=request.user).select_related(
         "session", "mentor", "peserta"
     )
     assignment_review_history = AssignmentReviewHistory.objects.filter(
@@ -400,12 +401,17 @@ def submission_download(request, submission_id):
         pk=submission_id,
     )
     is_owner = submission.user_id == request.user.id
-    mentor = getattr(request.user, "mentor_profile", None)
+    mentor = mentor_for_user(request.user)
+    # `mentor.kelompok_id` wajib dicek: mentor tanpa kelompok akan menghasilkan
+    # `kelompok_id=None`, yang di ORM berarti IS NULL dan cocok dengan SEMUA
+    # mentee yang belum punya kelompok.
     is_responsible_mentor = bool(
         mentor
-        and PesertaMentoring.objects.filter(
-            maba__user=submission.user,
-            kelompok__mentor_list=mentor,
+        and mentor.kelompok_id
+        and MahasiswaProfile.objects.filter(
+            user=submission.user,
+            role=MahasiswaProfile.ROLE_MENTEE,
+            kelompok_id=mentor.kelompok_id,
         ).exists()
     )
     if not (is_owner or is_responsible_mentor or request.user.is_staff):

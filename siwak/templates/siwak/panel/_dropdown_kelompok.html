@@ -1,9 +1,9 @@
 {% comment %}
   Dropdown pemilih kelompok yang menyimpan sendiri begitu pilihannya berubah.
 
-  Dipakai dua kali dengan alamat tujuan berbeda: memindahkan peserta (daftar
-  Peserta Mentoring) dan memindahkan mentor (daftar Mentor). Isinya sama, jadi
-  keduanya membaca `daftar_kelompok` yang sama pula.
+  Dipakai untuk memindahkan peserta (daftar Peserta Mentoring) dan mentor
+  (daftar Mentor). Keduanya menyimpan ke alamat yang sama (`panel_set_kelompok`,
+  karena keduanya MahasiswaProfile) dan membaca `daftar_kelompok` yang sama.
 
   Parameter: aksi (url tujuan), terpilih (id kelompok sekarang, boleh None),
   label_kosong, aria, tampil_kapasitas.

@@ -18,7 +18,7 @@
             <span class="rounded-full bg-cream px-4 py-2 font-bold text-navy">{{ review.score }}/100</span>
           </div>
           {% if review.feedback %}<p class="mt-4 whitespace-pre-line text-sm leading-relaxed text-slate-700">{{ review.feedback }}</p>{% endif %}
-          <p class="mt-3 text-xs text-slate-500">{{ review.reviewer.nama|default:"Mentor" }} &middot; {{ review.updated_at|date:"d M Y H:i" }}</p>
+          <p class="mt-3 text-xs text-slate-500">{{ review.reviewer.nama_lengkap|default:"Mentor" }} &middot; {{ review.updated_at|date:"d M Y H:i" }}</p>
         </article>
         {% empty %}
         <p class="rounded-2xl bg-white p-6 text-sm text-slate-500">Belum ada assignment yang dinilai.</p>
@@ -34,7 +34,7 @@
           <p class="font-bold text-navy">{{ entry.session.judul }}</p>
           <p class="text-xs text-slate-500">{{ entry.session.tanggal|date:"d F Y" }}</p>
           <p class="mt-4 whitespace-pre-line text-sm leading-relaxed text-slate-700">{{ entry.isi }}</p>
-          <p class="mt-3 text-xs text-slate-500">{{ entry.mentor.nama|default:"Mentor" }} &middot; {{ entry.created_at|date:"d M Y H:i" }}</p>
+          <p class="mt-3 text-xs text-slate-500">{{ entry.mentor.nama_lengkap|default:"Mentor" }} &middot; {{ entry.created_at|date:"d M Y H:i" }}</p>
         </article>
         {% empty %}
         <p class="rounded-2xl bg-white p-6 text-sm text-slate-500">Belum ada feedback sesi mentoring.</p>

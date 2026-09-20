@@ -79,11 +79,11 @@
   {% for rsvp in halaman.object_list %}
   <div class="border-b border-gold-light/70 p-4 last:border-b-0 even:bg-cream-50 lg:grid lg:grid-cols-[minmax(0,1.5fr)_120px_110px_165px_150px] lg:items-center lg:gap-4">
     <p class="font-semibold text-navy">
-      {{ rsvp.user.maba_profile.nama_lengkap|default:rsvp.user.username }}
+      {{ rsvp.user.mahasiswa_profile.nama_lengkap|default:rsvp.user.username }}
     </p>
 
     <p class="mt-0.5 text-sm text-navy-400 lg:mt-0 lg:text-navy">
-      <span class="lg:hidden">NPM </span>{{ rsvp.user.maba_profile.npm|default:"—" }}
+      <span class="lg:hidden">NPM </span>{{ rsvp.user.mahasiswa_profile.npm|default:"—" }}
     </p>
 
     <p class="mt-2 lg:mt-0">

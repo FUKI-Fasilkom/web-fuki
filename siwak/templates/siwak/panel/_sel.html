@@ -4,8 +4,8 @@
   keduanya. Parameter: sel (judul, tipe, nilai, pk).
 
   Beberapa tipe bukan sekadar tulisan melainkan penyunting kecil — dropdown
-  kelompok, penugasan mentor, saklar RSVP — supaya perubahan yang paling
-  sering dilakukan tidak perlu membuka form ubah dulu. Semuanya memakai
+  kelompok, saklar RSVP — supaya perubahan yang paling sering dilakukan
+  tidak perlu membuka form ubah dulu. Semuanya memakai
   `url_kembali` agar sesudah menyimpan pengelola mendarat di halaman,
   pencarian, dan urutan yang sama seperti sebelumnya.
 {% endcomment %}
@@ -37,17 +37,11 @@
 
 {% elif sel.tipe == 'pilih_kelompok_mentor' %}
   {% comment %}
-    Satu mentor hanya memegang satu kelompok, jadi kolomnya satu dropdown —
-    bukan daftar keping seperti di sisi kelompok.
+    Satu mentor hanya memegang satu kelompok, jadi kolomnya satu dropdown.
+    Menyimpan ke alamat yang sama dengan dropdown peserta; bedanya hanya
+    label dan tanpa hitungan kapasitas (kapasitas menghitung mentee saja).
   {% endcomment %}
   {% include 'siwak/panel/_dropdown_kelompok.html' with aksi=sel.url terpilih=sel.nilai label_kosong='— Tanpa kelompok —' aria='Kelompok yang dipegang mentor ini' tampil_kapasitas=False %}
-
-{% elif sel.tipe == 'atur_mentor' %}
-  {% comment %}
-    Satu kelompok boleh dipegang lebih dari satu mentor, jadi di sisi ini
-    isinya daftar keping yang bisa dilepas plus satu dropdown penambah.
-  {% endcomment %}
-  {% include 'siwak/panel/_relasi.html' with terpasang=sel.nilai kelompok_pk=sel.pk %}
 
 {% elif sel.tipe == 'saklar_rsvp' %}
   {% comment %}

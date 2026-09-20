@@ -16,7 +16,7 @@ CI/deploy runs `migrate` but **never** `makemigrations`. Run `python manage.py m
 ## Architecture notes
 
 - SEO metadata (`SITE_NAME`, `SITE_URL`, `SITE_TITLE`, etc.) has a single source of truth in the SEO block of `web_fuki/settings.py`, consumed by `main/context_processors.py` and `web_fuki/sitemaps.py`. Edit there, not per-template.
-- Auth: SSO UI CAS via `django-cas-ng` (`CAS_SERVER_URL = https://sso.ui.ac.id/cas2/`). `LOGIN_URL` points at `siwak:cas_ng_login`. The `cas_user_authenticated` signal handler (`siwak/sso.py`) syncs `MabaProfile` + links `PesertaMentoring` from CAS attributes (npm/nama/kd_org). `settings.py` is the source of truth for auth wiring, not the stale swap-notes at the bottom of `siwak/sso.py`.
+- Auth: SSO UI CAS via `django-cas-ng` (`CAS_SERVER_URL = https://sso.ui.ac.id/cas2/`). `LOGIN_URL` points at `siwak:cas_ng_login`. The `cas_user_authenticated` signal handler (`siwak/sso.py`) syncs `MahasiswaProfile` from CAS attributes (npm/nama/kd_org). That one model is the shared profile for both mentees and mentors (`role`) and holds their `kelompok`; the handler never touches `role`/`kelompok`, so staff can pre-register a mentor by NPM and the row is claimed on first login. `settings.py` is the source of truth for auth wiring, not the stale swap-notes at the bottom of `siwak/sso.py`.
 - Shared templates (`base.html`, `navbar.html`, `footer.html`, `robots.txt`) live in root `templates/`; app templates in each app's `templates/`.
 
 ## Static files gotcha

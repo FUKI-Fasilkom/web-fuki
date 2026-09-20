@@ -16,15 +16,13 @@ from .models import (
     GaleriFoto,
     KelompokMentoring,
     KetuaSiwak,
-    MabaProfile,
+    MahasiswaProfile,
     MenteeAssessment,
-    Mentor,
     MentorFeedback,
     MentoringAttendance,
     MentoringBenefit,
     MentoringSession,
     MentoringTujuan,
-    PesertaMentoring,
     Question,
     SistemMentoring,
     SiwakEvent,
@@ -64,15 +62,6 @@ class TimelineEventAdmin(admin.ModelAdmin):
     date_hierarchy = "tanggal_mulai"
 
 
-@admin.register(Mentor)
-class MentorAdmin(admin.ModelAdmin):
-    list_display = ["nama", "npm", "kelompok", "user"]
-    list_filter = ["kelompok"]
-    search_fields = ["nama", "npm"]
-    autocomplete_fields = ["kelompok"]
-    list_select_related = ["kelompok", "user"]
-
-
 @admin.register(KelompokMentoring)
 class KelompokMentoringAdmin(admin.ModelAdmin):
     list_display = ["nama_kelompok", "mentor_names", "jumlah_peserta", "kapasitas", "is_active"]
@@ -80,11 +69,11 @@ class KelompokMentoringAdmin(admin.ModelAdmin):
     search_fields = ["nama_kelompok"]
 
     def mentor_names(self, obj):
-        return ", ".join(m.nama for m in obj.mentor_list.all()) or "-"
+        return ", ".join(m.nama_lengkap for m in obj.daftar_mentor) or "-"
     mentor_names.short_description = "Mentor"
 
     def jumlah_peserta(self, obj):
-        return obj.peserta_list.count()
+        return obj.daftar_mentee.count()
     jumlah_peserta.short_description = "Jumlah Peserta"
 
 
@@ -111,31 +100,6 @@ class MentoringSessionAdmin(admin.ModelAdmin):
     @admin.action(description="Nonaktifkan sesi terpilih")
     def deactivate_sessions(self, request, queryset):
         queryset.update(is_active=False)
-
-
-@admin.register(PesertaMentoring)
-class PesertaMentoringAdmin(admin.ModelAdmin):
-    """Penempatan maba ke kelompok. Untuk pengelolaan sehari-hari pakai panel
-    SIWAK di /siwak/admin/data/peserta/ yang punya dropdown kelompok langsung
-    di daftarnya; halaman ini disimpan sebagai cadangan teknis."""
-
-    list_display = ["nama_lengkap", "jurusan", "npm", "kelompok"]
-    list_filter = ["maba__jurusan", "kelompok"]
-    search_fields = ["maba__nama_lengkap", "maba__npm"]
-    autocomplete_fields = ["kelompok", "maba"]
-    list_select_related = ["maba", "kelompok"]
-
-    @admin.display(description="Nama", ordering="maba__nama_lengkap")
-    def nama_lengkap(self, obj):
-        return obj.maba.nama_lengkap
-
-    @admin.display(description="Jurusan", ordering="maba__jurusan")
-    def jurusan(self, obj):
-        return obj.maba.get_jurusan_display()
-
-    @admin.display(description="NPM", ordering="maba__npm")
-    def npm(self, obj):
-        return obj.maba.npm
 
 
 @admin.register(MentoringTujuan)
@@ -222,18 +186,25 @@ class TugasAdmin(admin.ModelAdmin):
         return response
 
 
-@admin.register(MabaProfile)
-class MabaProfileAdmin(admin.ModelAdmin):
-    list_display = ["nama_lengkap", "npm", "jurusan", "angkatan", "user"]
+@admin.register(MahasiswaProfile)
+class MahasiswaProfileAdmin(admin.ModelAdmin):
+    """Satu-satunya tempat mentee dan mentor. Untuk pengelolaan sehari-hari pakai
+    panel SIWAK di /siwak/admin/data/peserta/ dan /siwak/admin/data/mentor/,
+    yang punya dropdown kelompok langsung di daftarnya; halaman ini cadangan
+    teknis dan sumber autocomplete untuk presensi, penilaian, dan feedback."""
+
+    list_display = ["nama_lengkap", "npm", "role", "kelompok", "jurusan", "angkatan", "user"]
     search_fields = ["nama_lengkap", "npm"]
-    list_filter = ["jurusan", "angkatan"]
+    list_filter = ["role", "jurusan", "angkatan", "kelompok"]
+    autocomplete_fields = ["kelompok"]
+    list_select_related = ["kelompok", "user"]
 
 
 @admin.register(EventRSVP)
 class EventRSVPAdmin(admin.ModelAdmin):
     list_display = ["user", "event", "status_kehadiran", "status_kupon", "created_at"]
     list_filter = ["event", "status_kehadiran", "status_kupon"]
-    search_fields = ["user__username", "user__maba_profile__nama_lengkap"]
+    search_fields = ["user__username", "user__mahasiswa_profile__nama_lengkap"]
     actions = ["export_attendance_csv"]
 
     @admin.action(description="Export attendance (CSV)")
@@ -243,8 +214,8 @@ class EventRSVPAdmin(admin.ModelAdmin):
         response["Content-Disposition"] = 'attachment; filename="attendance_siwak.csv"'
         writer = csv.writer(response)
         writer.writerow(["Nama", "NPM", "Event", "Status Kehadiran", "Check-in", "Status Kupon", "Redeemed"])
-        for rsvp in queryset.select_related("user__maba_profile", "event"):
-            profile = getattr(rsvp.user, "maba_profile", None)
+        for rsvp in queryset.select_related("user__mahasiswa_profile", "event"):
+            profile = getattr(rsvp.user, "mahasiswa_profile", None)
             writer.writerow([
                 profile.nama_lengkap if profile else rsvp.user.username,
                 profile.npm if profile else "",
@@ -269,12 +240,12 @@ class MentoringAttendanceAdmin(admin.ModelAdmin):
     list_display = ["peserta", "session", "kelompok", "status", "recorded_by", "updated_at"]
     list_filter = ["status", "session__nomor", "session__kelompok"]
     search_fields = [
-        "peserta__maba__nama_lengkap",
-        "peserta__maba__npm",
+        "peserta__nama_lengkap",
+        "peserta__npm",
         "session__kelompok__nama_kelompok",
     ]
     autocomplete_fields = ["session", "peserta", "recorded_by"]
-    list_select_related = ["peserta__maba", "session__kelompok", "recorded_by"]
+    list_select_related = ["peserta", "session__kelompok", "recorded_by"]
     readonly_fields = ["created_at", "updated_at"]
 
     @admin.display(description="Kelompok", ordering="session__kelompok__nama_kelompok")
@@ -295,12 +266,12 @@ class MenteeAssessmentAdmin(admin.ModelAdmin):
     list_display = ["peserta", "kelompok", "aspect", "score", "assessed_by", "updated_at"]
     list_filter = ["aspect", "peserta__kelompok"]
     search_fields = [
-        "peserta__maba__nama_lengkap",
-        "peserta__maba__npm",
+        "peserta__nama_lengkap",
+        "peserta__npm",
         "aspect__nama",
     ]
     autocomplete_fields = ["peserta", "aspect", "assessed_by"]
-    list_select_related = ["peserta__maba", "peserta__kelompok", "aspect", "assessed_by"]
+    list_select_related = ["peserta", "peserta__kelompok", "aspect", "assessed_by"]
     readonly_fields = ["created_at", "updated_at"]
 
     @admin.display(description="Kelompok", ordering="peserta__kelompok__nama_kelompok")
@@ -313,12 +284,12 @@ class MentorFeedbackAdmin(admin.ModelAdmin):
     list_display = ["peserta", "session", "mentor", "ringkasan", "created_at"]
     list_filter = ["session__nomor", "session__kelompok", "mentor"]
     search_fields = [
-        "peserta__maba__nama_lengkap",
-        "peserta__maba__npm",
+        "peserta__nama_lengkap",
+        "peserta__npm",
         "isi",
     ]
     autocomplete_fields = ["session", "peserta", "mentor"]
-    list_select_related = ["peserta__maba", "session__kelompok", "mentor"]
+    list_select_related = ["peserta", "session__kelompok", "mentor"]
     readonly_fields = ["created_at", "updated_at"]
 
     @admin.display(description="Feedback")
@@ -382,7 +353,7 @@ class TugasSubmissionAdmin(admin.ModelAdmin):
 
     list_display = ["tugas", "user", "status", "nilai", "jumlah_jawaban", "submitted_at"]
     list_filter = ["status", "tugas"]
-    search_fields = ["tugas__judul_tugas", "user__username", "user__maba_profile__nama_lengkap"]
+    search_fields = ["tugas__judul_tugas", "user__username", "user__mahasiswa_profile__nama_lengkap"]
     autocomplete_fields = ["tugas"]
     list_select_related = ["tugas", "user"]
     readonly_fields = ["status", "submitted_at"]

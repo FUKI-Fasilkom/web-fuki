@@ -1,13 +1,16 @@
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 
-from siwak.models import MenteeAssessment, MentoringAttendance, Mentor, MentorFeedback
+from siwak.models import MahasiswaProfile, MenteeAssessment, MentoringAttendance, MentorFeedback
 
 
 def mentor_for_user(user):
+    """Profil mentor milik `user`, atau None kalau dia bukan mentor."""
     if not user or not user.is_authenticated:
         return None
-    return Mentor.objects.filter(user=user).first()
+    return MahasiswaProfile.objects.filter(
+        user=user, role=MahasiswaProfile.ROLE_MENTOR
+    ).first()
 
 
 def require_mentor(user):

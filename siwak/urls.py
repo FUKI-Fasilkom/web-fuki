@@ -72,7 +72,6 @@ urlpatterns = [
     path("admin/tugas/<int:pk>/jawaban/csv/", panel_views.panel_jawaban_csv, name="panel_jawaban_csv"),
 
     # Penyunting relasi yang dipanggil dropdown di halaman daftar
+    # `pk` adalah MahasiswaProfile — dipakai baik untuk mentee maupun mentor.
     path("admin/peserta/<int:pk>/kelompok/", panel_views.panel_set_kelompok, name="panel_set_kelompok"),
-    path("admin/penugasan-mentor/", panel_views.panel_set_mentor, name="panel_set_mentor"),
-    path("admin/mentor/<int:pk>/kelompok/", panel_views.panel_set_mentor_kelompok, name="panel_set_mentor_kelompok"),
 ]

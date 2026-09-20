@@ -18,9 +18,9 @@ from .models import (
     FAQMentoring,
     GaleriFoto,
     KetuaSiwak,
+    MahasiswaProfile,
     MentoringBenefit,
     MentoringTujuan,
-    PesertaMentoring,
     SistemMentoring,
     SiwakEvent,
     SiwakInfo,
@@ -92,10 +92,11 @@ def kelompok_search(request):
     peserta = None
 
     if request.method == "POST" and form.is_valid():
-        peserta = PesertaMentoring.objects.filter(
-            maba__nama_lengkap__iexact=form.cleaned_data["nama_lengkap"].strip(),
-            maba__jurusan=form.cleaned_data["jurusan"],
-        ).select_related("maba", "kelompok").prefetch_related("kelompok__mentor_list").first()
+        peserta = MahasiswaProfile.objects.filter(
+            nama_lengkap__iexact=form.cleaned_data["nama_lengkap"].strip(),
+            jurusan=form.cleaned_data["jurusan"],
+            role=MahasiswaProfile.ROLE_MENTEE,
+        ).select_related("kelompok").first()
 
         if not peserta:
             result_state = "not_found"
