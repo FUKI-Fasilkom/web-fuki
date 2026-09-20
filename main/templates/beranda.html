@@ -5,24 +5,347 @@
 {% block meta_description %}FUKI Fasilkom UI (Forum Ukhuwah dan Kajian Islam) adalah Lembaga Dakwah Kampus Fakultas Ilmu Komputer Universitas Indonesia. Kajian, kegiatan, dan mentoring untuk Muslim Fasilkom UI.{% endblock %}
 {% block og_title %}{{ SITE_TITLE }}{% endblock %}
 
-{% block content %}
-    <div class="relative w-full h-screen bg-gradient-to-b from-[#D6E8A4] to-[#F6FAEB] overflow-hidden flex items-center justify-center">
-        <div class="absolute top-1/2 left-[75%] -translate-x-1/2 -translate-y-1/2 w-[300px] sm:w-[450px] md:w-[550px] lg:w-[700px] xl:w-[800px] aspect-square flex items-center justify-center z-0">
-            <div class="absolute rounded-full border-4 border-[#F6FAEB] opacity-90 w-full h-full"></div>
-            <div class="absolute rounded-full border-4 border-[#F6FAEB] opacity-90 w-[85%] h-[85%]"></div>
-            <div class="absolute rounded-full border-8 border-[#F6FAEB] opacity-90 w-[70%] h-[70%]"></div>
-            <div class="absolute rounded-full border-8 border-[#F6FAEB] opacity-90 w-[55%] h-[55%]"></div>
-            <div class="absolute rounded-full border-[#F6FAEB] opacity-90 w-[40%] h-[40%]" style="border-width: 10px;"></div>
-            <div class="absolute rounded-full border-[#F6FAEB] opacity-90 w-[30%] h-[30%]" style="border-width: 24px;"></div>
-            <div class="absolute rounded-full border-[#F6FAEB] opacity-90 w-[20%] h-[20%]" style="border-width: 20px;"></div>
-            <div class="absolute rounded-full bg-[#F6FAEB] opacity-90 w-[12%] h-[12%]"></div>
+{% block extra_head %}
+{% comment %}
+  NONAKTIF bersama section "Our Activity" — aktifkan keduanya bersamaan dengan
+  menghapus pasangan comment/endcomment yang membungkus script di bawah.
 
-            <img src="{% static 'images/Logo-FUKI.png' %}" alt="FUKI Logo" class="absolute w-[120px] sm:w-[180px] md:w-[220px] lg:w-[260px] xl:w-[300px] z-10" />
-        </div>
-        
-        <div class="relative z-20 w-11/12 max-w-screen-lg">
-            <h1 class="text-6xl lg:text-7xl font-bold text-gray-800">FUKI 2026</h1>
-            <p class="text-lg lg:text-xl italic text-gray-600 mt-2">#UnitePurposeAccelerateImpact</p>
-        </div>
+  Carousel "Our Activity": scrollbar bawaan disembunyikan (kelas .no-scrollbar)
+  dan diganti track buatan sendiri agar sesuai mockup. Didaftarkan lewat
+  Alpine.data() — bukan atribut x-data inline — karena logikanya sudah terlalu
+  panjang untuk ditulis di dalam HTML.
+{% endcomment %}
+{% comment %}
+<script>
+  document.addEventListener('alpine:init', () => {
+    Alpine.data('carousel', () => ({
+      lebarThumb: 100,   // persen dari lebar track
+      posisiThumb: 0,    // persen dari lebar track
+      menggeser: false,
+
+      init() {
+        // Gambar kartu bisa selesai dimuat setelah init dan mengubah scrollWidth.
+        this.hitung();
+        window.addEventListener('load', () => this.hitung(), { once: true });
+      },
+
+      hitung() {
+        const t = this.$refs.track;
+        if (!t || t.scrollWidth === 0) return;
+        const rasio = Math.min(t.clientWidth / t.scrollWidth, 1);
+        this.lebarThumb = rasio * 100;
+        // Sisa ruang gerak thumb = 100% - lebarnya; dipetakan dari scrollLeft.
+        const maksScroll = t.scrollWidth - t.clientWidth;
+        const maju = maksScroll > 0 ? t.scrollLeft / maksScroll : 0;
+        this.posisiThumb = maju * (100 - this.lebarThumb);
+      },
+
+      geser(arah) {
+        this.$refs.track.scrollBy({
+          left: arah * this.$refs.track.clientWidth * 0.8,
+          behavior: 'smooth',
+        });
+      },
+
+      // Klik di sembarang titik track → lompat ke posisi itu.
+      lompat(e) {
+        if (this.menggeser) return;
+        const t = this.$refs.track;
+        const alur = this.$refs.alur.getBoundingClientRect();
+        const maju = (e.clientX - alur.left) / alur.width;
+        t.scrollTo({
+          left: maju * (t.scrollWidth - t.clientWidth),
+          behavior: 'smooth',
+        });
+      },
+
+      mulaiGeser(e) {
+        this.menggeser = true;
+        e.target.setPointerCapture(e.pointerId);
+      },
+
+      saatGeser(e) {
+        if (!this.menggeser) return;
+        const t = this.$refs.track;
+        const alur = this.$refs.alur.getBoundingClientRect();
+        // Thumb hanya bisa bergerak sepanjang (lebar alur - lebar thumb),
+        // jadi pembaginya bukan lebar alur penuh.
+        const ruang = alur.width * (1 - this.lebarThumb / 100);
+        if (ruang <= 0) return;
+        const maju = Math.min(Math.max(
+          (e.clientX - alur.left - (alur.width * this.lebarThumb / 100) / 2) / ruang, 0), 1);
+        t.scrollLeft = maju * (t.scrollWidth - t.clientWidth);
+      },
+
+      selesaiGeser() {
+        this.menggeser = false;
+      },
+    }));
+  });
+</script>
+{% endcomment %}
+{% endblock %}
+
+{% block content %}
+
+{# ============================ HERO ============================ #}
+{% include 'components/redesign_header.html' with page_title="FUKI 2026" subtitle="#UnitePurposeAccelerateImpact" judul_besar=True logo_miring=False %}
+
+{# ======================== APA ITU FUKI ======================== #}
+<section class="w-full bg-[#F9F8F5] py-14 sm:py-20">
+  <div class="mx-auto w-full max-w-[1118px] px-6 grid gap-10 items-center lg:grid-cols-2 lg:gap-16">
+
+    <div class="text-center lg:text-left">
+      <h2 class="text-2xl sm:text-4xl font-bold text-navy-700">Apa Itu Fuki?</h2>
+      <p class="mt-4 text-sm sm:text-base leading-relaxed text-navy-400 max-w-md mx-auto lg:mx-0">
+        Fuki adalah wadah untuk mempererat ukhuwah dan meningkatkan kualitas Islam agar dapat menjadi muslim yang bermanfaat bagi sekitar.
+      </p>
     </div>
+
+    {% comment %}
+      Mosaik 5 foto. Design mobile dan desktop menyusunnya berbeda, jadi tiap
+      foto diberi nama area (a-e) dan peta areanya saja yang berganti di
+      breakpoint lg:
+
+        mobile        desktop
+        a b b         a a a b b
+        a c c         c c d d d
+        a d e         e e e e e
+
+      Rasio kolom & baris diukur dari Figma. Tinggi mosaik berasal dari
+      aspect-ratio pembungkusnya, lalu dibagi ke tiap baris lewat satuan fr.
+      max-w-md mencegah mosaik membengkak di tablet, saat masih satu kolom.
+
+      Fotonya tidak diberi loading="lazy": mosaik ini tepat di bawah hero, jadi
+      sudah terlihat begitu pengunjung menggulir sedikit. Menundanya hanya
+      menyisakan petak abu persis saat orang sampai ke sini.
+
+      Fotonya sengaja ditulis langsung di template, bukan diambil dari model:
+      mosaik ini bagian dari design beranda, bukan galeri yang berganti isi.
+      Tiap petak rasionya beda dan ikut berubah di breakpoint, jadi object-cover
+      yang memotong — karena itu fotonya perlu yang subjeknya di tengah.
+    {% endcomment %}
+    <div aria-hidden="true"
+         class="grid w-full max-w-md mx-auto gap-2 aspect-[207/185] grid-cols-[4fr_3fr_3fr] grid-rows-3
+                [grid-template-areas:'a_b_b'_'a_c_c'_'a_d_e']
+                lg:max-w-none lg:gap-2.5 lg:aspect-[382/358] lg:grid-cols-5 lg:grid-rows-[124fr_124fr_97fr]
+                lg:[grid-template-areas:'a_a_a_b_b'_'c_c_d_d_d'_'e_e_e_e_e']">
+      <div class="[grid-area:a] overflow-hidden rounded-lg lg:rounded-xl bg-[#D9D9D9]">
+        <img src="{% static 'images/beranda1.jpg' %}" alt="" decoding="async"
+             class="h-full w-full object-cover" />
+      </div>
+      <div class="[grid-area:b] overflow-hidden rounded-lg lg:rounded-xl bg-[#D9D9D9]">
+        <img src="{% static 'images/beranda2.jpg' %}" alt="" decoding="async"
+             class="h-full w-full object-cover" />
+      </div>
+      <div class="[grid-area:c] overflow-hidden rounded-lg lg:rounded-xl bg-[#D9D9D9]">
+        <img src="{% static 'images/beranda3.jpg' %}" alt="" decoding="async"
+             class="h-full w-full object-cover" />
+      </div>
+      <div class="[grid-area:d] overflow-hidden rounded-lg lg:rounded-xl bg-[#D9D9D9]">
+        <img src="{% static 'images/beranda4.jpg' %}" alt="" decoding="async"
+             class="h-full w-full object-cover" />
+      </div>
+      <div class="[grid-area:e] overflow-hidden rounded-lg lg:rounded-xl bg-[#D9D9D9]">
+        <img src="{% static 'images/beranda5.jpg' %}" alt="" decoding="async"
+             class="h-full w-full object-cover" />
+      </div>
+    </div>
+  </div>
+</section>
+
+{# ======================= UPCOMING EVENT ======================= #}
+<section class="w-full bg-[#F9F8F5] py-10 sm:py-16" x-data="{ filter: 'all' }">
+  <div class="mx-auto w-full max-w-[1118px] px-6">
+    <h2 class="text-2xl sm:text-4xl font-bold text-navy-700 text-center">Upcoming Event</h2>
+
+    {% comment %}
+      Penyaringan dikerjakan di sisi klien: beranda hanya merender <=6 kartu,
+      dan reload server (?tab=) akan membuang posisi scroll pengunjung.
+    {% endcomment %}
+    <div class="mt-6 flex flex-wrap justify-center gap-0.5 sm:gap-3 text-[10px] sm:text-sm">
+      <button @click="filter = 'all'"
+              :class="filter === 'all' ? 'bg-cream-200 text-navy font-semibold' : 'text-navy-400 hover:text-navy'"
+              class="px-2 sm:px-4 py-1.5 rounded-lg transition whitespace-nowrap">All</button>
+      {% for nilai, label in kategori_choices %}
+      <button @click="filter = '{{ nilai }}'"
+              :class="filter === '{{ nilai }}' ? 'bg-cream-200 text-navy font-semibold' : 'text-navy-400 hover:text-navy'"
+              class="px-2 sm:px-4 py-1.5 rounded-lg transition whitespace-nowrap">{{ label }}</button>
+      {% endfor %}
+    </div>
+
+    <div class="mt-8 space-y-5">
+      {% for kegiatan in kegiatan_upcoming %}
+      <article x-show="filter === 'all' || filter === '{{ kegiatan.kategori }}'" x-transition
+               class="flex gap-2.5 sm:gap-4">
+
+        {# Kartu tanggal #}
+        <div class="w-[34%] sm:w-[190px] shrink-0 bg-cream-200 rounded-2xl p-3 sm:p-5 flex flex-col items-center justify-center text-center">
+          <p class="text-3xl sm:text-5xl font-bold text-navy leading-none">{{ kegiatan.tanggal|date:"j" }}</p>
+          <p class="mt-1 text-[10px] sm:text-xs font-semibold text-navy">{{ kegiatan.tanggal|date:"F Y" }}</p>
+          {% if kegiatan.start_time %}
+          <p class="text-[10px] sm:text-xs text-navy-400">{{ kegiatan.start_time|time:"H.i" }}{% if kegiatan.end_time %} - {{ kegiatan.end_time|time:"H.i" }}{% endif %}</p>
+          {% endif %}
+          <a href="{% url 'kegiatan:ics' kegiatan.id %}"
+             class="mt-3 sm:mt-4 inline-flex items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap bg-badge text-navy text-[9px] sm:text-[11px] font-semibold px-1.5 sm:px-3 py-1.5 sm:py-2 rounded-lg hover:bg-navy hover:text-white transition">
+            <svg class="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            Add To Calendar
+          </a>
+        </div>
+
+        {% comment %}Kartu detail. Thumbnail khusus desktop: mockup mobile tidak memuatnya.{% endcomment %}
+        <div class="flex-1 min-w-0 bg-cream-200 rounded-2xl p-3 sm:p-5 flex gap-4">
+          <div class="hidden sm:block sm:w-32 sm:h-32 shrink-0 rounded-xl overflow-hidden bg-gray-300">
+            {% if kegiatan.gambar %}
+            <img src="{{ kegiatan.gambar.url }}" alt="{{ kegiatan.judul }}" loading="lazy" class="w-full h-full object-cover" />
+            {% endif %}
+          </div>
+
+          <div class="flex-1 min-w-0 flex flex-col">
+            <span class="self-start bg-badge text-navy text-[9px] sm:text-[10px] font-semibold px-2 sm:px-2.5 py-1 rounded-md">{{ kegiatan.get_kategori_display }}</span>
+            <h3 class="mt-2 text-sm sm:text-lg font-bold text-navy-700 leading-snug">{{ kegiatan.judul }}</h3>
+            <p class="mt-1 text-[11px] sm:text-sm text-navy-400 leading-relaxed">{{ kegiatan.deskripsi|truncatewords:25 }}</p>
+            <a href="{% url 'kegiatan:detail' kegiatan.id %}"
+               class="mt-3 self-end bg-navy-600 text-white text-[9px] sm:text-[11px] font-semibold px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg hover:bg-navy transition">
+              See Details
+            </a>
+          </div>
+        </div>
+      </article>
+      {% empty %}
+      <p class="text-center text-navy-400 py-10">
+        Belum ada kegiatan yang dijadwalkan. Pantau terus halaman ini untuk <span class="italic">update</span> terbaru dari FUKI!
+      </p>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+{% comment %}
+  SECTION NONAKTIF: Our Activity, Podcast, dan Company Profile.
+  Isinya belum ditentukan tim, jadi ketiganya dikomentari alih-alih mengambil
+  data yang pasti kosong. Markup-nya dipertahankan supaya tinggal diaktifkan:
+    1. hapus pasangan comment/endcomment yang membungkus section-nya;
+    2. untuk Our Activity, aktifkan juga script carousel di blok extra_head;
+    3. kirim datanya dari main/views.py:
+         activities       — judul, gambar, deskripsi
+         podcasts         — judul, deskripsi, thumbnail, link
+         company_profiles — judul, deskripsi, thumbnail, link
+  Di dalam blok ini hanya boleh ada komentar satu baris: tag comment Django
+  tidak bisa bersarang, endcomment pertama akan menutup blok pembungkusnya.
+{% endcomment %}
+
+{# ======================== OUR ACTIVITY ======================== #}
+{% comment %}
+{% if activities %}
+<section class="w-full bg-[#F9F8F5] py-10 sm:py-16 overflow-hidden"
+         x-data="carousel" @resize.window="hitung()">
+  <div class="mx-auto w-full max-w-[1118px] px-6">
+    <h2 class="text-2xl sm:text-4xl font-bold text-navy-700">Our Activity</h2>
+
+    {# snap-x saja (proximity), bukan snap-mandatory: mandatory memaksa scroll menempel ke kartu sehingga geseran thumb tersendat. #}
+    <div x-ref="track" @scroll="hitung()"
+         class="no-scrollbar mt-6 flex gap-5 overflow-x-auto snap-x pb-4">
+      {% for activity in activities %}
+      <div class="snap-start shrink-0 w-[85%] sm:w-[360px] bg-navy-700 rounded-2xl p-4 sm:p-5">
+        <div class="rounded-xl overflow-hidden bg-gray-300 aspect-[4/3]">
+          {% if activity.gambar %}
+          <img src="{{ activity.gambar.url }}" alt="{{ activity.judul }}" loading="lazy" class="w-full h-full object-cover" />
+          {% endif %}
+        </div>
+        <p class="mt-4 text-center text-xs sm:text-sm text-white leading-relaxed">
+          {{ activity.deskripsi|default:activity.judul }}
+        </p>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="mt-2 flex items-center gap-3">
+      <button @click="geser(-1)" aria-label="Geser ke kiri" class="text-navy hover:text-navy-600 transition shrink-0">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+        </svg>
+      </button>
+      <div x-ref="alur" @click="lompat($event)"
+           class="relative flex-1 h-2 rounded-full bg-gray-200 cursor-pointer">
+        <div @pointerdown.prevent="mulaiGeser($event)"
+             @pointermove="saatGeser($event)"
+             @pointerup="selesaiGeser()"
+             @pointercancel="selesaiGeser()"
+             class="absolute inset-y-0 rounded-full bg-navy-400 cursor-grab active:cursor-grabbing touch-none"
+             :style="`width:${lebarThumb}%; left:${posisiThumb}%`"></div>
+      </div>
+      <button @click="geser(1)" aria-label="Geser ke kanan" class="text-navy hover:text-navy-600 transition shrink-0">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+      </button>
+    </div>
+  </div>
+</section>
+{% endif %}
+{% endcomment %}
+
+{# ========================== PODCAST =========================== #}
+{% comment %}
+{% if podcasts %}
+<section class="w-full bg-[#F9F8F5] py-10 sm:py-16">
+  <div class="mx-auto w-full max-w-[1118px] px-6">
+    <h2 class="text-2xl sm:text-4xl font-bold text-navy-700 text-center">Listen to Our Podcast</h2>
+
+    <div class="mt-8 space-y-5">
+      {% for podcast in podcasts %}
+      <article class="bg-cream-300 rounded-2xl p-5 flex flex-col sm:flex-row gap-4">
+        <div class="sm:w-44 sm:h-32 h-40 shrink-0 rounded-xl overflow-hidden bg-gray-400">
+          {% if podcast.thumbnail %}
+          <img src="{{ podcast.thumbnail.url }}" alt="{{ podcast.judul }}" loading="lazy" class="w-full h-full object-cover" />
+          {% endif %}
+        </div>
+
+        <div class="flex-1 flex flex-col">
+          <h3 class="text-base sm:text-lg font-bold text-navy-700">{{ podcast.judul }}</h3>
+          <p class="mt-1 text-xs sm:text-sm text-navy-400 leading-relaxed">{{ podcast.deskripsi }}</p>
+          {% if podcast.link %}
+          <a href="{{ podcast.link }}" target="_blank" rel="noopener"
+             class="mt-4 self-end bg-gold-dark text-white text-[11px] font-semibold px-4 py-2 rounded-lg hover:bg-navy transition">
+            Dengarkan Sekarang
+          </a>
+          {% endif %}
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
+{% endcomment %}
+
+{# ====================== COMPANY PROFILE ======================= #}
+{% comment %}
+{% if company_profiles %}
+<section class="w-full bg-cream py-12 sm:py-16">
+  <div class="mx-auto w-full max-w-[1118px] px-6">
+    <h2 class="text-2xl sm:text-4xl font-bold text-navy-700">Company Profile</h2>
+
+    <div class="mt-6 grid grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5">
+      {% for profil in company_profiles %}
+      <a {% if profil.link %}href="{{ profil.link }}" target="_blank" rel="noopener"{% endif %}
+         class="group relative aspect-[4/3] rounded-xl overflow-hidden bg-gradient-to-br from-navy-700 to-navy block">
+        {% if profil.thumbnail %}
+        <img src="{{ profil.thumbnail.url }}" alt="{{ profil.judul }}" loading="lazy"
+             class="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-80 transition" />
+        {% endif %}
+        <div class="absolute inset-0 p-3 sm:p-4 flex flex-col justify-end">
+          <p class="text-[10px] sm:text-sm text-white leading-snug">{{ profil.deskripsi|default:profil.judul }}</p>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
+{% endcomment %}
+
 {% endblock %}

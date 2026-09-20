@@ -1,6 +1,7 @@
 import uuid
 
 from django.conf import settings
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 
@@ -11,52 +12,140 @@ JURUSAN_CHOICES = [
     ("SI", "Sistem Informasi"),
     ("KA", "Kecerdasan Artifisial"),
     ("IK-IUP", "Ilmu Komputer (International Undergraduate Program)"),
-    ("SI-IUP", "Sistem Informasi (International Undergraduate Program)"),
 ]
 
 
-class MabaProfile(models.Model):
-    """Data tambahan untuk user hasil login SSO UI (PRD 7 - Authentication).
+class Profile(models.Model):
+    """Profil tunggal setiap orang di program mentoring (PRD 7 - Authentication).
 
-    Dibuat 1-1 dengan auth.User. `npm` dipakai sebagai username saat login.
-    Lihat siwak/sso.py untuk catatan integrasi SSO UI yang sesungguhnya.
+    Satu baris ini menggantikan MabaProfile + PesertaMentoring + Mentor. `role`
+    menentukan perannya di `kelompok`: mentee berarti dia peserta kelompok itu,
+    mentor berarti dia yang memegangnya, dan NULL berarti belum ditentukan.
+
+    Dibuat 1-1 dengan auth.User. Barisnya boleh disiapkan pengelola lebih dulu
+    hanya dengan NPM (`user` masih kosong); saat orangnya login lewat SSO UI,
+    baris itu diklaim (lihat siwak/sso.py) dan `role`/`kelompok`-nya tidak berubah.
+
+    Namanya sengaja umum, bukan khusus mahasiswa: mentor belum tentu mahasiswa
+    UI. Mentor non-SSO dibuat pengelola di panel dengan username dan password
+    sendiri, jadi `npm`, `jurusan`, dan `angkatan` semuanya opsional untuk dia.
+    `auth_source` yang membedakan asal akunnya.
     """
 
+    ROLE_MENTEE = "mentee"
+    ROLE_MENTOR = "mentor"
+    ROLE_CHOICES = [
+        (ROLE_MENTEE, "Mentee"),
+        (ROLE_MENTOR, "Mentor"),
+    ]
+
+    SOURCE_SSO = "sso"
+    SOURCE_LOKAL = "lokal"
+    AUTH_SOURCE_CHOICES = [
+        (SOURCE_SSO, "SSO UI"),
+        (SOURCE_LOKAL, "Akun lokal"),
+    ]
+
+    # Awalan yang dipesan untuk username akun lokal. CAS mencocokkan User lewat
+    # username, jadi awalan ini yang menjamin akun buatan pengelola tidak pernah
+    # kebetulan dipakai ulang oleh login SSO orang lain.
+    USERNAME_LOKAL_PREFIX = "mentor-"
+
     user = models.OneToOneField(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="maba_profile"
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="profil",
+        null=True,
+        blank=True,
+        verbose_name="Akun login",
+        help_text="Terisi otomatis saat orangnya login lewat SSO UI. Boleh kosong.",
     )
-    npm = models.CharField(max_length=20, unique=True, verbose_name="NPM")
+    # null=True, bukan sekadar blank: mentor non-SSO tidak punya NPM sama sekali.
+    # Postgres memperlakukan tiap NULL sebagai berbeda di bawah UNIQUE, jadi
+    # banyak profil tanpa NPM tetap sah — asal tidak ada yang menyimpan "" (lihat
+    # normalisasi di save()).
+    npm = models.CharField(
+        max_length=20, unique=True, null=True, blank=True, verbose_name="NPM"
+    )
     nama_lengkap = models.CharField(max_length=200, verbose_name="Nama Lengkap")
-    jurusan = models.CharField(max_length=10, choices=JURUSAN_CHOICES, verbose_name="Jurusan")
+    # blank=True: mentor yang disiapkan pengelola sebelum login belum punya jurusan;
+    # SSO yang mengisinya nanti.
+    jurusan = models.CharField(
+        max_length=10, choices=JURUSAN_CHOICES, blank=True, verbose_name="Jurusan"
+    )
     angkatan = models.CharField(max_length=4, blank=True, verbose_name="Angkatan")
+    # NULL = belum ditentukan. Akun yang baru login belum tentu mentee, belum
+    # tentu mentor; pengelola yang memilihnya lewat daftar Profile di panel.
+    # Selama NULL, akun ini bukan mentee maupun mentor (tidak lolos filter role
+    # di mana pun), jadi tidak ada hak akses yang ikut terbuka.
+    role = models.CharField(
+        max_length=10,
+        choices=ROLE_CHOICES,
+        null=True,
+        blank=True,
+        default=None,
+        verbose_name="Peran",
+    )
+    # Penanda eksplisit, bukan ditebak dari password: User buatan CAS lahir lewat
+    # get_or_create() tanpa password sama sekali, dan password "" itu masih
+    # dilaporkan "usable" oleh Django walau tidak pernah bisa dipakai login.
+    auth_source = models.CharField(
+        max_length=10,
+        choices=AUTH_SOURCE_CHOICES,
+        default=SOURCE_SSO,
+        verbose_name="Sumber akun",
+    )
+    kelompok = models.ForeignKey(
+        "KelompokMentoring",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="anggota",
+        verbose_name="Kelompok",
+        help_text="Mentee: kelompok tempat dia jadi peserta. Mentor: kelompok yang dia pegang.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        verbose_name = "Profil Maba"
-        verbose_name_plural = "Profil Maba"
+        verbose_name = "Profil"
+        verbose_name_plural = "Profil"
+        ordering = ["nama_lengkap"]
 
     def __str__(self):
-        return f"{self.nama_lengkap} ({self.npm})"
+        return f"{self.nama_lengkap} ({self.npm})" if self.npm else self.nama_lengkap
+
+    def save(self, *args, **kwargs):
+        # "" bukan NULL: dua profil tanpa NPM yang sama-sama menyimpan string
+        # kosong akan saling menabrak unique. NULL tidak.
+        self.npm = self.npm or None
+        super().save(*args, **kwargs)
+
+    @property
+    def is_mentor(self):
+        return self.role == self.ROLE_MENTOR
+
+    @property
+    def is_mentee(self):
+        return self.role == self.ROLE_MENTEE
+
+    @property
+    def is_akun_lokal(self):
+        return self.auth_source == self.SOURCE_LOKAL
 
 
 class SiwakInfo(models.Model):
     """Konten singleton untuk hero & section 'Apa itu SIWAK-NG' (PRD 4.1)."""
 
     hero_judul = models.CharField(max_length=200, default="SIWAK-NG")
-    hero_deskripsi = models.TextField(blank=True)
     apa_itu_deskripsi = models.TextField(blank=True, verbose_name="Deskripsi 'Apa itu SIWAK-NG'")
     apa_itu_gambar = models.ImageField(
         upload_to="siwak/info/", blank=True, null=True, verbose_name="Gambar 'Apa itu SIWAK-NG'"
     )
     mentoring_deskripsi = models.TextField(blank=True, verbose_name="Deskripsi 'Apa itu Mentoring'")
-    cta_mentoring_link = models.CharField(
-        max_length=300, blank=True, default="/siwak/kelompok/",
-        verbose_name="Link tombol 'Lihat Kelompok Mentoring'",
-    )
     kontak_cp = models.CharField(
         max_length=300, blank=True,
-        help_text="Link WhatsApp/kontak CP Fakultas, ditampilkan saat kelompok tidak ditemukan.",
-        verbose_name="Link CP Fakultas",
+        help_text="Link WhatsApp/kontak CP SIWAK, ditampilkan saat kelompok tidak ditemukan.",
+        verbose_name="Link CP SIWAK",
     )
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -139,22 +228,10 @@ class TimelineEvent(models.Model):
         return {"upcoming": "Upcoming", "ongoing": "Ongoing", "completed": "Completed"}[self.status]
 
 
-class Mentor(models.Model):
-    nama = models.CharField(max_length=200)
-
-    class Meta:
-        verbose_name = "Mentor"
-        ordering = ["nama"]
-
-    def __str__(self):
-        return self.nama
-
-
 class KelompokMentoring(models.Model):
     """Kelompok mentoring + link grup WhatsApp (PRD 4.3)."""
 
     nama_kelompok = models.CharField(max_length=100, verbose_name="Nama Kelompok")
-    mentors = models.ManyToManyField(Mentor, related_name="kelompok_list", blank=True, verbose_name="Mentor")
     link_grup = models.URLField(verbose_name="Link Grup WhatsApp", blank=True)
     kapasitas = models.PositiveIntegerField(default=15, verbose_name="Kapasitas")
     is_active = models.BooleanField(default=True)
@@ -168,33 +245,195 @@ class KelompokMentoring(models.Model):
     def __str__(self):
         return self.nama_kelompok
 
+    # Sengaja bukan `mentor_list` / `peserta_list`: itu dulu relasi ORM sungguhan,
+    # jadi memakai nama yang sama untuk property akan mengundang
+    # `Count("peserta_list")` yang lolos import tapi pecah saat query.
+    @property
+    def daftar_mentor(self):
+        return self.anggota.filter(role=Profile.ROLE_MENTOR)
 
-class PesertaMentoring(models.Model):
-    """Baris data peserta (mentee) yang dipakai fitur 'Cari Kelompok' (PRD 4.3).
+    @property
+    def daftar_mentee(self):
+        return self.anggota.filter(role=Profile.ROLE_MENTEE)
 
-    Diisi oleh admin lewat upload data kelompok. `user` terisi otomatis begitu
-    mahasiswa terkait login lewat SSO, supaya fitur Tugas/RSVP tahu kelompok
-    mana yang berlaku untuknya.
-    """
 
-    nama_lengkap = models.CharField(max_length=200)
-    jurusan = models.CharField(max_length=10, choices=JURUSAN_CHOICES)
-    npm = models.CharField(max_length=20, blank=True, verbose_name="NPM (opsional)")
+class MentoringSession(models.Model):
+    SESSION_CHOICES = [(number, f"Sesi {number}") for number in range(1, 5)]
+
     kelompok = models.ForeignKey(
-        KelompokMentoring, on_delete=models.SET_NULL, null=True, blank=True, related_name="peserta_list"
+        KelompokMentoring,
+        on_delete=models.CASCADE,
+        related_name="mentoring_sessions",
     )
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="peserta_mentoring"
+    nomor = models.PositiveSmallIntegerField(
+        choices=SESSION_CHOICES,
+        editable=False,
+        verbose_name="Sesi",
     )
+    judul = models.CharField(
+        max_length=200,
+        editable=False,
+        verbose_name="Nama/Sesi Mentoring",
+    )
+    tanggal = models.DateField(null=True, blank=True, verbose_name="Tanggal Mentoring")
+    catatan = models.TextField(blank=True, verbose_name="Catatan Sesi")
+    is_active = models.BooleanField(default=False, verbose_name="Aktif")
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        verbose_name = "Peserta Mentoring"
-        verbose_name_plural = "Peserta Mentoring"
-        ordering = ["nama_lengkap"]
-        indexes = [models.Index(fields=["nama_lengkap", "jurusan"])]
+        verbose_name = "Sesi Mentoring"
+        verbose_name_plural = "Sesi Mentoring"
+        ordering = ["kelompok", "nomor"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["kelompok", "nomor"],
+                name="unique_mentoring_session_number_per_group",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(nomor__gte=1, nomor__lte=4),
+                name="mentoring_session_number_between_1_and_4",
+            ),
+        ]
+
+    def save(self, *args, **kwargs):
+        self.judul = f"Sesi Mentoring {self.nomor}"
+        super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.nama_lengkap} - {self.jurusan}"
+        return f"{self.kelompok} - {self.judul}"
+
+
+class MentoringAttendance(models.Model):
+    STATUS_HADIR = "hadir"
+    STATUS_TIDAK_HADIR = "tidak_hadir"
+    STATUS_IZIN = "izin"
+    STATUS_CHOICES = [
+        (STATUS_HADIR, "Hadir"),
+        (STATUS_TIDAK_HADIR, "Tidak Hadir"),
+        (STATUS_IZIN, "Izin"),
+    ]
+
+    session = models.ForeignKey(
+        MentoringSession,
+        on_delete=models.CASCADE,
+        related_name="attendance_records",
+    )
+    peserta = models.ForeignKey(
+        Profile,
+        on_delete=models.CASCADE,
+        related_name="mentoring_attendance",
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES)
+    catatan = models.CharField(max_length=300, blank=True)
+    recorded_by = models.ForeignKey(
+        Profile,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        limit_choices_to={"role": Profile.ROLE_MENTOR},
+        related_name="recorded_attendance",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Presensi Mentee"
+        verbose_name_plural = "Presensi Mentee"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["session", "peserta"],
+                name="unique_attendance_per_session_participant",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.peserta} - {self.session} - {self.get_status_display()}"
+
+
+class AssessmentAspect(models.Model):
+    nama = models.CharField(max_length=100, unique=True)
+    urutan = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = "Aspek Penilaian"
+        verbose_name_plural = "Aspek Penilaian"
+        ordering = ["urutan", "nama"]
+
+    def __str__(self):
+        return self.nama
+
+
+class MenteeAssessment(models.Model):
+    peserta = models.ForeignKey(
+        Profile,
+        on_delete=models.CASCADE,
+        related_name="assessments",
+    )
+    aspect = models.ForeignKey(
+        AssessmentAspect,
+        on_delete=models.PROTECT,
+        related_name="mentee_assessments",
+    )
+    score = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        verbose_name="Nilai",
+    )
+    catatan = models.TextField(blank=True, verbose_name="Catatan Mentor")
+    assessed_by = models.ForeignKey(
+        Profile,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        limit_choices_to={"role": Profile.ROLE_MENTOR},
+        related_name="mentee_assessments",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Penilaian Mentee"
+        verbose_name_plural = "Penilaian Mentee"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["peserta", "aspect"],
+                name="unique_assessment_per_participant_aspect",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.peserta} - {self.aspect}: {self.score}"
+
+
+class MentorFeedback(models.Model):
+    session = models.ForeignKey(
+        MentoringSession,
+        on_delete=models.CASCADE,
+        related_name="mentee_feedback",
+    )
+    peserta = models.ForeignKey(
+        Profile,
+        on_delete=models.CASCADE,
+        related_name="mentor_feedback",
+    )
+    mentor = models.ForeignKey(
+        Profile,
+        on_delete=models.SET_NULL,
+        null=True,
+        limit_choices_to={"role": Profile.ROLE_MENTOR},
+        related_name="feedback_entries",
+    )
+    isi = models.TextField(verbose_name="Feedback")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Feedback Mentor"
+        verbose_name_plural = "Feedback Mentor"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Feedback {self.peserta} - {self.session}"
 
 
 class MentoringTujuan(models.Model):
@@ -282,6 +521,8 @@ class FAQMentoring(models.Model):
 
 
 def tugas_upload_path(instance, filename):
+    # Tidak dipakai lagi (berkas utama dihapus), tetap ada karena direferensikan
+    # migrasi 0001.
     return f"siwak/tugas/{instance.tugas_id}/{instance.user_id}/{filename}"
 
 
@@ -311,6 +552,45 @@ class Tugas(models.Model):
             return None
         return self.submissions.filter(user=user).first()
 
+class Question(models.Model):
+    TYPE_CHOICES = [
+        ("text", "Text"),
+        ("choice", "Choice"),
+        ("file", "File"),
+    ]
+
+    tugas = models.ForeignKey(
+        Tugas,
+        on_delete=models.CASCADE,
+        related_name="questions",
+    )
+    pertanyaan = models.TextField()
+    tipe = models.CharField(
+        max_length=10,
+        choices=TYPE_CHOICES,
+    )
+    urutan = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["urutan"]
+
+    def __str__(self):
+        return self.pertanyaan[:80]
+
+class Choice(models.Model):
+    question = models.ForeignKey(
+        Question,
+        on_delete=models.CASCADE,
+        related_name="choices",
+    )
+    teks = models.CharField(max_length=300)
+    urutan = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["urutan"]
+
+    def __str__(self):
+        return self.teks
 
 class TugasSubmission(models.Model):
     """Submission mentee untuk satu Tugas (PRD 5.1 - Task Fields / Submission Rules)."""
@@ -322,7 +602,6 @@ class TugasSubmission(models.Model):
 
     tugas = models.ForeignKey(Tugas, on_delete=models.CASCADE, related_name="submissions")
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="tugas_submissions")
-    file = models.FileField(upload_to=tugas_upload_path)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="submitted")
     submitted_at = models.DateTimeField(auto_now=True)
 
@@ -338,35 +617,134 @@ class TugasSubmission(models.Model):
         super().save(*args, **kwargs)
 
 
+class AssignmentReview(models.Model):
+    submission = models.OneToOneField(
+        TugasSubmission,
+        on_delete=models.CASCADE,
+        related_name="mentor_review",
+    )
+    score = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        verbose_name="Nilai Tugas",
+    )
+    feedback = models.TextField(blank=True)
+    reviewer = models.ForeignKey(
+        Profile,
+        on_delete=models.SET_NULL,
+        null=True,
+        limit_choices_to={"role": Profile.ROLE_MENTOR},
+        related_name="assignment_reviews",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Penilaian Tugas"
+        verbose_name_plural = "Penilaian Tugas"
+
+    def __str__(self):
+        return f"{self.submission} - {self.score}"
+
+
+class AssignmentReviewHistory(models.Model):
+    """Append-only snapshots so assignment feedback remains reviewable over time."""
+
+    submission = models.ForeignKey(
+        TugasSubmission,
+        on_delete=models.CASCADE,
+        related_name="mentor_review_history",
+    )
+    score = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        verbose_name="Nilai Tugas",
+    )
+    feedback = models.TextField(blank=True)
+    reviewer = models.ForeignKey(
+        Profile,
+        on_delete=models.SET_NULL,
+        null=True,
+        limit_choices_to={"role": Profile.ROLE_MENTOR},
+        related_name="assignment_review_history",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Riwayat Penilaian Tugas"
+        verbose_name_plural = "Riwayat Penilaian Tugas"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.submission} - {self.score} ({self.created_at})"
+
+
 def _new_token():
     return uuid.uuid4().hex
+
+class Answer(models.Model):
+    submission = models.ForeignKey(
+        TugasSubmission,
+        on_delete=models.CASCADE,
+        related_name="answers",
+    )
+    question = models.ForeignKey(
+        Question,
+        on_delete=models.CASCADE,
+        related_name="answers",
+    )
+
+    text_answer = models.TextField(blank=True)
+    selected_choice = models.ForeignKey(
+        Choice,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="answers",
+    )
+    file_answer = models.FileField(
+        upload_to="siwak/jawaban/",
+        blank=True,
+        null=True,
+    )
+
+    class Meta:
+        verbose_name = "Jawaban Tugas"
+        unique_together = [("submission", "question")]
+
+    def __str__(self):
+        return f"{self.submission} - {self.question}"
 
 
 class EventRSVP(models.Model):
     """RSVP + QR registrasi ulang & QR kupon makan (PRD 5.2, 6.1, 6.2)."""
 
     ATTENDANCE_CHOICES = [
-        ("registered", "Registered"),
         ("hadir", "Hadir"),
+        ("tidak_hadir", "Tidak Hadir"),
+        ("izin", "Izin")
     ]
-    KUPON_CHOICES = [
+    QR_CHOICES = [
         ("unused", "Unused"),
         ("redeemed", "Redeemed"),
+    ]
+    KEHADIRAN_STATUS_CHOICES = [
+        ("hadir", "Hadir"),
+        ("belum_hadir", "Belum Hadir"),
     ]
 
     event = models.ForeignKey(SiwakEvent, on_delete=models.CASCADE, related_name="rsvp_list")
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="event_rsvps")
-    catatan = models.CharField(max_length=300, blank=True, verbose_name="Catatan tambahan (opsional)")
+    kehadiran = models.CharField(max_length=12, choices=ATTENDANCE_CHOICES, default="hadir")
+    alasan_izin = models.CharField(max_length=300, blank=True, verbose_name="Jika Izin, Alasannya Kenapa?")
     created_at = models.DateTimeField(auto_now_add=True)
 
     # QR Registrasi Ulang (6.1)
-    qr_registrasi_token = models.CharField(max_length=64, unique=True, default=_new_token, editable=False)
-    status_kehadiran = models.CharField(max_length=12, choices=ATTENDANCE_CHOICES, default="registered")
+    qr_registrasi_token = models.CharField(null=True, max_length=64, unique=True, default=_new_token, editable=False)
+    status_kehadiran = models.CharField(max_length=12, choices=KEHADIRAN_STATUS_CHOICES, default="belum_hadir")
     checked_in_at = models.DateTimeField(null=True, blank=True)
 
     # QR Kupon Makan (6.2)
-    qr_kupon_token = models.CharField(max_length=64, unique=True, default=_new_token, editable=False)
-    status_kupon = models.CharField(max_length=10, choices=KUPON_CHOICES, default="unused")
+    qr_kupon_token = models.CharField(null=True, max_length=64, unique=True, default=_new_token, editable=False)
+    status_kupon = models.CharField(null=True, max_length=10, choices=QR_CHOICES, default="unused")
     redeemed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:

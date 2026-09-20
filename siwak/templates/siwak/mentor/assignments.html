@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+
+{% block title %}Assignment Mentee | Portal Mentor{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-[#F8F7F3] px-5 py-10 sm:px-8">
+  <div class="mx-auto max-w-6xl">
+    {% include 'siwak/mentor/_group_nav.html' %}
+
+    <div class="mb-6">
+      <p class="text-sm font-semibold text-gold-dark">Rekap kelompok</p>
+      <h2 class="mt-1 text-2xl font-bold text-navy">Assignment Mentee</h2>
+      <p class="mt-2 text-sm text-slate-500">Pilih submission untuk memberikan nilai dan feedback.</p>
+    </div>
+
+    <div class="space-y-5">
+      {% for row in rows %}
+      <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="mb-5">
+          <h3 class="font-bold text-slate-900">{{ row.participant.nama_lengkap }}</h3>
+          <p class="mt-1 text-sm text-slate-500">{{ row.participant.npm|default:"NPM belum terhubung" }}</p>
+        </div>
+
+        <div class="divide-y divide-slate-100">
+          {% for item in row.tasks %}
+          <div class="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p class="font-semibold text-slate-800">{{ item.task.judul_tugas }}</p>
+              <p class="mt-1 text-xs text-slate-500">Deadline {{ item.task.deadline|date:"d M Y H:i" }}</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="rounded-full px-3 py-1 text-xs font-bold {% if item.status == 'Submitted' %}bg-green-100 text-green-700{% elif item.status == 'Late' %}bg-orange-100 text-orange-700{% else %}bg-slate-100 text-slate-600{% endif %}">
+                {{ item.status }}
+              </span>
+              {% if item.submission %}
+              <a href="{% url 'siwak:mentor_mentee_detail' participant_id=row.participant.pk %}#assignment-{{ item.task.pk }}"
+                 class="rounded-lg bg-navy px-3 py-2 text-xs font-bold text-white hover:bg-navy-700">
+                {% if item.submission.mentor_review %}Nilai {{ item.submission.mentor_review.score }}{% else %}Beri Nilai{% endif %}
+              </a>
+              {% endif %}
+            </div>
+          </div>
+          {% empty %}
+          <p class="text-sm text-slate-500">Belum ada assignment.</p>
+          {% endfor %}
+        </div>
+      </section>
+      {% empty %}
+      <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500">
+        Belum ada mentee dalam kelompok ini.
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

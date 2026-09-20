@@ -2,53 +2,39 @@
 {% load static %}
 
 {% block title %}Blog Kajian{% endblock %}
+{% block meta_description %}Baca rangkuman kajian dan temukan kembali ilmu yang dibagikan bersama FUKI Fasilkom UI.{% endblock %}
 
 {% block content %}
-    <style>
-        .drop-shadow-custom {
-            text-shadow: 0 0 89px #A6CE39;
-        }
-        .letter-spacing-wide { letter-spacing: 0.1em; }
-        .word-spacing-wide { word-spacing: 0.5em; }
-    </style>
-    {% include 'header.html' with page_title="Blog Kajian" %}
+<div class="min-h-screen bg-[#F9F8F5] text-[#001B3D]">
+  {% include 'components/redesign_header.html' with page_title='Blog Kajian' %}
 
-        <div class="px-6 py-8 md:p-[84px] bg-[#F6FAEB] min-h-screen">
-            
-            <div class="w-full max-w-[1400px] mx-auto">
+  <section aria-labelledby="kajian-heading" class="mx-auto max-w-[1244px] px-6 pb-24 pt-8 sm:px-10 lg:pb-32 lg:pt-12">
+    <div class="mb-9 flex flex-col gap-7 lg:mb-12 lg:flex-row lg:items-end lg:justify-between">
+      <div class="max-w-xl">
+        <p class="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-[#7A6425]">Ruang belajar FUKI</p>
+        <h2 id="kajian-heading" class="text-3xl font-bold leading-tight sm:text-4xl">Temukan inspirasi dari setiap kajian</h2>
+        <p class="mt-4 text-sm leading-relaxed text-[#49617D] sm:text-base">Baca kembali pembahasan, renungan, dan ilmu yang telah dibagikan bersama.</p>
+      </div>
+      {% include 'components/kajian_search.html' %}
+    </div>
 
-                <!-- Search Bar dengan Form -->
-                <div class="w-full mb-12">
-                    <!-- Tambahkan tag form dengan method GET dan action ke halaman ini sendiri -->
-                    <form action="{% url 'blog_kajian' %}" method="GET" class="relative w-full"> 
-                        <input 
-                            type="text" 
-                            name="q" 
-                            placeholder="Cari blog kajian" 
-                            value="{{ request.GET.q|default:'' }}"
-                            class="w-full px-6 py-4 pr-12 rounded-full border-[3px] border-[#3A3A3A] bg-[#F8FBEF00] text-[#3A3A3A] placeholder-[#3A3A3A] focus:outline-none shadow-sm transition-all"
-                        >
-                        <button type="submit" class="absolute right-4 top-1/2 transform -translate-y-1/2 text-[#3A3A3A] hover:text-black transition-colors">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                            </svg>
-                        </button>
-                    </form>
-                </div>
+    {% if request.GET.q %}
+      <p class="mb-6 text-sm text-[#49617D]">Hasil pencarian untuk <strong class="text-[#001B3D]">“{{ request.GET.q }}”</strong></p>
+    {% endif %}
 
-                <!-- Kajian Cards Grid -->
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-[36px] w-full">
-                    {% for kajian in kajian_list %}
-                        {% include 'kajian_card.html' with kajian=kajian %}
-                    {% empty %}
-                        <div class="col-span-3 text-center py-10 text-gray-500">
-                            Belum ada kajian atau tidak ditemukan.
-                        </div>
-                    {% endfor %}
-                </div>
-            
-            </div>
-            
-        </div>
-
+    {% if kajian_list %}
+      <div class="grid gap-7 sm:grid-cols-2 lg:grid-cols-3 lg:gap-8">
+        {% for kajian in kajian_list %}
+          {% include 'kajian_card.html' with kajian=kajian %}
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="rounded-3xl border border-[#E8DCB0] bg-white px-6 py-16 text-center shadow-sm">
+        <h3 class="text-2xl font-bold">{% if request.GET.q %}Kajian tidak ditemukan{% else %}Belum ada kajian{% endif %}</h3>
+        <p class="mx-auto mt-3 max-w-md text-sm leading-relaxed text-[#49617D]">{% if request.GET.q %}Coba kata kunci lain atau lihat seluruh tulisan kajian.{% else %}Tulisan kajian akan tampil di sini setelah diterbitkan. Nantikan ilmu berikutnya bersama FUKI.{% endif %}</p>
+        {% if request.GET.q %}<a href="{% url 'blog_kajian' %}" class="mt-7 inline-flex rounded-xl bg-[#001B3D] px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#264777] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#001B3D]">Lihat semua kajian</a>{% endif %}
+      </div>
+    {% endif %}
+  </section>
+</div>
 {% endblock %}

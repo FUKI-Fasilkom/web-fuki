@@ -1,0 +1,183 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ participant.nama_lengkap }} | Portal Mentor{% endblock %}
+
+{% block content %}
+{% include 'siwak/_messages.html' %}
+<div class="min-h-screen bg-[#F8F7F3] px-5 py-10 sm:px-8">
+  <div class="mx-auto max-w-6xl">
+    <a href="{% url 'siwak:mentor_dashboard' %}" class="text-sm font-semibold text-navy hover:underline">&larr; Kembali ke daftar mentee</a>
+
+    <section class="mt-5 overflow-hidden rounded-2xl bg-navy text-white shadow-lg">
+      <div class="grid gap-6 px-6 py-7 sm:px-8 lg:grid-cols-[1fr_auto] lg:items-center">
+        <div>
+          <h1 class="text-2xl font-bold">{{ participant.nama_lengkap }}</h1>
+          <p class="mt-2 text-sm text-white/75">{{ participant.npm|default:"NPM belum terhubung" }} &middot; {{ participant.get_jurusan_display }}{% if participant.angkatan %} &middot; Angkatan {{ participant.angkatan }}{% endif %}</p>
+        </div>
+        <div class="grid grid-cols-2 gap-3 text-center">
+          <div class="rounded-2xl bg-white/10 px-5 py-3">
+            <p class="text-xl font-bold">{{ present_count }}/{{ attendance_records|length }}</p>
+            <p class="text-xs text-white/70">Kehadiran</p>
+          </div>
+          <div class="rounded-2xl bg-white/10 px-5 py-3">
+            <p class="text-xl font-bold">{{ assessment_average|default:"-" }}</p>
+            <p class="text-xs text-white/70">Rata-rata</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="mt-8">
+      <h2 class="mt-1 text-2xl font-bold text-navy">Sesi Mentoring</h2>
+
+
+      <div class="mt-6 grid gap-5 lg:grid-cols-2">
+        {% for card in session_cards %}
+        <article id="session-{{ card.session.pk }}" class="scroll-mt-6 rounded-2xl border {% if card.session.is_active %}border-slate-200 bg-white{% else %}border-dashed border-slate-300 bg-slate-50{% endif %} p-6 shadow-sm">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <p class="text-xs font-bold uppercase tracking-wide {% if card.session.is_active %}text-green-700{% else %}text-slate-400{% endif %}">{% if card.session.is_active %}Aktif{% else %}Belum aktif{% endif %}</p>
+              <h3 class="mt-2 text-xl font-bold {% if card.session.is_active %}text-navy{% else %}text-slate-600{% endif %}">{{ card.session.judul }}</h3>
+              <p class="mt-1 text-sm text-slate-500">{{ card.session.tanggal|date:"d F Y"|default:"Tanggal belum ditentukan" }}</p>
+            </div>
+            {% if card.attendance %}
+            <span class="rounded-full px-3 py-1 text-xs font-bold {% if card.attendance.status == 'hadir' %}bg-green-100 text-green-700{% elif card.attendance.status == 'izin' %}bg-amber-100 text-amber-700{% else %}bg-red-100 text-red-700{% endif %}">{{ card.attendance.get_status_display }}</span>
+            {% endif %}
+          </div>
+
+          {% if card.session.is_active %}
+          <form method="post" class="mt-5 space-y-4">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="session_record">
+            <input type="hidden" name="session_id" value="{{ card.session.pk }}">
+            <div class="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Status presensi</label>
+                {{ card.form.status }}
+                {% for error in card.form.status.errors %}<p class="mt-1 text-xs text-red-600">{{ error }}</p>{% endfor %}
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Catatan presensi</label>
+                {{ card.form.catatan }}
+                {% for error in card.form.catatan.errors %}<p class="mt-1 text-xs text-red-600">{{ error }}</p>{% endfor %}
+              </div>
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Feedback sesi</label>
+              {{ card.form.feedback }}
+              {% for error in card.form.feedback.errors %}<p class="mt-1 text-xs text-red-600">{{ error }}</p>{% endfor %}
+              <p class="mt-1 text-xs text-slate-400">Kosongkan jika hanya ingin memperbarui presensi.</p>
+            </div>
+            <button type="submit" class="w-full rounded-xl bg-navy px-5 py-3 font-bold text-white hover:bg-navy-700">Simpan Sesi</button>
+          </form>
+          {% else %}
+          <p class="mt-5 rounded-xl bg-white p-4 text-sm text-slate-500">Menunggu aktivasi admin SIWAK. Presensi dan feedback belum dapat diisi.</p>
+          {% endif %}
+
+          {% if card.feedback_entries %}
+          <div class="mt-5 border-t border-slate-200 pt-4">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Riwayat feedback sesi</p>
+            <div class="mt-3 space-y-2">
+              {% for entry in card.feedback_entries %}
+              <div class="rounded-xl bg-slate-50 p-3">
+                <p class="whitespace-pre-line text-sm text-slate-700">{{ entry.isi }}</p>
+                <p class="mt-2 text-xs text-slate-400">{{ entry.mentor.nama_lengkap|default:"Mentor" }} &middot; {{ entry.created_at|date:"d M Y H:i" }}</p>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+        </article>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section id="penilaian" class="mt-8 scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+      <p class="text-sm font-semibold text-gold-dark">Penilaian perkembangan</p>
+      <h2 class="mt-1 text-2xl font-bold text-navy">Nilai Mentee</h2>
+      <p class="mt-2 text-sm text-slate-500">Gunakan skala 0&ndash;100 untuk setiap aspek.</p>
+      <form method="post" class="mt-6 space-y-5">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="assessment">
+        {% for row in assessment_rows %}
+        <div class="rounded-2xl bg-slate-50 p-5">
+          <h3 class="font-bold text-slate-900">{{ row.aspect.nama }}</h3>
+          <div class="mt-4 grid gap-4">
+            <div>
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Nilai</label>
+              {{ row.score_field }}
+              {% for error in row.score_field.errors %}<p class="mt-1 text-xs text-red-600">{{ error }}</p>{% endfor %}
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Catatan</label>
+              {{ row.note_field }}
+            </div>
+          </div>
+        </div>
+        {% empty %}
+        <p class="rounded-2xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">Belum ada aspek penilaian aktif.</p>
+        {% endfor %}
+        {% if assessment_rows %}<button type="submit" class="w-full rounded-xl bg-navy px-6 py-3 font-bold text-white hover:bg-navy-700 sm:w-auto">Simpan Penilaian</button>{% endif %}
+      </form>
+    </section>
+
+    <section class="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+      <h2 class="text-2xl font-bold text-navy">Assignment</h2>
+      <div class="mt-5 space-y-5">
+        {% for item in assignment_rows %}
+        <article id="assignment-{{ item.task.pk }}" class="scroll-mt-6 rounded-2xl bg-slate-50 p-5">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p class="font-semibold text-slate-900">{{ item.task.judul_tugas }}</p>
+              <p class="mt-1 text-xs text-slate-500">Deadline {{ item.task.deadline|date:"d M Y H:i" }}</p>
+            </div>
+            <span class="rounded-full px-3 py-1 text-xs font-bold {% if item.status == 'Submitted' %}bg-green-100 text-green-700{% elif item.status == 'Late' %}bg-orange-100 text-orange-700{% else %}bg-slate-100 text-slate-600{% endif %}">{{ item.status }}</span>
+          </div>
+          {% if item.submission %}
+          <div class="mt-4 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+            <span>Dikumpulkan {{ item.submission.submitted_at|date:"d M Y H:i" }}</span>
+          </div>
+          {% include 'siwak/mentor/_submission_answers.html' with submission=item.submission only %}
+          <form method="post" class="mt-5 space-y-4">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="assignment_review">
+            <input type="hidden" name="submission_id" value="{{ item.submission.pk }}">
+            <div class="grid gap-4 sm:grid-cols-[140px_1fr]">
+              <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Nilai tugas</label>
+                {{ item.review_form.score }}
+                {% for error in item.review_form.score.errors %}<p class="mt-1 text-xs text-red-600">{{ error }}</p>{% endfor %}
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Feedback assignment</label>
+                {{ item.review_form.feedback }}
+                {% for error in item.review_form.feedback.errors %}<p class="mt-1 text-xs text-red-600">{{ error }}</p>{% endfor %}
+              </div>
+            </div>
+            <button type="submit" class="rounded-xl bg-navy px-5 py-2.5 text-sm font-bold text-white hover:bg-navy-700">Simpan Nilai Assignment</button>
+          </form>
+          {% if item.review_history %}
+          <details class="mt-4 text-sm">
+            <summary class="cursor-pointer font-semibold text-navy">Lihat riwayat penilaian</summary>
+            <div class="mt-3 space-y-2">
+              {% for entry in item.review_history %}
+              <div class="rounded-xl bg-white p-3 text-slate-600">
+                <div class="flex justify-between gap-3"><span>{{ entry.created_at|date:"d M Y H:i" }}</span><strong class="text-navy">{{ entry.score }}/100</strong></div>
+                {% if entry.feedback %}<p class="mt-2 whitespace-pre-line">{{ entry.feedback }}</p>{% endif %}
+              </div>
+              {% endfor %}
+            </div>
+          </details>
+          {% endif %}
+          {% else %}
+          <p class="mt-4 text-sm text-slate-500">Mentee belum mengumpulkan assignment ini.</p>
+          {% endif %}
+        </article>
+        {% empty %}
+        <p class="text-sm text-slate-500">Belum ada assignment aktif.</p>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,58 @@
+{% extends 'siwak/panel/base.html' %}
+
+{% block panel %}
+<header class="mb-6">
+  <h1 class="text-2xl font-bold text-navy sm:text-3xl">Panel Pengelola SIWAK-NG</h1>
+  <p class="mt-1.5 max-w-2xl text-sm leading-relaxed text-navy-400">
+    Pilih bagian yang ingin diubah. Setiap perubahan yang disimpan di sini langsung tampil
+    di halaman SIWAK-NG.
+  </p>
+</header>
+
+<!-- Angka ringkas -->
+<section class="mb-7 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4" aria-label="Ringkasan data">
+  {% for label, jumlah in ringkasan %}
+  <div class="rounded-2xl border-2 border-gold-light bg-white px-4 py-4">
+    <p class="text-2xl font-bold leading-none text-navy sm:text-3xl">{{ jumlah }}</p>
+    <p class="mt-1.5 text-[11px] font-semibold uppercase tracking-wide text-navy-400 sm:text-xs">{{ label }}</p>
+  </div>
+  {% endfor %}
+</section>
+
+<!-- Empat bagian utama -->
+<section class="grid gap-4 sm:grid-cols-2">
+  {% for kartu in kartu %}
+  <a href="{{ kartu.url }}"
+     class="group flex flex-col rounded-2xl border-2 border-gold-light bg-white p-5 transition
+            hover:-translate-y-0.5 hover:border-gold hover:shadow-[0_12px_28px_rgba(18,40,76,0.10)]">
+    <div class="flex items-start gap-3">
+      <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-navy text-gold">
+        {% include 'siwak/panel/_ikon.html' with nama=kartu.bagian.ikon kelas="h-5 w-5" %}
+      </span>
+      <div class="min-w-0">
+        <h2 class="text-base font-bold text-navy sm:text-lg">{{ kartu.bagian.nama }}</h2>
+        <p class="mt-1 text-sm leading-relaxed text-navy-400">{{ kartu.bagian.deskripsi }}</p>
+      </div>
+    </div>
+
+    <ul class="mt-4 flex flex-wrap gap-1.5">
+      {% for menu in kartu.menu %}
+      <li class="rounded-full bg-cream-300 px-3 py-1 text-[11px] font-semibold text-navy">
+        {{ menu.label }} <span class="text-navy-400">({{ menu.jumlah }})</span>
+      </li>
+      {% endfor %}
+    </ul>
+
+    <span class="mt-4 inline-flex items-center gap-1.5 text-sm font-bold text-navy-700 transition group-hover:gap-2.5">
+      Buka bagian ini
+      <span aria-hidden="true">&rarr;</span>
+    </span>
+  </a>
+  {% endfor %}
+</section>
+
+<p class="mt-6 rounded-2xl border-2 border-dashed border-gold-light bg-cream-200/60 px-4 py-3 text-xs leading-relaxed text-navy-400">
+  Data yang tidak ada di sini — tugas mentoring, pengumpulan tugas, dan FAQ — masih dikelola
+  lewat <a href="/admin/" class="font-semibold text-navy underline underline-offset-2">Django admin</a>.
+</p>
+{% endblock %}

@@ -1,0 +1,216 @@
+{% extends 'siwak/panel/base.html' %}
+
+{% block panel %}
+<header class="mb-5 flex flex-wrap items-start justify-between gap-3">
+  <div class="min-w-0">
+    <h1 class="text-2xl font-bold text-navy sm:text-3xl">{{ sumber_data.label_jamak }}</h1>
+    <p class="mt-1 max-w-2xl text-sm leading-relaxed text-navy-400">{{ sumber_data.deskripsi }}</p>
+  </div>
+  {% if url_tambah %}
+  <a href="{{ url_tambah }}"
+     class="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl bg-navy px-5 text-sm font-bold text-white transition hover:bg-navy-700">
+    <span aria-hidden="true">+</span> Tambah {{ sumber_data.label }}
+  </a>
+  {% endif %}
+</header>
+
+{% if sumber_data.pencarian %}
+<form method="get" class="mb-4 flex flex-wrap gap-2">
+  {% comment %}
+    Urutan dan pencarian adalah dua hal berbeda, tapi keduanya tersimpan di
+    alamat halaman. Kunci urutan dibawa ikut supaya mencari tidak diam-diam
+    mengembalikan daftar ke urutan awal.
+  {% endcomment %}
+  {% if kunci_urut %}<input type="hidden" name="urut" value="{{ kunci_urut }}" />{% endif %}
+  {% if arah_turun %}<input type="hidden" name="arah" value="turun" />{% endif %}
+  <input type="search" name="q" value="{{ kata }}" placeholder="Cari {{ sumber_data.label_jamak|lower }}…"
+         class="min-h-[44px] w-full flex-1 rounded-xl border-2 border-gold-light bg-white px-4 text-[15px] text-navy placeholder-navy-400/60 transition focus:border-gold focus:outline-none focus:ring-4 focus:ring-gold/25 sm:w-auto" />
+  <button type="submit"
+          class="min-h-[44px] rounded-xl bg-navy px-5 text-sm font-bold text-white transition hover:bg-navy-700">
+    Cari
+  </button>
+  {% if kata %}
+  <a href="{% url 'siwak:panel_daftar' sumber_data.slug %}"
+     class="inline-flex min-h-[44px] items-center rounded-xl border-2 border-navy px-5 text-sm font-bold text-navy transition hover:bg-cream-300">
+    Bersihkan
+  </a>
+  {% endif %}
+</form>
+{% endif %}
+
+{% if baris %}
+
+{% if pilihan_urut %}
+{% comment %}
+  Di layar lebar urutan diatur dengan mengklik judul kolom. Kartu di HP tidak
+  punya judul kolom, jadi pilihan yang sama disediakan sebagai satu dropdown.
+{% endcomment %}
+<div class="mb-3 flex items-center gap-2 lg:hidden">
+  <label for="urut-hp" class="shrink-0 text-xs font-bold uppercase tracking-wide text-navy-400">Urutkan</label>
+  <select id="urut-hp" onchange="if (this.value) window.location.href = this.value"
+          class="min-h-[44px] w-full rounded-xl border-2 border-gold-light bg-white px-3 text-sm font-semibold text-navy transition focus:border-gold focus:outline-none focus:ring-4 focus:ring-gold/25">
+    {% for opsi in pilihan_urut %}
+    <option value="{{ opsi.url }}" {% if opsi.terpilih %}selected{% endif %}>{{ opsi.label }}</option>
+    {% endfor %}
+  </select>
+</div>
+{% endif %}
+
+<!-- Tampilan tabel: layar lebar -->
+<div class="hidden overflow-x-auto rounded-2xl border-2 border-gold-light bg-white lg:block">
+  <table class="w-full text-left text-sm">
+    <thead class="bg-navy text-cream-300">
+      <tr>
+        {% for kol in kepala %}
+        <th scope="col" class="whitespace-nowrap px-3.5 py-3 text-xs font-bold uppercase tracking-wide"
+            {% if kol.aktif %}aria-sort="{% if kol.turun %}descending{% else %}ascending{% endif %}"{% endif %}>
+          {% if kol.bisa_urut %}
+          <a href="{{ kol.url }}" class="inline-flex items-center gap-1.5 transition hover:text-white"
+             title="Urutkan menurut {{ kol.judul }}">
+            {{ kol.judul }}
+            <span aria-hidden="true" class="{% if kol.aktif %}text-gold{% else %}text-cream-300/40{% endif %}">
+              {% if kol.aktif %}{% if kol.turun %}&#9660;{% else %}&#9650;{% endif %}{% else %}&#8645;{% endif %}
+            </span>
+          </a>
+          {% else %}{{ kol.judul }}{% endif %}
+        </th>
+        {% endfor %}
+        {% if sumber_data.punya_aksi %}
+        <th scope="col" class="whitespace-nowrap px-3.5 py-3 text-right text-xs font-bold uppercase tracking-wide">Aksi</th>
+        {% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in baris %}
+      <tr class="border-t border-gold-light/70 align-middle even:bg-cream-50">
+        {% for sel in item.sel %}
+        {% comment %}
+          Sel dibuat tidak membungkus baris kecuali memang teks panjang, daftar
+          tag, atau keping penugasan. Tanpa ini tabel enam kolom (mis. SIWAK
+          Events) memeras judul jadi tiga baris di layar laptop; sekarang
+          tabelnya yang menggeser, bukan isinya yang remuk.
+        {% endcomment %}
+        <td class="px-3.5 py-3 text-navy {% if sel.tipe != 'panjang' and sel.tipe != 'tag' %}whitespace-nowrap{% endif %}">{% include 'siwak/panel/_sel.html' %}</td>
+        {% endfor %}
+        {% if sumber_data.punya_aksi %}
+        <td class="px-3.5 py-3">
+          <div class="flex items-center justify-end gap-2 whitespace-nowrap">
+            {% for aksi in item.aksi %}
+            <a href="{{ aksi.url }}"
+               class="rounded-lg border-2 border-gold px-3 py-1.5 text-xs font-bold text-navy transition hover:bg-cream-300">
+              {{ aksi.label }}
+            </a>
+            {% endfor %}
+            {% if sumber_data.boleh_ubah %}
+            <a href="{% url 'siwak:panel_ubah' sumber_data.slug item.pk %}"
+               class="rounded-lg bg-navy px-3 py-1.5 text-xs font-bold text-white transition hover:bg-navy-700">
+              Ubah
+            </a>
+            {% endif %}
+            {% if sumber_data.boleh_hapus %}
+            <form method="post" action="{% url 'siwak:panel_hapus' sumber_data.slug item.pk %}"
+                  onsubmit="return confirm('Hapus {{ sumber_data.label|escapejs }} ini? Tindakan ini tidak bisa dibatalkan.');">
+              {% csrf_token %}
+              <button type="submit"
+                      class="rounded-lg border-2 border-red-300 px-3 py-1.5 text-xs font-bold text-red-700 transition hover:bg-red-50">
+                Hapus
+              </button>
+            </form>
+            {% endif %}
+          </div>
+        </td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Tampilan kartu: HP & tablet -->
+<div class="space-y-3 lg:hidden">
+  {% for item in baris %}
+  <article class="rounded-2xl border-2 border-gold-light bg-white p-4">
+    {% comment %}
+      Di kartu, judul dan gambar naik ke atas apa pun urutan kolomnya. Tanpa ini
+      kartu SIWAK Events dibuka dengan baris "GAMBAR" lebih dulu, baru nama
+      acaranya — terbaca seperti tabel yang dipaksa berdiri, bukan seperti kartu.
+    {% endcomment %}
+    <div class="flex items-start gap-3 pb-3">
+      {% for sel in item.sel %}{% if sel.tipe == 'gambar' %}{% include 'siwak/panel/_sel.html' %}{% endif %}{% endfor %}
+      {% for sel in item.sel %}{% if sel.utama %}
+      <h3 class="min-w-0 flex-1 text-base font-bold leading-snug text-navy">{{ sel.nilai }}</h3>
+      {% endif %}{% endfor %}
+    </div>
+
+    <dl class="space-y-2">
+      {% for sel in item.sel %}
+      {% if not sel.utama and sel.tipe != 'gambar' %}
+      {% if sel.tipe == 'pilih_kelompok' or sel.tipe == 'pilih_kelompok_mentor' or sel.tipe == 'pilih_role' or sel.tipe == 'pilih_aktif' %}
+      {% comment %}
+        Kolom yang bisa disunting butuh lebar penuh: dropdown dan keping mentor
+        tidak muat kalau dipepetkan ke kanan seperti nilai biasa.
+      {% endcomment %}
+      <div class="space-y-1.5 rounded-xl bg-cream-50 px-3 py-2.5">
+        <dt class="text-xs font-bold uppercase tracking-wide text-navy-400">{{ sel.judul }}</dt>
+        <dd>{% include 'siwak/panel/_sel.html' %}</dd>
+      </div>
+      {% else %}
+      <div class="flex items-start justify-between gap-3">
+        <dt class="shrink-0 text-xs font-semibold uppercase tracking-wide text-navy-400">{{ sel.judul }}</dt>
+        <dd class="min-w-0 text-right text-sm text-navy">{% include 'siwak/panel/_sel.html' %}</dd>
+      </div>
+      {% endif %}
+      {% endif %}
+      {% endfor %}
+    </dl>
+
+    {% if sumber_data.punya_aksi %}
+    <div class="mt-4 grid grid-cols-2 gap-2">
+      {% for aksi in item.aksi %}
+      <a href="{{ aksi.url }}"
+         class="col-span-2 inline-flex min-h-[44px] items-center justify-center rounded-xl border-2 border-gold text-sm font-bold text-navy transition hover:bg-cream-300">
+        {{ aksi.label }}
+      </a>
+      {% endfor %}
+      {% if sumber_data.boleh_ubah %}
+      <a href="{% url 'siwak:panel_ubah' sumber_data.slug item.pk %}"
+         class="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-navy text-sm font-bold text-white transition hover:bg-navy-700">
+        Ubah
+      </a>
+      {% endif %}
+      {% if sumber_data.boleh_hapus %}
+      <form method="post" action="{% url 'siwak:panel_hapus' sumber_data.slug item.pk %}"
+            onsubmit="return confirm('Hapus {{ sumber_data.label|escapejs }} ini? Tindakan ini tidak bisa dibatalkan.');">
+        {% csrf_token %}
+        <button type="submit"
+                class="min-h-[44px] w-full rounded-xl border-2 border-red-300 text-sm font-bold text-red-700 transition hover:bg-red-50">
+          Hapus
+        </button>
+      </form>
+      {% endif %}
+    </div>
+    {% endif %}
+  </article>
+  {% endfor %}
+</div>
+
+{% include 'siwak/panel/_paginasi.html' %}
+
+{% else %}
+<div class="rounded-2xl border-2 border-dashed border-gold-light bg-white px-6 py-14 text-center">
+  <p class="text-base font-bold text-navy">
+    {% if kata %}Tidak ada hasil untuk “{{ kata }}”.{% else %}{{ sumber_data.kosong }}{% endif %}
+  </p>
+  <p class="mx-auto mt-1.5 max-w-md text-sm leading-relaxed text-navy-400">
+    {% if kata %}Coba kata kunci lain, atau bersihkan pencarian.
+    {% else %}{{ sumber_data.deskripsi }}{% endif %}
+  </p>
+  {% if url_tambah %}
+  <a href="{{ url_tambah }}"
+     class="mt-5 inline-flex min-h-[44px] items-center rounded-xl bg-navy px-6 text-sm font-bold text-white transition hover:bg-navy-700">
+    + Tambah {{ sumber_data.label }}
+  </a>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

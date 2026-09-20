@@ -1,0 +1,36 @@
+{% load static %}
+<header class="relative isolate flex items-center overflow-hidden bg-[#F2E5BB] px-[21px] lg:px-12
+               {% if ringkas %}h-[240px] sm:h-[280px] lg:h-[360px]{% else %}h-[326px] lg:h-[640px]{% endif %}">
+  <img src="{% static 'images/redesign/satin.png' %}" alt="" aria-hidden="true" class="pointer-events-none absolute inset-0 -z-20 h-full w-full object-cover mix-blend-multiply lg:inset-auto lg:left-0 lg:top-[-143px] lg:h-[960px]" />
+  {% if logo_miring is False %}
+  <div class="relative mx-auto flex w-full max-w-[1118px] items-center justify-between gap-6 px-6">
+    <div>
+      <h1 class="font-bold text-navy {% if judul_besar %}text-3xl sm:text-5xl lg:text-[64px]{% else %}text-4xl sm:text-5xl lg:text-[52px]{% endif %} {% if judul_baris_2 %}leading-snug sm:leading-snug{% else %}leading-none{% endif %}">{{ page_title }}{% if judul_baris_2 %}<br>{{ judul_baris_2 }}{% endif %}</h1>
+      {% if subtitle %}
+      <p class="mt-2 sm:mt-3 text-xs sm:text-lg lg:text-xl font-semibold italic text-navy">{{ subtitle }}</p>
+      {% endif %}
+    </div>
+    {% include 'components/hero_logo.html' with variant='upright' %}
+  </div>
+  {% else %}
+  {% if logo_miring %}
+  {% include 'components/hero_logo.html' with variant='tilted' ringkas=ringkas %}
+  {% else %}
+  {% include 'components/hero_logo.html' with variant='redesign' %}
+  {% endif %}
+  <div class="max-w-[75%]">
+    {# pb + -mb: bg-clip-text hanya melukis di dalam kotak elemen, jadi ekor huruf (g, y, p) terpotong bila line-height rapat / tertimpa lg:text-5xl. Padding memperluas kotak, margin negatif menjaga tata letak. #}
+    <h1 class="-mb-[0.2em] bg-[linear-gradient(-24.53deg,#001B3D_21.124%,#0048A3_151.6%)] bg-clip-text pb-[0.2em] font-bold text-transparent
+               {% if judul_besar %}text-3xl sm:text-5xl lg:text-[64px]{% elif ringkas %}text-3xl sm:text-4xl lg:text-[52px]{% else %}text-[32px] lg:text-5xl{% endif %}
+               {% if judul_baris_2 or ringkas %}leading-snug sm:leading-snug{% elif judul_besar %}leading-none{% else %}leading-[1.5]{% endif %}">{{ page_title }}{% if judul_baris_2 %}<br>{{ judul_baris_2 }}{% endif %}</h1>
+    {% if subtitle %}
+    <p class="mt-2 sm:mt-3 text-xs sm:text-lg lg:text-xl font-semibold italic text-navy">{{ subtitle }}</p>
+    {% endif %}
+  </div>
+  {% endif %}
+  <picture class="pointer-events-none absolute inset-x-0 bottom-0 -z-10" aria-hidden="true">
+    <source media="(min-width: 1024px)" srcset="{% static 'images/redesign/header-fade.png' %}" />
+    <img src="{% static 'images/redesign/header-fade-mobile.png' %}" alt="" class="{% if ringkas %}h-[240px] w-full object-fill lg:h-[180px]{% else %}h-[326px] w-full object-fill lg:h-[257px]{% endif %}" />
+  </picture>
+  <div aria-hidden="true" class="pointer-events-none absolute inset-x-0 bottom-0 h-16 {% if latar_krem %}bg-[linear-gradient(to_bottom,transparent,#F8F7F3_85%)]{% elif contact_header %}bg-[linear-gradient(to_bottom,transparent,#F9F8F5_85%)] lg:bg-[linear-gradient(to_bottom,transparent,#F6FAEB_85%)]{% else %}bg-[linear-gradient(to_bottom,transparent,#F9F8F5_85%)]{% endif %}"></div>
+</header>

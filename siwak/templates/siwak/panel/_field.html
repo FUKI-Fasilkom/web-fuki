@@ -1,0 +1,60 @@
+{% comment %}
+  Satu isian form. Tiga bentuk: kotak centang tunggal, daftar kotak centang
+  (mis. mentor sebuah kelompok), dan isian biasa. Parameter: field.
+{% endcomment %}
+
+{% if field.field.widget.allow_multiple_selected and field.field.widget.input_type == 'checkbox' %}
+<fieldset>
+  <legend class="mb-1.5 block text-sm font-semibold text-navy">{{ field.label }}</legend>
+  {% if field.help_text %}
+  <p class="mb-2 text-xs leading-relaxed text-navy-400">{{ field.help_text }}</p>
+  {% endif %}
+  <div class="grid gap-2 sm:grid-cols-2">
+    {% for pilihan in field %}
+    <label class="flex cursor-pointer items-center gap-2.5 rounded-xl border-2 border-gold-light bg-white px-3 py-2.5 transition hover:border-gold has-[:checked]:border-navy has-[:checked]:bg-cream-300">
+      {{ pilihan.tag }}
+      <span class="min-w-0 truncate text-sm text-navy">{{ pilihan.choice_label }}</span>
+    </label>
+    {% empty %}
+    <p class="rounded-xl border-2 border-dashed border-gold-light px-3 py-2.5 text-sm text-navy-400">
+      Belum ada pilihan yang bisa dipakai.
+    </p>
+    {% endfor %}
+  </div>
+  {% for galat in field.errors %}
+  <p class="mt-1.5 text-xs font-semibold text-red-700">{{ galat }}</p>
+  {% endfor %}
+</fieldset>
+
+{% elif field.field.widget.input_type == 'checkbox' %}
+<div>
+  <label for="{{ field.id_for_label }}"
+         class="flex cursor-pointer items-start gap-3 rounded-xl border-2 border-gold-light bg-white px-4 py-3.5 transition hover:border-gold has-[:checked]:border-navy has-[:checked]:bg-cream-300">
+    {{ field }}
+    <span class="min-w-0">
+      <span class="block text-sm font-semibold text-navy">{{ field.label }}</span>
+      {% if field.help_text %}
+      <span class="mt-0.5 block text-xs leading-relaxed text-navy-400">{{ field.help_text }}</span>
+      {% endif %}
+    </span>
+  </label>
+  {% for galat in field.errors %}
+  <p class="mt-1.5 text-xs font-semibold text-red-700">{{ galat }}</p>
+  {% endfor %}
+</div>
+
+{% else %}
+<div>
+  <label for="{{ field.id_for_label }}" class="mb-1.5 block text-sm font-semibold text-navy">
+    {{ field.label }}
+    {% if field.field.required %}<span class="text-gold-dark" title="Wajib diisi" aria-hidden="true">*</span>{% endif %}
+  </label>
+  {{ field }}
+  {% if field.help_text %}
+  <p class="mt-1.5 text-xs leading-relaxed text-navy-400">{{ field.help_text }}</p>
+  {% endif %}
+  {% for galat in field.errors %}
+  <p class="mt-1.5 text-xs font-semibold text-red-700">{{ galat }}</p>
+  {% endfor %}
+</div>
+{% endif %}

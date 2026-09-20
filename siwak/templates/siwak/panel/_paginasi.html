@@ -1,0 +1,25 @@
+{% comment %}Navigasi halaman. Parameter: halaman, kueri (querystring tanpa "page").{% endcomment %}
+{% if halaman.paginator.num_pages > 1 %}
+<nav class="mt-5 flex flex-wrap items-center justify-between gap-3" aria-label="Navigasi halaman">
+  <p class="text-xs text-navy-400">
+    Menampilkan {{ halaman.start_index }}&ndash;{{ halaman.end_index }} dari {{ halaman.paginator.count }} data
+  </p>
+  <div class="flex items-center gap-2">
+    {% if halaman.has_previous %}
+    <a href="?{% if kueri %}{{ kueri }}&{% endif %}page={{ halaman.previous_page_number }}"
+       class="inline-flex min-h-[40px] items-center rounded-xl border-2 border-navy px-4 text-sm font-bold text-navy transition hover:bg-cream-300">
+      &larr; Sebelumnya
+    </a>
+    {% endif %}
+    <span class="px-1 text-xs font-semibold text-navy-400">
+      Hal. {{ halaman.number }} / {{ halaman.paginator.num_pages }}
+    </span>
+    {% if halaman.has_next %}
+    <a href="?{% if kueri %}{{ kueri }}&{% endif %}page={{ halaman.next_page_number }}"
+       class="inline-flex min-h-[40px] items-center rounded-xl border-2 border-navy px-4 text-sm font-bold text-navy transition hover:bg-cream-300">
+      Berikutnya &rarr;
+    </a>
+    {% endif %}
+  </div>
+</nav>
+{% endif %}

@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+
+{% comment %}
+  Halaman yang ditunjuk LOGIN_URL. Dua pintu masuk SIWAK bertemu di sini, dan
+  `next` diteruskan ke keduanya supaya deep link dari @login_required tidak
+  hilang begitu metodenya dipilih.
+{% endcomment %}
+
+{% block title %}Masuk ke SIWAK-NG{% endblock %}
+{% block meta_robots %}noindex, nofollow{% endblock %}
+
+{% block content %}
+{% include 'siwak/_messages.html' %}
+
+<div class="min-h-screen bg-gradient-to-b from-[#F9F8F5] via-[#F9F8F5] to-[#EEF4DB]">
+  <div class="mx-auto max-w-[520px] px-6 py-12 sm:py-20">
+
+    <p class="mb-10 text-xs sm:text-sm text-navy-400">
+      <a href="{% url 'siwak:landing' %}" class="hover:text-navy transition">SIWAK-NG</a>
+      <span class="mx-2" aria-hidden="true">/</span>
+      <span class="text-navy">Masuk</span>
+    </p>
+
+    <h1 class="text-2xl sm:text-3xl font-bold text-navy">Masuk ke SIWAK-NG</h1>
+    <p class="mt-3 text-sm sm:text-base text-navy-400">
+      Pilih cara masuk sesuai akun yang kamu punya.
+    </p>
+
+    <div class="mt-8 space-y-4">
+      {# Kuning gold: warna UI, sekaligus penanda bahwa kartu inilah jalur utamanya. #}
+      <a href="{{ url_sso }}{% if next %}?next={{ next|urlencode }}{% endif %}"
+         class="block rounded-2xl bg-gold px-6 py-5 text-navy shadow-lg shadow-gold/40 transition hover:bg-gold-light">
+        <span class="block text-base font-semibold">Login dengan SSO UI</span>
+        <span class="mt-1 block text-sm text-navy-700">
+          Untuk Mahasiswa UI (Mentee & Mentor).
+        </span>
+      </a>
+
+      <a href="{{ url_mentor }}{% if next %}?next={{ next|urlencode }}{% endif %}"
+         class="block rounded-2xl border-2 border-gold-light bg-white px-6 py-5 text-navy transition hover:border-gold hover:bg-cream-50">
+        <span class="block text-base font-semibold">Login akun mentor</span>
+        <span class="mt-1 block text-sm text-navy-400">
+          Untuk Mentor Non-SSO, memakai username dan password yang diberikan oleh admin.
+        </span>
+      </a>
+    </div>
+
+    {% comment %}
+      Link CP diatur pengelola di panel (SiwakInfo.kontak_cp). Kalau belum diisi,
+      jatuh ke halaman Hubungi Kami — pola yang sama dipakai "Cari Kelompok",
+      supaya tautannya tidak pernah mati.
+    {% endcomment %}
+    <p class="mt-8 text-sm text-navy-400">
+      Tidak yakin harus pakai yang mana?
+      {% if info.kontak_cp %}
+        <a href="{{ info.kontak_cp }}" target="_blank" rel="noopener"
+           class="font-semibold text-navy underline underline-offset-2 hover:text-navy-700 transition">Hubungi CP SIWAK</a>.
+      {% else %}
+        <a href="{% url 'hubungi_kami' %}"
+           class="font-semibold text-navy underline underline-offset-2 hover:text-navy-700 transition">Hubungi CP SIWAK</a>.
+      {% endif %}
+    </p>
+
+  </div>
+</div>
+{% endblock %}

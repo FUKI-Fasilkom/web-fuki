@@ -1,0 +1,168 @@
+{% extends 'base.html' %}
+{% load siwak_extras %}
+{% block title %}{{ tugas.judul_tugas }}{% endblock %}
+{% block content %}
+{% include 'siwak/_messages.html' %}
+<div class="relative">
+  {% include 'components/redesign_header.html' with page_title="Kumpulkan Tugas" subtitle=tugas.judul_tugas %}
+  {% url 'siwak:tugas_list' as tugas_list_url %}
+  {% include 'siwak/_back_button.html' with href=tugas_list_url label="Kembali ke daftar tugas" %}
+</div>
+<section class="bg-[#F8F7F3] min-h-screen px-5 py-8 sm:px-8 sm:py-12">
+  <div x-data="{ open: true }" class="mx-auto w-full max-w-[1000px] overflow-hidden rounded-xl border border-black bg-[#FAF3DF] shadow-[0_8px_24px_rgba(0,0,0,0.15)]">
+
+    <button
+      type="button"
+      @click="open = !open"
+      :aria-expanded="open.toString()"
+      class="flex w-full items-center justify-between gap-4 px-5 py-5 text-left focus:outline-none focus-visible:ring-4 focus-visible:ring-[#C79A3A]/50 sm:px-7"
+    >
+      <h1 class="text-xl font-bold text-black sm:text-3xl">Pengumpulan {{ tugas.judul_tugas }}</h1>
+      <svg class="h-6 w-6 shrink-0 text-black transition-transform duration-300" :class="open ? '' : 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7" />
+      </svg>
+    </button>
+
+    <div x-show="open" x-transition x-cloak>
+      <form method="post" enctype="multipart/form-data" class="px-5 pt-1 sm:px-7">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+
+        {% if is_locked %}
+        {# Deadline lewat & sudah dikumpulkan: read-only. Sebelum deadline form tetap bisa diedit. #}
+        {% for answer in answers %}
+        <div class="mb-4 rounded-xl border border-[#D1D1D1] bg-white px-4 py-5 sm:px-6">
+          <p class="text-lg font-bold text-black">{{ answer.question.pertanyaan }}</p>
+          {% if answer.question.tipe == 'file' %}
+            {% if answer.file_answer %}
+            {% url 'siwak:answer_download' submission.pk answer.pk as answer_href %}
+            {% include 'siwak/_file_placeholder.html' with name=answer.file_answer|filename href=answer_href %}
+            {% endif %}
+          {% elif answer.question.tipe == 'choice' %}
+          <p class="mt-1 border-b border-[#8A8A8A] py-1 text-black">{{ answer.selected_choice.teks|default:"-" }}</p>
+          {% else %}
+          <p class="mt-1 whitespace-pre-line border-b border-[#8A8A8A] py-1 text-black">{{ answer.text_answer|default:"-" }}</p>
+          {% endif %}
+        </div>
+        {% endfor %}
+        {% else %}
+        {% if submission %}
+        <p class="mb-4 rounded-xl border border-[#C79A3A]/60 bg-white px-4 py-3 text-sm text-[#333333] sm:px-6">
+          Jawabanmu masih bisa diubah sampai deadline ({{ tugas.deadline|date:"j F Y H:i" }}). Simpan perubahan dengan menekan tombol di bawah.
+        </p>
+        {% endif %}
+        {% for row in form_rows %}
+        {% with field=row.field answer=row.answer %}
+        <div class="mb-4 rounded-xl border border-[#D1D1D1] bg-white px-4 py-5 sm:px-6">
+          <label for="{{ field.id_for_label }}" class="block text-lg font-bold text-black">{{ field.label }}</label>
+          {% if field.field.widget.input_type == 'file' %}
+          {% if answer and answer.file_answer %}
+          <p class="mt-2 text-xs text-[#6B6B6B]">Berkas saat ini (tetap dipakai kecuali kamu memilih file baru):</p>
+          {% url 'siwak:answer_download' submission.pk answer.pk as answer_href %}
+          {% include 'siwak/_file_placeholder.html' with name=answer.file_answer|filename href=answer_href %}
+          {% include 'siwak/_upload_button.html' with field=field label="Ganti File" %}
+          {% else %}
+          {% include 'siwak/_upload_button.html' with field=field %}
+          {% endif %}
+          <p class="mt-2 text-xs text-[#6B6B6B]">PDF, DOCX, JPG, JPEG, PNG. Maksimum {{ tugas.max_file_size_mb }} MB.</p>
+          {% else %}
+          <div class="mt-1">{{ field }}</div>
+          {% endif %}
+          {% for error in field.errors %}<p class="mt-2 text-sm text-red-700">{{ error }}</p>{% endfor %}
+        </div>
+        {% endwith %}
+        {% endfor %}
+
+        {% if can_submit %}
+        {% if submission %}
+        {# Mode edit: Batal & Simpan Perubahan masing-masing meminta konfirmasi lewat modal. #}
+        <div x-data="{ konfirmasi: null }" @keydown.escape.window="konfirmasi = null" class="flex flex-col-reverse gap-3 pb-5 pt-1 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            @click="konfirmasi = 'batal'"
+            class="rounded-lg border-2 border-[#001B3D] bg-white px-5 py-2.5 text-sm font-medium text-[#001B3D] transition hover:bg-[#F2E5BB] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#C79A3A]/50"
+          >Batal</button>
+          <button
+            type="button"
+            @click="if ($el.closest('form').reportValidity()) konfirmasi = 'simpan'"
+            class="rounded-lg bg-[#001B3D] px-5 py-2.5 text-sm font-medium text-white shadow-[0_4px_10px_rgba(0,0,0,0.25)] transition hover:bg-[#0A2B52] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#C79A3A]/50"
+          >Simpan Perubahan</button>
+
+          <div x-show="konfirmasi" x-cloak x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+            <div class="absolute inset-0 bg-black/50" @click="konfirmasi = null"></div>
+            <div class="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-[0_12px_32px_rgba(0,0,0,0.25)]">
+              <template x-if="konfirmasi === 'batal'">
+                <div>
+                  <h2 class="text-xl font-bold text-black">Batalkan perubahan?</h2>
+                  <p class="mt-2 text-sm text-[#333333]">Perubahan yang belum disimpan akan hilang. Jawaban versi terakhir yang sudah dikumpulkan tetap dipakai.</p>
+                  <div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                    <button type="button" @click="konfirmasi = null" class="rounded-lg border-2 border-[#001B3D] px-5 py-2.5 text-sm font-medium text-[#001B3D] transition hover:bg-[#F2E5BB]">Lanjut Mengedit</button>
+                    <a href="{% url 'siwak:tugas_detail' pk=tugas.pk %}" class="rounded-lg bg-[#D00000] px-5 py-2.5 text-center text-sm font-medium text-white transition hover:bg-[#A80000]">Ya, Batalkan</a>
+                  </div>
+                </div>
+              </template>
+              <template x-if="konfirmasi === 'simpan'">
+                <div>
+                  <h2 class="text-xl font-bold text-black">Simpan perubahan?</h2>
+                  <p class="mt-2 text-sm text-[#333333]">Jawaban versi terakhir yang sudah dikumpulkan akan diganti dengan perubahan ini.</p>
+                  <div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                    <button type="button" @click="konfirmasi = null" class="rounded-lg border-2 border-[#001B3D] px-5 py-2.5 text-sm font-medium text-[#001B3D] transition hover:bg-[#F2E5BB]">Periksa Lagi</button>
+                    <button type="submit" class="rounded-lg bg-[#001B3D] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-[#0A2B52]">Ya, Simpan</button>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+        {% else %}
+        <div class="flex justify-end pb-5 pt-1">
+          <button type="submit" class="rounded-lg bg-[#001B3D] px-5 py-2.5 text-sm font-medium text-white shadow-[0_4px_10px_rgba(0,0,0,0.25)] transition hover:bg-[#0A2B52] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#C79A3A]/50">Submit</button>
+        </div>
+        {% endif %}
+        {% endif %}
+        {% endif %}
+      </form>
+
+      {% if assignment_review %}
+      <div class="mx-5 mb-5 rounded-xl border border-[#D1D1D1] bg-white p-5 sm:mx-7">
+        <p class="font-bold">Penilaian Mentor: {{ assignment_review.score }}/100</p>
+        <p class="mt-2 whitespace-pre-line">{{ assignment_review.feedback }}</p>
+        <p class="mt-2 text-sm">{{ assignment_review.reviewer.nama_lengkap|default:"Mentor" }} &middot; {{ assignment_review.updated_at|date:"d M Y H:i" }}</p>
+      </div>
+      {% endif %}
+
+      <div class="mx-5 border-t border-[#8A8A8A] px-2 py-4 sm:mx-7">
+        <p class="text-base text-black sm:text-lg">
+          Status:
+          {% if not submission %}Belum dikumpulkan
+          {% elif submission.status == 'late' %}Dikumpulkan terlambat
+          {% else %}Sudah dikumpulkan{% endif %}
+          {% if submission %}<span class="text-sm text-[#6B6B6B]">&middot; {{ submission.submitted_at|date:"j F Y H:i" }}</span>{% endif %}
+        </p>
+        <p class="mt-2 text-sm font-bold text-[#D00000]">Due: {{ tugas.deadline|date:"j F Y" }}</p>
+        {% if is_past_deadline and not submission %}
+        <p class="mt-2 text-xs text-[#D00000]">Deadline sudah lewat. Pengumpulan tetap diterima dan ditandai terlambat.</p>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+</section>
+<script>
+  // Jawaban teks yang sudah tersimpan: sesuaikan tinggi textarea dengan isinya.
+  // Form ada di dalam x-show/x-cloak: saat script jalan ia masih display:none
+  // (scrollHeight 0), jadi ukur ulang setelah Alpine menampilkannya.
+  function fitTextareas() {
+    document.querySelectorAll('textarea').forEach(function (el) {
+      if (!el.offsetParent) return;
+      el.style.height = 'auto';
+      el.style.height = el.scrollHeight + 'px';
+    });
+  }
+  window.addEventListener('load', fitTextareas);
+  document.addEventListener('alpine:initialized', function () { setTimeout(fitTextareas, 0); });
+  document.querySelectorAll('section button[aria-expanded]').forEach(function (btn) {
+    btn.addEventListener('click', function () { setTimeout(fitTextareas, 350); });
+  });
+</script>
+{% endblock %}
