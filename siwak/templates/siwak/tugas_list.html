@@ -105,116 +105,166 @@
 
     </div>
 
-    <div class="mt-12 rounded-3xl border-2 border-[#DDE8C8]
-                bg-[#F6FAEB] p-5 sm:p-7
-                shadow-[0_8px_24px_rgba(61,78,39,0.12)]">
+    {# ===== Kalender deadline: satu warna per tugas, tooltip saat hover/fokus, legenda per bulan ===== #}
+    <div class="mt-12 rounded-3xl border-2 border-[#C79A3A]/40 bg-[#FAF3DF] p-5 shadow-[0_8px_24px_rgba(0,0,0,0.12)] sm:p-7">
 
-      <div class="flex items-center justify-between mb-5">
+      <div class="mb-5 flex items-center justify-between gap-3">
+        <h2 class="text-lg font-bold text-[#001B3D] sm:text-2xl">Kalender Deadline</h2>
+        {% if not is_current_month %}
+        <a
+          href="?year={{ today_year }}&month={{ today_month }}"
+          class="rounded-full border-2 border-[#C79A3A] px-3 py-1 text-xs font-semibold text-[#001B3D] transition hover:bg-[#C79A3A] hover:text-white focus:outline-none focus-visible:ring-4 focus-visible:ring-[#C79A3A]/50 sm:text-sm"
+        >Hari ini</a>
+        {% endif %}
+      </div>
 
+      <div class="mb-5 flex items-center justify-between">
         <a
           href="?year={{ prev_year }}&month={{ prev_month }}"
-          class="p-2 text-[#001B3D] hover:text-[#C79A3A] transition"
+          class="flex h-9 w-9 items-center justify-center rounded-full text-[#001B3D] transition hover:bg-[#F2E5BB] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#C79A3A]/50"
           aria-label="Bulan sebelumnya"
         >
-          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M15 19l-7-7 7-7"
-            />
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M15 19l-7-7 7-7" />
           </svg>
         </a>
 
         <form method="get" class="flex items-center gap-2">
-
           <select
             name="month"
             onchange="this.form.submit()"
-            class="rounded-full border-2 border-[#001B3D]
-                   bg-[#001B3D] text-white
-                   text-xs sm:text-sm font-semibold
-                   px-3 sm:px-4 py-1.5"
+            aria-label="Bulan"
+            class="rounded-full border-2 border-[#001B3D] bg-[#001B3D] px-3 py-1.5 text-xs font-semibold text-white focus:outline-none focus-visible:ring-4 focus-visible:ring-[#C79A3A]/50 sm:px-4 sm:text-sm"
           >
             {% for month_num, month_label in cal_months %}
-            <option
-              value="{{ month_num }}"
-              {% if month_num == cal_month %}selected{% endif %}
-            >
-              {{ month_label }}
-            </option>
+            <option value="{{ month_num }}" {% if month_num == cal_month %}selected{% endif %}>{{ month_label }}</option>
             {% endfor %}
           </select>
 
           <select
             name="year"
             onchange="this.form.submit()"
-            class="rounded-full border-2 border-[#001B3D]
-                   bg-[#001B3D] text-white
-                   text-xs sm:text-sm font-semibold
-                   px-3 sm:px-4 py-1.5"
+            aria-label="Tahun"
+            class="rounded-full border-2 border-[#001B3D] bg-[#001B3D] px-3 py-1.5 text-xs font-semibold text-white focus:outline-none focus-visible:ring-4 focus-visible:ring-[#C79A3A]/50 sm:px-4 sm:text-sm"
           >
             {% for y in cal_years %}
-            <option
-              value="{{ y }}"
-              {% if y == cal_year %}selected{% endif %}
-            >
-              {{ y }}
-            </option>
+            <option value="{{ y }}" {% if y == cal_year %}selected{% endif %}>{{ y }}</option>
             {% endfor %}
           </select>
-
         </form>
 
         <a
           href="?year={{ next_year }}&month={{ next_month }}"
-          class="p-2 text-[#001B3D] hover:text-[#C79A3A] transition"
+          class="flex h-9 w-9 items-center justify-center rounded-full text-[#001B3D] transition hover:bg-[#F2E5BB] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#C79A3A]/50"
           aria-label="Bulan berikutnya"
         >
-          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M9 5l7 7-7 7"
-            />
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M9 5l7 7-7 7" />
           </svg>
         </a>
-
       </div>
 
-      <div class="grid grid-cols-7 text-center text-xs font-semibold text-[#4A4A4A] mb-2">
-        <span>Su</span>
-        <span>Mo</span>
-        <span>Tu</span>
-        <span>We</span>
-        <span>Th</span>
-        <span>Fr</span>
-        <span>Sa</span>
+      <div class="mb-2 grid grid-cols-7 gap-1 text-center text-[11px] font-bold uppercase tracking-wide text-[#A77A1F] sm:gap-1.5 sm:text-xs">
+        <span class="text-[#8B1E15]">Min</span>
+        <span>Sen</span>
+        <span>Sel</span>
+        <span>Rab</span>
+        <span>Kam</span>
+        <span>Jum</span>
+        <span>Sab</span>
       </div>
 
-      {% for week in calendar_weeks %}
-      <div class="grid grid-cols-7 text-center text-sm mb-1">
+      <div class="space-y-1 sm:space-y-1.5">
+        {% for week in calendar_weeks %}
+        <div class="grid grid-cols-7 gap-1 sm:gap-1.5">
+          {% for day in week %}
+          {% with tasks=day.tasks %}
+          <div
+            class="group relative"
+            {% if tasks and day.in_month %}tabindex="0" aria-label="{{ day.date|date:'j F Y' }}: {% for t in tasks %}{{ t.judul }}{% if not forloop.last %}, {% endif %}{% endfor %}"{% endif %}
+          >
+            <div
+              class="relative flex h-11 flex-col items-center justify-center rounded-xl text-sm transition sm:h-14 sm:text-base
+                {% if not day.in_month %}text-[#001B3D]/25
+                {% elif tasks %}font-bold text-white shadow-[0_2px_6px_rgba(0,27,61,0.25)] group-hover:-translate-y-0.5 group-focus:ring-4 group-focus:ring-[#C79A3A]/50
+                {% else %}text-[#4A4A4A]{% endif %}
+                {% if day.is_today %}ring-2 ring-[#C79A3A] ring-offset-1 ring-offset-[#FAF3DF]{% if not tasks %} bg-white font-bold text-[#001B3D]{% endif %}{% endif %}"
+              {% if tasks and day.in_month %}
+              style="background: {% if tasks|length > 1 %}linear-gradient(135deg, {{ tasks.0.color }} 50%, {{ tasks.1.color }} 50%){% else %}{{ tasks.0.color }}{% endif %};"
+              {% endif %}
+            >
+              <span class="leading-none">{{ day.date.day }}</span>
+              {% if tasks|length > 2 and day.in_month %}
+              <span class="absolute bottom-0.5 right-1 text-[9px] font-bold leading-none opacity-90">+{{ tasks|length|add:"-2" }}</span>
+              {% endif %}
+            </div>
 
-        {% for day in week %}
-        <span
-          class="py-2 rounded-lg
-            {% if day.month != cal_month %}
-              text-gray-300
-            {% elif day in due_dates %}
-              bg-[#001B3D] text-white font-bold
-            {% elif day == today %}
-              border-2 border-[#C79A3A] text-[#001B3D] font-bold
-            {% else %}
-              text-[#4A4A4A]
-            {% endif %}"
-        >
-          {{ day.day }}
-        </span>
+            {% if tasks and day.in_month %}
+            {# Tooltip: rata kiri/kanan di kolom tepi supaya tidak terpotong layar #}
+            <div class="absolute bottom-full z-30 hidden w-60 pb-2 group-hover:block group-focus-within:block
+                        {% if forloop.counter0 < 2 %}left-0{% elif forloop.counter0 > 4 %}right-0{% else %}left-1/2 -translate-x-1/2{% endif %}">
+              <div class="rounded-xl border border-[#C79A3A]/50 bg-white p-3 text-left shadow-[0_8px_24px_rgba(0,0,0,0.2)]">
+                <p class="mb-2 text-[11px] font-bold uppercase tracking-wide text-[#A77A1F]">{{ day.date|date:"l, j F Y" }}</p>
+                <ul class="space-y-2">
+                  {% for t in tasks %}
+                  <li>
+                    <a href="{% url 'siwak:tugas_detail' pk=t.pk %}" class="flex items-start gap-2 text-[#001B3D] hover:underline focus:outline-none focus-visible:underline">
+                      <span class="mt-1 h-3 w-3 shrink-0 rounded-full" style="background: {{ t.color }};"></span>
+                      <span class="min-w-0">
+                        <span class="block text-sm font-semibold leading-snug">{{ t.judul }}</span>
+                        <span class="block text-xs font-normal text-[#6B6B6B]">Deadline {{ t.deadline|date:"H:i" }} &middot;
+                          {% if t.status == "Submitted" %}<span class="font-semibold text-[#1F7A3D]">Sudah dikumpulkan</span>
+                          {% elif t.status == "Late" %}<span class="font-semibold text-[#C25E12]">Dikumpulkan terlambat</span>
+                          {% elif t.overdue %}<span class="font-semibold text-[#D00000]">Terlewat</span>
+                          {% else %}<span class="font-semibold text-[#6B6B6B]">Belum dikumpulkan</span>{% endif %}
+                        </span>
+                      </span>
+                    </a>
+                  </li>
+                  {% endfor %}
+                </ul>
+              </div>
+            </div>
+            {% endif %}
+          </div>
+          {% endwith %}
+          {% endfor %}
+        </div>
         {% endfor %}
-
       </div>
-      {% endfor %}
+
+      {# Legenda: tugas yang jatuh tempo di bulan ini beserta warnanya #}
+      <div class="mt-6 border-t border-[#C79A3A]/40 pt-5">
+        <p class="mb-3 text-sm font-bold text-[#001B3D]">Deadline bulan {{ cal_month_name }} {{ cal_year }}</p>
+        {% if month_tasks %}
+        <ul class="space-y-2">
+          {% for t in month_tasks %}
+          <li>
+            <a
+              href="{% url 'siwak:tugas_detail' pk=t.pk %}"
+              class="flex items-center gap-3 rounded-xl bg-white/70 px-3 py-2 text-[#001B3D] transition hover:bg-white focus:outline-none focus-visible:ring-4 focus-visible:ring-[#C79A3A]/50"
+            >
+              <span class="h-4 w-4 shrink-0 rounded-md" style="background: {{ t.color }};"></span>
+              <span class="min-w-0 flex-1">
+                <span class="block truncate text-sm font-semibold">{{ t.judul }}</span>
+                <span class="block text-xs text-[#6B6B6B]">{{ t.deadline|date:"j F Y, H:i" }}</span>
+              </span>
+              {% if t.status == "Submitted" %}<span class="shrink-0 rounded-full bg-[#E3F2E7] px-2.5 py-0.5 text-[11px] font-semibold text-[#1F7A3D]">Terkumpul</span>
+              {% elif t.status == "Late" %}<span class="shrink-0 rounded-full bg-[#FBEBD9] px-2.5 py-0.5 text-[11px] font-semibold text-[#C25E12]">Terlambat</span>
+              {% elif t.overdue %}<span class="shrink-0 rounded-full bg-[#FBE3E3] px-2.5 py-0.5 text-[11px] font-semibold text-[#D00000]">Terlewat</span>
+              {% else %}<span class="shrink-0 rounded-full bg-[#F2E5BB] px-2.5 py-0.5 text-[11px] font-semibold text-[#6B4E0F]">Belum</span>{% endif %}
+            </a>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-sm text-[#6B6B6B]">Tidak ada deadline di bulan ini.</p>
+        {% endif %}
+        <p class="mt-4 flex items-center gap-2 text-xs text-[#6B6B6B]">
+          <span class="inline-block h-4 w-4 rounded-md bg-white ring-2 ring-[#C79A3A]"></span> Hari ini
+          <span class="ml-3 hidden sm:inline">Arahkan kursor / ketuk tanggal berwarna untuk melihat tugasnya.</span>
+        </p>
+      </div>
 
     </div>
 

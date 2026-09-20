@@ -144,13 +144,21 @@ def mentee_required(view_func):
     return _wrapped
 
 
+# Palet penanda tugas di kalender, selaras tema SIWAK (navy/emas) dan cukup kontras dengan teks putih.
+CALENDAR_COLORS = [
+    "#001B3D", "#A77A1F", "#0048A3", "#8B1E15",
+    "#1F7A6D", "#6B3FA0", "#C25E12", "#5C7A29",
+]
+
+
 @mentee_required
 def tugas_list(request):
     tugas_qs = Tugas.objects.filter(is_active=True)
     rows = []
-    due_dates = set()
+    tasks_by_date = {}
+    now = timezone.now()
 
-    for tugas in tugas_qs:
+    for index, tugas in enumerate(tugas_qs):
         submission = tugas.submission_for(request.user)
 
         if submission:
@@ -164,7 +172,16 @@ def tugas_list(request):
             "submission": submission,
         })
 
-        due_dates.add(tugas.deadline.date())
+        # Satu warna per tugas (dipakai kalender & legenda); dipakai ulang bila tugas > palet.
+        deadline = timezone.localtime(tugas.deadline)
+        tasks_by_date.setdefault(deadline.date(), []).append({
+            "pk": tugas.pk,
+            "judul": tugas.judul_tugas,
+            "color": CALENDAR_COLORS[index % len(CALENDAR_COLORS)],
+            "status": status,
+            "overdue": not submission and now > tugas.deadline,
+            "deadline": deadline,
+        })
 
     today = timezone.localdate()
 
@@ -175,7 +192,24 @@ def tugas_list(request):
         year, month = today.year, today.month
 
     cal = pycal.Calendar(firstweekday=6)  # Sunday-first, like the Figma calendar
-    weeks = cal.monthdatescalendar(year, month)
+    weeks = [
+        [
+            {
+                "date": day,
+                "in_month": day.month == month,
+                "is_today": day == today,
+                "tasks": tasks_by_date.get(day, []),
+            }
+            for day in week
+        ]
+        for week in cal.monthdatescalendar(year, month)
+    ]
+    # Legenda: tugas yang jatuh tempo pada bulan yang sedang ditampilkan.
+    month_tasks = sorted(
+        (task for day in tasks_by_date for task in tasks_by_date[day]
+         if (day.year, day.month) == (year, month)),
+        key=lambda task: task["deadline"],
+    )
 
     def shift_month(y, m, delta):
         m2 = m + delta
@@ -194,8 +228,11 @@ def tugas_list(request):
         "cal_month_name": pycal.month_name[month],
         "cal_months": list(enumerate(pycal.month_name))[1:],
         "cal_years": range(today.year - 1, today.year + 2),
-        "due_dates": due_dates,
+        "month_tasks": month_tasks,
         "today": today,
+        "is_current_month": (year, month) == (today.year, today.month),
+        "today_year": today.year,
+        "today_month": today.month,
         "prev_year": prev_year,
         "prev_month": prev_m,
         "next_year": next_year,
