@@ -87,6 +87,10 @@ class MahasiswaProfile(models.Model):
     def is_mentor(self):
         return self.role == self.ROLE_MENTOR
 
+    @property
+    def is_mentee(self):
+        return self.role == self.ROLE_MENTEE
+
 
 class SiwakInfo(models.Model):
     """Konten singleton untuk hero & section 'Apa itu SIWAK-NG' (PRD 4.1)."""

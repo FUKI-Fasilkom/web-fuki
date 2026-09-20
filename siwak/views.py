@@ -120,7 +120,27 @@ def kelompok_search(request):
 # 5.1 — Slot Pengumpulan Tugas SIWAK
 # ---------------------------------------------------------------------------
 
-@login_required
+def mentee_required(view_func):
+    """Guard halaman Tugas Mentoring: harus login DAN berperan Mentee.
+
+    Selain itu (anonim, role NULL, mentor, dst.) dikembalikan ke /siwak dengan
+    notifikasi, bukan ke login/403, supaya user tahu harus menghubungi CP.
+    """
+    @wraps(view_func)
+    def _wrapped(request, *args, **kwargs):
+        if request.user.is_authenticated:
+            is_mentee = MahasiswaProfile.objects.filter(
+                user=request.user, role=MahasiswaProfile.ROLE_MENTEE
+            ).exists()
+            if is_mentee:
+                return view_func(request, *args, **kwargs)
+        messages.error(request, "Anda harus menjadi Mentee, hubungi CP Fakultas")
+        return redirect("siwak:landing")
+
+    return _wrapped
+
+
+@mentee_required
 def tugas_list(request):
     tugas_qs = Tugas.objects.filter(is_active=True)
     rows = []
@@ -181,7 +201,7 @@ def tugas_list(request):
     return render(request, "siwak/tugas_list.html", context)
 
 
-@login_required
+@mentee_required
 @require_http_methods(["GET", "POST"])
 def tugas_detail(request, pk):
     tugas = get_object_or_404(Tugas, pk=pk, is_active=True)

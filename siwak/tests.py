@@ -302,13 +302,49 @@ class AuthenticationProtectionTests(TestCase):
 
     def test_anonymous_user_is_redirected_to_cas_login(self):
         """Anonymous access should preserve the destination through the next query."""
-        protected_url = reverse("siwak:tugas_list")
+        protected_url = reverse("siwak:mentee_feedback_history")
 
         response = self.client.get(protected_url)
 
         expected_login_url = reverse("siwak:cas_ng_login")
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, f"{expected_login_url}?next={protected_url}")
+
+    def test_tugas_pages_redirect_non_mentee_to_landing_with_notice(self):
+        """Tugas Mentoring: anonim / bukan Mentee dikembalikan ke /siwak dengan notifikasi."""
+        tugas = Tugas.objects.create(
+            judul_tugas="T", deskripsi="d", deadline=timezone.now() + datetime.timedelta(days=1)
+        )
+        urls = [reverse("siwak:tugas_list"), reverse("siwak:tugas_detail", args=[tugas.pk])]
+
+        def assert_redirected(url):
+            response = self.client.get(url, follow=True)
+            self.assertEqual(response.redirect_chain[-1][0], reverse("siwak:landing"))
+            self.assertContains(response, "Anda harus menjadi Mentee, hubungi CP Fakultas")
+
+        for url in urls:
+            assert_redirected(url)  # anonim
+        self.client.force_login(User.objects.create_user(username="tanpa-role"))
+        for url in urls:
+            assert_redirected(url)  # login tapi role NULL
+        mentor = User.objects.create_user(username="mentor")
+        MahasiswaProfile.objects.create(user=mentor, npm="2100000001", role=MahasiswaProfile.ROLE_MENTOR)
+        self.client.force_login(mentor)
+        for url in urls:
+            assert_redirected(url)  # mentor
+
+    def test_mentee_can_open_tugas_list(self):
+        mentee = User.objects.create_user(username="mentee")
+        MahasiswaProfile.objects.create(user=mentee, npm="2500000001", role=MahasiswaProfile.ROLE_MENTEE)
+        self.client.force_login(mentee)
+
+        self.assertEqual(self.client.get(reverse("siwak:tugas_list")).status_code, 200)
+
+    def test_navbar_shows_panel_admin_only_for_staff(self):
+        panel = reverse("siwak:panel_beranda")
+        self.assertNotContains(self.client.get(reverse("siwak:landing")), f'href="{panel}"')
+        self.client.force_login(User.objects.create_user(username="pengurus", is_staff=True))
+        self.assertContains(self.client.get(reverse("siwak:landing")), f'href="{panel}"')
 
 class PanelAccessTests(TestCase):
     """Verify who may open the SIWAK management panel at /siwak/admin/."""
@@ -675,9 +711,8 @@ class PanelProfilTests(TestCase):
             judul_tugas="T", deskripsi="d", deadline=timezone.now() + datetime.timedelta(days=1)
         )
 
-        self.assertEqual(
-            self.client.get(reverse("siwak:tugas_detail", args=[tugas.pk])).status_code, 403
-        )
+        response = self.client.get(reverse("siwak:tugas_detail", args=[tugas.pk]))
+        self.assertRedirects(response, reverse("siwak:landing"))
         self.assertEqual(self.client.get(reverse("siwak:mentor_dashboard")).status_code, 403)
 
     def test_the_sidebar_order_is_profile_mentee_mentor_group(self):
@@ -2210,15 +2245,16 @@ class TugasUploadTests(TestCase):
 
     def test_only_authenticated_mentees_can_access(self):
         self.client.logout()
+        landing = reverse("siwak:landing")
         for method in (self.client.get, self.client.post):
-            self.assertEqual(method(self.url).status_code, 302)
+            self.assertRedirects(method(self.url), landing)
         for role in (None, MahasiswaProfile.ROLE_MENTOR):
             user = User.objects.create_user(username=f"non-mentee-{role}", is_staff=True)
             if role:
                 MahasiswaProfile.objects.create(user=user, npm="2600000002", role=role)
             self.client.force_login(user)
-            self.assertEqual(self.client.get(self.url).status_code, 403)
-            self.assertEqual(self.submit().status_code, 403)
+            self.assertRedirects(self.client.get(self.url), landing)
+            self.assertRedirects(self.submit(), landing)
         self.assertFalse(TugasSubmission.objects.exists())
 
     def test_inactive_task_rejects_upload(self):
