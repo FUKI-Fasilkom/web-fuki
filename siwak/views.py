@@ -218,7 +218,9 @@ def tugas_detail(request, pk):
             if request.method == "POST":
                 # Kunci profil juga menserialkan dua pengumpulan pertama sekaligus.
                 profiles = profiles.select_for_update()
-            profile = profiles.select_related("kelompok").first()
+            # Tanpa select_related: `kelompok` nullable, dan Postgres menolak
+            # SELECT ... FOR UPDATE pada sisi outer join. Diambil lazy saat rename.
+            profile = profiles.first()
             if not profile:
                 return HttpResponseForbidden("Hanya mentee yang dapat mengumpulkan tugas.")
 

@@ -74,9 +74,51 @@
         {% endfor %}
 
         {% if can_submit %}
-        <div class="flex justify-end pb-5 pt-1">
-          <button type="submit" class="rounded-lg bg-[#001B3D] px-5 py-2.5 text-sm font-medium text-white shadow-[0_4px_10px_rgba(0,0,0,0.25)] transition hover:bg-[#0A2B52] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#C79A3A]/50">{% if submission %}Simpan Perubahan{% else %}Submit{% endif %}</button>
+        {% if submission %}
+        {# Mode edit: Batal & Simpan Perubahan masing-masing meminta konfirmasi lewat modal. #}
+        <div x-data="{ konfirmasi: null }" @keydown.escape.window="konfirmasi = null" class="flex flex-col-reverse gap-3 pb-5 pt-1 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            @click="konfirmasi = 'batal'"
+            class="rounded-lg border-2 border-[#001B3D] bg-white px-5 py-2.5 text-sm font-medium text-[#001B3D] transition hover:bg-[#F2E5BB] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#C79A3A]/50"
+          >Batal</button>
+          <button
+            type="button"
+            @click="if ($el.closest('form').reportValidity()) konfirmasi = 'simpan'"
+            class="rounded-lg bg-[#001B3D] px-5 py-2.5 text-sm font-medium text-white shadow-[0_4px_10px_rgba(0,0,0,0.25)] transition hover:bg-[#0A2B52] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#C79A3A]/50"
+          >Simpan Perubahan</button>
+
+          <div x-show="konfirmasi" x-cloak x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+            <div class="absolute inset-0 bg-black/50" @click="konfirmasi = null"></div>
+            <div class="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-[0_12px_32px_rgba(0,0,0,0.25)]">
+              <template x-if="konfirmasi === 'batal'">
+                <div>
+                  <h2 class="text-xl font-bold text-black">Batalkan perubahan?</h2>
+                  <p class="mt-2 text-sm text-[#333333]">Perubahan yang belum disimpan akan hilang. Jawaban versi terakhir yang sudah dikumpulkan tetap dipakai.</p>
+                  <div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                    <button type="button" @click="konfirmasi = null" class="rounded-lg border-2 border-[#001B3D] px-5 py-2.5 text-sm font-medium text-[#001B3D] transition hover:bg-[#F2E5BB]">Lanjut Mengedit</button>
+                    <a href="{% url 'siwak:tugas_detail' pk=tugas.pk %}" class="rounded-lg bg-[#D00000] px-5 py-2.5 text-center text-sm font-medium text-white transition hover:bg-[#A80000]">Ya, Batalkan</a>
+                  </div>
+                </div>
+              </template>
+              <template x-if="konfirmasi === 'simpan'">
+                <div>
+                  <h2 class="text-xl font-bold text-black">Simpan perubahan?</h2>
+                  <p class="mt-2 text-sm text-[#333333]">Jawaban versi terakhir yang sudah dikumpulkan akan diganti dengan perubahan ini.</p>
+                  <div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                    <button type="button" @click="konfirmasi = null" class="rounded-lg border-2 border-[#001B3D] px-5 py-2.5 text-sm font-medium text-[#001B3D] transition hover:bg-[#F2E5BB]">Periksa Lagi</button>
+                    <button type="submit" class="rounded-lg bg-[#001B3D] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-[#0A2B52]">Ya, Simpan</button>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
         </div>
+        {% else %}
+        <div class="flex justify-end pb-5 pt-1">
+          <button type="submit" class="rounded-lg bg-[#001B3D] px-5 py-2.5 text-sm font-medium text-white shadow-[0_4px_10px_rgba(0,0,0,0.25)] transition hover:bg-[#0A2B52] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#C79A3A]/50">Submit</button>
+        </div>
+        {% endif %}
         {% endif %}
         {% endif %}
       </form>
