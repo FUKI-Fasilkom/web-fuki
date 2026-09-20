@@ -1,0 +1,27 @@
+{% comment %}
+  Menu samping panel. Dipakai dua kali oleh base.html: kolom tetap di layar
+  lebar dan laci geser di HP. Isinya dibangun view dari peta di panel.py.
+{% endcomment %}
+
+{% for kelompok in menu %}
+<div>
+  <a href="{% url 'siwak:panel_bagian' kelompok.bagian.slug %}"
+     class="flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] font-bold uppercase tracking-wide transition
+            {% if kelompok.aktif %}bg-navy text-cream-300{% else %}text-navy-400 hover:bg-navy/5 hover:text-navy{% endif %}">
+    {% include 'siwak/panel/_ikon.html' with nama=kelompok.bagian.ikon kelas="h-4 w-4 shrink-0" %}
+    <span class="min-w-0 truncate">{{ kelompok.bagian.nama }}</span>
+  </a>
+
+  <ul class="mt-1 space-y-0.5 border-l-2 border-gold-light pl-3 ml-4">
+    {% for butir in kelompok.butir %}
+    <li>
+      <a href="{{ butir.url }}"
+         class="block rounded-lg px-3 py-2 text-sm transition
+                {% if butir.aktif %}bg-cream-300 font-semibold text-navy{% else %}text-navy-600 hover:bg-cream-200 hover:text-navy{% endif %}">
+        {% if butir.sorot %}<span class="mr-1 text-gold-dark" aria-hidden="true">&#9733;</span>{% endif %}{{ butir.label }}
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endfor %}

@@ -1,0 +1,144 @@
+{% extends 'siwak/panel/base.html' %}
+
+{% block panel %}
+<header class="mb-5 flex flex-wrap items-start justify-between gap-3">
+  <div class="min-w-0">
+    <h1 class="text-2xl font-bold text-navy sm:text-3xl">RSVP · {{ event.judul }}</h1>
+    <p class="mt-1 text-sm text-navy-400">
+      {% if event.tanggal %}{{ event.tanggal|date:"j F Y" }}{% else %}Tanggal belum diisi{% endif %}
+      {% if event.lokasi %} · {{ event.lokasi }}{% endif %}
+      · RSVP {% if event.rsvp_dibuka %}<span class="font-semibold text-navy">dibuka</span>{% else %}<span class="font-semibold text-red-700">ditutup</span>{% endif %}
+    </p>
+  </div>
+  <div class="flex flex-wrap gap-2">
+    <a href="{% url 'siwak:panel_rsvp_csv' event.pk %}{% if kata %}?q={{ kata|urlencode }}{% endif %}"
+       class="inline-flex min-h-[44px] items-center rounded-xl border-2 border-navy px-5 text-sm font-bold text-navy transition hover:bg-cream-300">
+      Unduh CSV{% if kata %} hasil cari{% endif %}
+    </a>
+    <a href="{% url 'siwak:panel_ubah' 'event' event.pk %}"
+       class="inline-flex min-h-[44px] items-center rounded-xl bg-navy px-5 text-sm font-bold text-white transition hover:bg-navy-700">
+      Ubah acara
+    </a>
+  </div>
+</header>
+
+<section class="mb-5 grid grid-cols-3 gap-3" aria-label="Ringkasan RSVP">
+  {% for label, angka in ringkasan_rsvp %}
+  <div class="rounded-2xl border-2 border-gold-light bg-white px-4 py-4">
+    <p class="text-2xl font-bold leading-none text-navy sm:text-3xl">{{ angka }}</p>
+    <p class="mt-1.5 text-[11px] font-semibold uppercase tracking-wide text-navy-400 sm:text-xs">{{ label }}</p>
+  </div>
+  {% endfor %}
+</section>
+
+{% comment %}
+  Pencarian di sini memakai alamat halaman (bukan penyaring di sisi peramban)
+  supaya hasilnya bisa dikirim ke panitia lain, dan supaya dropdown status di
+  tiap baris bisa kembali ke hasil yang sama lewat `next`.
+{% endcomment %}
+{% if ada_rsvp %}
+<form method="get" class="mb-4 flex flex-wrap gap-2" role="search">
+  <input type="search" name="q" value="{{ kata }}" placeholder="Cari nama atau NPM peserta…"
+         class="min-h-[44px] w-full flex-1 rounded-xl border-2 border-gold-light bg-white px-4 text-[15px] text-navy placeholder-navy-400/60 transition focus:border-gold focus:outline-none focus:ring-4 focus:ring-gold/25 sm:w-auto" />
+  <button type="submit"
+          class="min-h-[44px] rounded-xl bg-navy px-5 text-sm font-bold text-white transition hover:bg-navy-700">
+    Cari
+  </button>
+  {% if kata %}
+  <a href="{% url 'siwak:panel_rsvp' event.pk %}"
+     class="inline-flex min-h-[44px] items-center rounded-xl border-2 border-navy px-5 text-sm font-bold text-navy transition hover:bg-cream-300">
+    Bersihkan
+  </a>
+  {% endif %}
+</form>
+{% endif %}
+
+{% if halaman.object_list %}
+{% if kata %}
+<p class="mb-3 text-sm text-navy-400">
+  <span class="font-semibold text-navy">{{ halaman.paginator.count }} peserta</span> cocok dengan
+  “{{ kata }}”. Ringkasan di atas tetap menghitung seluruh peserta acara.
+</p>
+{% endif %}
+{% comment %}
+  Dua kolom QR di sini bisa disunting. Biasanya statusnya berubah sendiri saat
+  QR dipindai, tapi pemindaian bisa gagal atau terlewat — dropdown ini yang
+  dipakai panitia untuk membetulkannya tanpa masuk ke /admin/.
+{% endcomment %}
+<p class="mb-3 text-sm leading-relaxed text-navy-400">
+  Status QR di bawah biasanya terisi sendiri saat QR peserta dipindai. Kalau ada yang
+  terlewat, ubah langsung lewat dropdown-nya — jam check-in dan jam penukaran ikut
+  menyesuaikan.
+</p>
+
+<div class="overflow-hidden rounded-2xl border-2 border-gold-light bg-white">
+  <div class="hidden bg-navy px-4 py-3 text-xs font-bold uppercase tracking-wide text-cream-300 lg:grid lg:grid-cols-[minmax(0,1.5fr)_120px_110px_165px_150px_72px] lg:gap-4">
+    <span>Nama</span><span>NPM</span><span>Kehadiran</span><span>QR Kehadiran</span><span>QR Kupon</span><span class="sr-only">Aksi</span>
+  </div>
+
+  {% for rsvp in halaman.object_list %}
+  <div class="border-b border-gold-light/70 p-4 last:border-b-0 even:bg-cream-50 lg:grid lg:grid-cols-[minmax(0,1.5fr)_120px_110px_165px_150px_72px] lg:items-center lg:gap-4">
+    <p class="font-semibold text-navy">
+      {{ rsvp.user.mahasiswa_profile.nama_lengkap|default:rsvp.user.username }}
+    </p>
+
+    <p class="mt-0.5 text-sm text-navy-400 lg:mt-0 lg:text-navy">
+      <span class="lg:hidden">NPM </span>{{ rsvp.user.mahasiswa_profile.npm|default:"—" }}
+    </p>
+
+    <p class="mt-2 lg:mt-0">
+      <span class="inline-block rounded-full bg-badge/60 px-2.5 py-1 text-[11px] font-semibold text-navy">
+        {{ rsvp.get_kehadiran_display }}
+      </span>
+    </p>
+
+    <div class="mt-3 lg:mt-0">
+      <span class="mb-1 block text-[11px] font-bold uppercase tracking-wide text-navy-400 lg:hidden">QR Kehadiran</span>
+      {% include 'siwak/panel/_dropdown_status.html' with rsvp=rsvp medan='kehadiran' pilihan=pilihan_kehadiran sekarang=rsvp.status_kehadiran aktif_saat='hadir' aria='Status QR kehadiran' %}
+    </div>
+
+    <div class="mt-3 lg:mt-0">
+      <span class="mb-1 block text-[11px] font-bold uppercase tracking-wide text-navy-400 lg:hidden">QR Kupon</span>
+      {% include 'siwak/panel/_dropdown_status.html' with rsvp=rsvp medan='kupon' pilihan=pilihan_kupon sekarang=rsvp.status_kupon|default:'unused' aktif_saat='redeemed' aria='Status QR kupon' %}
+    </div>
+
+    <form method="post" action="{% url 'siwak:panel_rsvp_hapus' rsvp.pk %}" class="mt-3 lg:mt-0"
+          onsubmit="return confirm('Hapus RSVP {{ rsvp.user.mahasiswa_profile.nama_lengkap|default:rsvp.user.username|escapejs }}? Tindakan ini tidak bisa dibatalkan.');">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ url_kembali }}" />
+      <button type="submit"
+              class="rounded-lg border-2 border-red-300 px-3 py-1.5 text-xs font-bold text-red-700 transition hover:bg-red-50">
+        Hapus
+      </button>
+    </form>
+
+    {% if rsvp.alasan_izin %}
+    <p class="mt-2 text-xs italic text-navy-400 lg:col-span-6 lg:mt-1">Alasan izin: {{ rsvp.alasan_izin }}</p>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+{% include 'siwak/panel/_paginasi.html' %}
+
+{% else %}
+<div class="rounded-2xl border-2 border-dashed border-gold-light bg-white px-6 py-14 text-center">
+  {% if kata %}
+  <p class="text-base font-bold text-navy">Tidak ada peserta yang cocok dengan “{{ kata }}”.</p>
+  <p class="mx-auto mt-1.5 max-w-md text-sm leading-relaxed text-navy-400">
+    Coba potongan namanya saja, atau NPM-nya.
+  </p>
+  <a href="{% url 'siwak:panel_rsvp' event.pk %}"
+     class="mt-4 inline-flex min-h-[44px] items-center rounded-xl bg-navy px-5 text-sm font-bold text-white transition hover:bg-navy-700">
+    Tampilkan semua peserta
+  </a>
+  {% else %}
+  <p class="text-base font-bold text-navy">Belum ada yang RSVP untuk acara ini.</p>
+  <p class="mx-auto mt-1.5 max-w-md text-sm leading-relaxed text-navy-400">
+    {% if event.rsvp_dibuka %}Pendaftaran sudah dibuka — nama akan muncul di sini begitu ada maba yang mendaftar.
+    {% else %}RSVP acara ini masih ditutup, jadi belum ada yang bisa mendaftar.{% endif %}
+  </p>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

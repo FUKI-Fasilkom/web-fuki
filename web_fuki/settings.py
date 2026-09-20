@@ -12,7 +12,9 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 from pathlib import Path
 import os
+import sys
 import dj_database_url
+import requests
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -69,6 +71,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.sitemaps',
+    'django_cas_ng',
+    'storages',
     'main',
     'kegiatan',
     'birdep',
@@ -79,14 +83,45 @@ INSTALLED_APPS = [
 
 # 5.1 (Submission Rules: "File size limit"). Applies to every upload in the
 # project; SIWAK task uploads additionally enforce a per-Tugas limit in
-# siwak/forms.py::TugasSubmissionForm.clean_file.
+# siwak/forms.py::validate_tugas_file.
 DATA_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024  # 20 MB
 FILE_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024
 
 # 7 — Authentication: where @login_required sends anonymous users, and where
 # they land after logging in.
-# LOGIN_URL = 'siwak:login'
-# LOGIN_REDIRECT_URL = 'siwak:tugas_list'
+
+AUTHENTICATION_BACKENDS = [
+    'django_cas_ng.backends.CASBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
+
+CAS_SERVER_URL = "https://sso.ui.ac.id/cas2/"
+CAS_VERSION = 2
+
+CAS_ADMIN_REDIRECT = False
+CAS_LOGIN_URL_NAME = "siwak:cas_ng_login"
+CAS_LOGOUT_URL_NAME = "siwak:cas_ng_logout"
+CAS_LOGIN_MSG = None
+
+LOGIN_URL = "siwak:cas_ng_login"
+CAS_REDIRECT_URL = "siwak:tugas_list"
+CAS_IGNORE_REFERER = True
+CAS_LOGOUT_NEXT_PAGE = "/"
+
+# nginx di depan SSO UI menolak User-Agent default `python-requests/*`
+# (HTTP 400 -> halaman HTML yang membuat parser python-cas melempar
+# ParseError). Kirim serviceValidate pakai User-Agent browser supaya WAF SSO UI
+# menerimanya dan mengembalikan XML CAS yang valid.
+def _cas_session_factory():
+    session = requests.Session()
+    session.headers['User-Agent'] = (
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+        '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    )
+    return session
+
+
+CAS_SESSION_FACTORY = _cas_session_factory
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -195,9 +230,25 @@ STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 
+# Uploaded media uses S3 when a bucket is configured; local development can
+# leave the bucket empty to keep using MEDIA_ROOT.
+AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
+AWS_STORAGE_BUCKET_NAME = os.environ.get('AWS_STORAGE_BUCKET_NAME')
+AWS_S3_REGION_NAME = os.environ.get('AWS_S3_REGION_NAME', 'ap-southeast-3')
+# Presigned URLs must use the regional endpoint. The global endpoint rejects
+# Jakarta bucket downloads with IllegalLocationConstraintException.
+AWS_S3_ENDPOINT_URL = f'https://s3.{AWS_S3_REGION_NAME}.amazonaws.com'
+AWS_S3_ADDRESSING_STYLE = 'virtual'
+AWS_S3_SIGNATURE_VERSION = 's3v4'
+AWS_S3_FILE_OVERWRITE = False
+
 STORAGES = {
     'default': {
-        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+        'BACKEND': (
+            'storages.backends.s3.S3Storage' if AWS_STORAGE_BUCKET_NAME
+            else 'django.core.files.storage.FileSystemStorage'
+        ),
     },
     'staticfiles': {
         # The old STATICFILES_STORAGE setting was removed in Django 5.1, so on
@@ -211,6 +262,15 @@ STORAGES = {
         ),
     },
 }
+
+# Unit tests must never use production media storage, even when the developer's
+# .env contains AWS_STORAGE_BUCKET_NAME.  InMemoryStorage keeps uploads local
+# to the test process and avoids both network calls and leftover media files.
+RUNNING_TESTS = "test" in sys.argv[1:]
+if RUNNING_TESTS:
+    STORAGES["default"] = {
+        "BACKEND": "django.core.files.storage.InMemoryStorage",
+    }
 
 
 # Default primary key field type
@@ -264,3 +324,26 @@ GOOGLE_SITE_VERIFICATION = os.getenv(
     'GOOGLE_SITE_VERIFICATION',
     'lCewhFlHG9UyyEKQPRpfzDkunjEQRLb1J0Bc9FgL3Xo',
 )
+
+
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+# Logger "cas" di level DEBUG menampilkan respons mentah serviceValidate dari
+# SSO UI (termasuk bagian XML yang rusak) sebelum parser toleran di
+# siwak/sso.py bekerja. Root tetap WARNING seperti bawaan Django.
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'console': {'format': '{asctime} {levelname} {name} {message}', 'style': '{'},
+    },
+    'handlers': {
+        'console': {'class': 'logging.StreamHandler', 'formatter': 'console'},
+    },
+    'root': {'handlers': ['console'], 'level': 'WARNING'},
+    'loggers': {
+        'cas': {'handlers': ['console'], 'level': 'DEBUG', 'propagate': False},
+    },
+}

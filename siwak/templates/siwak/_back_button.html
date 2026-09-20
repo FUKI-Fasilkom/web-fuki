@@ -1,0 +1,13 @@
+{# Tombol kembali di pojok kiri atas hero. Wajib di dalam wrapper `relative` yang membungkus header. Param: href, label. #}
+{# Padding wrapper sengaja sama dengan header (`px-[21px] lg:px-12`) dan -ml-5 mengimbangi ruang kosong di kiri ikon, supaya panah sejajar dengan title hero. #}
+<div class="pointer-events-none absolute inset-0 z-20 px-[21px] lg:px-12">
+  <a
+    href="{{ href }}"
+    aria-label="{{ label }}"
+    class="pointer-events-auto -ml-5 mt-4 inline-flex h-12 w-12 items-center justify-center rounded-full text-[#001B3D] transition hover:bg-white/25 focus:outline-none focus-visible:ring-4 focus-visible:ring-[#E0BE6B]/60 sm:mt-5 lg:mt-6"
+  >
+    <svg class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+    </svg>
+  </a>
+</div>

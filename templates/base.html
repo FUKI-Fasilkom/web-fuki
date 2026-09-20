@@ -50,6 +50,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
 
   {% comment %}
     PALET WARNA FUKI 2026 (navy + gold + cream)
@@ -134,18 +135,27 @@
   }
   </script>
 
+
   {% block extra_head %}{% endblock %}
 </head>
 <body>
 
-  {% include 'navbar.html' %}
+  {% comment %}
+    Navbar dan footer dibungkus blok supaya halaman yang bukan halaman publik —
+    mis. panel pengelola SIWAK di /siwak/admin/ — bisa mengosongkannya tanpa
+    harus menyalin ulang seluruh <head> (font, konfigurasi Tailwind, palet).
+  {% endcomment %}
+  {% block navbar %}{% include 'navbar.html' %}{% endblock %}
 
   <main class="w-full">
     {% block content %}
     {% endblock %}
   </main>
 
-  {% include 'footer.html' %}
+  {% block footer %}{% include 'footer.html' %}{% endblock %}
+  <script>
+    lucide.createIcons();
+  </script>
 
 </body>
 </html>

@@ -16,12 +16,18 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.contrib.sitemaps.views import sitemap
+from django.http import HttpResponseNotFound
 from django.urls import include, path
 from django.views.generic import TemplateView
 from django.conf import settings
 from django.conf.urls.static import static
 
 from .sitemaps import SITEMAPS
+
+
+def protected_submission_media(request, path):
+    """Never expose SIWAK task files through Django's DEBUG media helper."""
+    return HttpResponseNotFound()
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -31,6 +37,7 @@ urlpatterns = [
     path('profil/', include('profil.urls')),
     path('kajian/', include('blog_kajian.urls')),
     path('siwak/', include('siwak.urls')),
+    path('media/siwak/tugas/<path:path>', protected_submission_media),
 
     # SEO: dua berkas yang dicari perayap di akar domain.
     path(
