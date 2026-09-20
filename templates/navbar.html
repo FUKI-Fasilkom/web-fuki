@@ -51,7 +51,7 @@
           </svg>
         </button>
         <div x-show="siwak" x-transition x-cloak
-             class="absolute left-0 mt-2 w-52 bg-white rounded-xl shadow-lg ring-1 ring-navy/10 py-2">
+             class="absolute left-0 mt-2 w-max min-w-52 bg-white rounded-xl shadow-lg ring-1 ring-navy/10 py-2">
           <a href="{% url 'siwak:landing' %}" class="block px-4 py-2 text-navy hover:bg-cream transition">Info SIWAK</a>
           <a href="{% url 'siwak:kelompok_search' %}" class="block px-4 py-2 text-navy hover:bg-cream transition">Cari Kelompok Mentoring</a>
           <a href="{% url 'siwak:tugas_list' %}" class="block px-4 py-2 text-navy hover:bg-cream transition">Tugas Mentoring</a>
