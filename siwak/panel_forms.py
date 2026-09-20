@@ -115,7 +115,7 @@ class InfoSiwakForm(PanelForm):
             "apa_itu_deskripsi": "Penjelasan 'Apa itu SIWAK-NG'",
             "apa_itu_gambar": "Gambar pendamping",
             "mentoring_deskripsi": "Penjelasan 'Apa itu Mentoring'",
-            "kontak_cp": "Link kontak CP Fakultas",
+            "kontak_cp": "Link kontak CP SIWAK",
         }
         help_texts = {
             "kontak_cp": "Ditampilkan ke maba saat kelompoknya belum ketemu. Contoh: https://wa.me/62812...",

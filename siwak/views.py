@@ -134,7 +134,7 @@ def mentee_required(view_func):
             ).exists()
             if is_mentee:
                 return view_func(request, *args, **kwargs)
-        messages.error(request, "Anda harus menjadi Mentee, hubungi CP Fakultas")
+        messages.error(request, "Anda harus menjadi Mentee, hubungi CP SIWAK")
         return redirect("siwak:landing")
 
     return _wrapped

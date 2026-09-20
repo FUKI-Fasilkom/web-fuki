@@ -103,8 +103,8 @@ class SiwakInfo(models.Model):
     mentoring_deskripsi = models.TextField(blank=True, verbose_name="Deskripsi 'Apa itu Mentoring'")
     kontak_cp = models.CharField(
         max_length=300, blank=True,
-        help_text="Link WhatsApp/kontak CP Fakultas, ditampilkan saat kelompok tidak ditemukan.",
-        verbose_name="Link CP Fakultas",
+        help_text="Link WhatsApp/kontak CP SIWAK, ditampilkan saat kelompok tidak ditemukan.",
+        verbose_name="Link CP SIWAK",
     )
     updated_at = models.DateTimeField(auto_now=True)
 

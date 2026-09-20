@@ -320,7 +320,7 @@ class AuthenticationProtectionTests(TestCase):
         def assert_redirected(url):
             response = self.client.get(url, follow=True)
             self.assertEqual(response.redirect_chain[-1][0], reverse("siwak:landing"))
-            self.assertContains(response, "Anda harus menjadi Mentee, hubungi CP Fakultas")
+            self.assertContains(response, "Anda harus menjadi Mentee, hubungi CP SIWAK")
 
         for url in urls:
             assert_redirected(url)  # anonim
@@ -339,6 +339,18 @@ class AuthenticationProtectionTests(TestCase):
         self.client.force_login(mentee)
 
         self.assertEqual(self.client.get(reverse("siwak:tugas_list")).status_code, 200)
+
+    def test_navbar_shows_tugas_mentoring_only_for_mentee(self):
+        link = f'href="{reverse("siwak:tugas_list")}"'
+        self.assertNotContains(self.client.get(reverse("siwak:kelompok_search")), link)  # anonim
+        mentor = User.objects.create_user(username="mentor")
+        MahasiswaProfile.objects.create(user=mentor, npm="2100000002", role=MahasiswaProfile.ROLE_MENTOR)
+        self.client.force_login(mentor)
+        self.assertNotContains(self.client.get(reverse("siwak:kelompok_search")), link)
+        mentee = User.objects.create_user(username="mentee")
+        MahasiswaProfile.objects.create(user=mentee, npm="2500000002", role=MahasiswaProfile.ROLE_MENTEE)
+        self.client.force_login(mentee)
+        self.assertContains(self.client.get(reverse("siwak:kelompok_search")), link)
 
     def test_navbar_shows_panel_admin_only_for_staff(self):
         panel = reverse("siwak:panel_beranda")

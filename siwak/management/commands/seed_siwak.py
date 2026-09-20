@@ -120,7 +120,7 @@ class Command(BaseCommand):
         )
         FAQMentoring.objects.update_or_create(
             pertanyaan="Bagaimana jika belum mendapat kelompok?",
-            defaults={"jawaban": "Gunakan menu 'Cari Kelompok' atau hubungi CP Fakultas yang tertera.", "urutan": 1},
+            defaults={"jawaban": "Gunakan menu 'Cari Kelompok' atau hubungi CP SIWAK yang tertera.", "urutan": 1},
         )
 
         kelompok1, _ = KelompokMentoring.objects.get_or_create(
