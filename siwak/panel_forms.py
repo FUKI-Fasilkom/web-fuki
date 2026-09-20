@@ -258,7 +258,7 @@ class PesertaForm(PanelForm):
         self.instance.role = Profile.ROLE_MENTEE
         self.fields["kelompok"].empty_label = "— Belum ditempatkan —"
         # `jurusan` boleh kosong di model (mentor yang disiapkan sebelum login),
-        # tapi mentee tetap wajib punya jurusan — "Cari Kelompok" mencarinya lewat itu.
+        # tapi mentee tetap wajib punya jurusan (ditampilkan di hasil "Cari Kelompok").
         self.fields["jurusan"].required = True
         # Sama untuk NPM: opsional di model demi mentor non-SSO, tetap wajib di sini.
         self.fields["npm"].required = True
