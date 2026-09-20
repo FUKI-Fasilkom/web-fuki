@@ -1797,6 +1797,25 @@ class RSVPViewTests(TestCase):
         self.assertContains(response, "QR RSVP")
         self.assertContains(response, "data:image/png;base64,")
 
+    def test_rsvp_button_shown_on_landing_and_detail_when_open(self):
+        rsvp_url = reverse("siwak:rsvp", args=[self.event.id])
+        landing = self.client.get(reverse("siwak:landing"))
+        self.assertContains(landing, f'href="{rsvp_url}"')
+        self.assertContains(landing, "Isi RSVP Main Event SIWAK")
+        detail = self.client.get(reverse("siwak:event_detail", args=[self.event.id]))
+        self.assertContains(detail, f'href="{rsvp_url}"')
+        self.assertContains(detail, "Isi RSVP Main Event SIWAK")
+
+    def test_rsvp_button_hidden_on_landing_and_detail_when_closed(self):
+        rsvp_url = reverse("siwak:rsvp", args=[self.closed_event.id])
+        landing = self.client.get(reverse("siwak:landing"))
+        self.assertNotContains(landing, f'href="{rsvp_url}"')
+        self.assertNotContains(landing, "Isi RSVP Closed Event")
+        detail = self.client.get(reverse("siwak:event_detail", args=[self.closed_event.id]))
+        self.assertEqual(detail.status_code, 200)
+        self.assertNotContains(detail, f'href="{rsvp_url}"')
+        self.assertNotContains(detail, "Isi RSVP Closed Event")
+
     # -- QR presence --------------------------------------------------------
 
     def test_rsvp_page_exposes_both_qr_data_uris(self):
