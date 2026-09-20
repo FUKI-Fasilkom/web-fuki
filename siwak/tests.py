@@ -25,8 +25,10 @@ from unittest.mock import patch
 from urllib.parse import unquote
 
 from django.contrib.auth import get_user_model
+from django.conf import settings
 from django.core import signing
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.files.storage import default_storage
 from django.contrib import admin
 from django.db import transaction
 from django.test import Client, RequestFactory, TestCase, override_settings
@@ -58,6 +60,17 @@ from .sso import get_attribute, handle_cas_login, sync_mahasiswa_profile
 
 
 User = get_user_model()
+
+
+class TestStorageIsolation(TestCase):
+    """The test command must not send fixtures to the configured S3 bucket."""
+
+    def test_default_media_storage_is_in_memory(self):
+        self.assertEqual(
+            settings.STORAGES["default"]["BACKEND"],
+            "django.core.files.storage.InMemoryStorage",
+        )
+        self.assertEqual(default_storage.__class__.__name__, "InMemoryStorage")
 
 
 class GetAttributeTests(TestCase):

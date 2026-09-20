@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 from pathlib import Path
 import os
+import sys
 import dj_database_url
 import requests
 from dotenv import load_dotenv
@@ -261,6 +262,15 @@ STORAGES = {
         ),
     },
 }
+
+# Unit tests must never use production media storage, even when the developer's
+# .env contains AWS_STORAGE_BUCKET_NAME.  InMemoryStorage keeps uploads local
+# to the test process and avoids both network calls and leftover media files.
+RUNNING_TESTS = "test" in sys.argv[1:]
+if RUNNING_TESTS:
+    STORAGES["default"] = {
+        "BACKEND": "django.core.files.storage.InMemoryStorage",
+    }
 
 
 # Default primary key field type
