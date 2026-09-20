@@ -242,19 +242,11 @@ def tugas_detail(request, pk):
                         submission = TugasSubmission(tugas=tugas, user=request.user)
                     submission.save()
 
-                    questions = list(tugas.questions.all())
-                    file_total = sum(1 for q in questions if q.tipe == "file")
-                    file_index = 0
-                    for question in questions:
+                    for question in tugas.questions.all():
                         value = form.cleaned_data[f"question_{question.pk}"]
-                        if question.tipe == "file":
-                            file_index += 1
-                            # Hanya upload baru yang di-rename; file lama (bukan UploadedFile) dibiarkan.
-                            if isinstance(value, UploadedFile):
-                                value.name = _nama_berkas_tugas(
-                                    tugas, profile, value.name,
-                                    nomor=file_index if file_total > 1 else None,
-                                )
+                        # Hanya upload baru yang di-rename; file lama (bukan UploadedFile) dibiarkan.
+                        if question.tipe == "file" and isinstance(value, UploadedFile):
+                            value.name = _nama_berkas_tugas(tugas, profile, question, value.name)
                         answer, _ = submission.answers.get_or_create(question=question)
                         answer.text_answer = value if question.tipe == "text" else ""
                         answer.selected_choice_id = value if question.tipe == "choice" else None
@@ -311,22 +303,22 @@ def _bersihkan_bagian_nama(teks, batas):
     return re.sub(r"[^A-Za-z0-9]+", "-", teks).strip("-")[:batas].strip("-")
 
 
-def _nama_berkas_tugas(tugas, profile, nama_asli, nomor=None):
-    """<namaTugas>_<namaKelompok>_<namaMentee>_<NPM>.<ext>, dipakai sebelum upload ke S3.
+def _nama_berkas_tugas(tugas, profile, question, nama_asli):
+    """<namaTugas>_q<idPertanyaan>_<namaKelompok>_<namaMentee>_<NPM>.<ext>, dipakai sebelum upload ke S3.
 
-    Bagian variabel dipotong agar NPM (pembeda utama) tidak terpotong oleh batas
-    panjang path FileField. `nomor` hanya diisi bila tugas punya >1 pertanyaan file.
+    id pertanyaan selalu disertakan supaya dua file dari pertanyaan berbeda pada
+    tugas yang sama tidak bernama sama. Bagian variabel dipotong agar NPM (pembeda
+    utama) tidak terpotong oleh batas panjang path FileField.
     """
     ext = nama_asli.rsplit(".", 1)[-1].lower() if "." in nama_asli else ""
     kelompok = profile.kelompok.nama_kelompok if profile.kelompok else "tanpa-kelompok"
     bagian = [
-        _bersihkan_bagian_nama(tugas.judul_tugas, 20) or "tugas",
+        _bersihkan_bagian_nama(tugas.judul_tugas, 18) or "tugas",
+        f"q{question.pk}",
         _bersihkan_bagian_nama(kelompok, 12) or "kelompok",
-        _bersihkan_bagian_nama(profile.nama_lengkap, 22) or "mentee",
+        _bersihkan_bagian_nama(profile.nama_lengkap, 20) or "mentee",
         _bersihkan_bagian_nama(profile.npm, 20) or "npm",
     ]
-    if nomor:
-        bagian.append(str(nomor))
     nama = "_".join(bagian)
     return f"{nama}.{ext}" if ext else nama
 
