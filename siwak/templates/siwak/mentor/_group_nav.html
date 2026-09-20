@@ -6,17 +6,5 @@
       </a>
       <h1 class="mt-1 text-2xl font-bold text-slate-900">{{ group.nama_kelompok }}</h1>
     </div>
-    <nav class="flex flex-wrap gap-2 text-sm font-semibold">
-      <a href="{% url 'siwak:mentor_dashboard' %}"
-         class="rounded-full bg-cream px-4 py-2 text-navy hover:bg-gold-light">Daftar Mentee</a>
-      <a href="{% url 'siwak:mentor_attendance' %}"
-         class="rounded-full bg-cream px-4 py-2 text-navy hover:bg-gold-light">Presensi Mentoring</a>
-      <a href="{% url 'siwak:mentor_assessments' %}"
-         class="rounded-full bg-cream px-4 py-2 text-navy hover:bg-gold-light">Nilai Mentee</a>
-      <a href="{% url 'siwak:mentor_task_reviews' %}"
-         class="rounded-full bg-cream px-4 py-2 text-navy hover:bg-gold-light">Penilaian Tugas</a>
-      <a href="{% url 'siwak:mentor_assignments' group_id=group.pk %}"
-         class="rounded-full bg-cream px-4 py-2 text-navy hover:bg-gold-light">Assignment</a>
-    </nav>
   </div>
 </div>
