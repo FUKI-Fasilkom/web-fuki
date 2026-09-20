@@ -41,7 +41,8 @@ class Kolom:
     "pilih_kelompok" / "pilih_kelompok_mentor" (dropdown kelompok untuk mentee
     dan untuk mentor; keduanya menyimpan lewat satu alamat yang sama, bedanya
     hanya label dan hitungan kapasitas), "pilih_role" (dropdown role profil),
-    atau "pilih_aktif". Lihat templat panel/_sel.html.
+    "pilih_aktif", atau penyunting teks "isi_link" (link grup WhatsApp kelompok)
+    dan "isi_npm" (NPM mentor). Lihat templat panel/_sel.html.
 
     `urut` diisi kunci pengurutan kalau judul kolomnya boleh diklik untuk
     mengurutkan; kuncinya harus ada di `Sumber.pengurutan`.
@@ -347,7 +348,9 @@ SUMBER = [
         form=f.MentorForm,
         kolom=(
             Kolom("Nama", lambda o: o.nama_lengkap, utama=True, urut="nama"),
-            Kolom("NPM", lambda o: o.npm or "—"),
+            # Bisa diisi langsung: mentor hasil seed CSV lahir tanpa NPM, dan NPM
+            # itulah yang menyambungkan barisnya ke akun SSO saat dia login.
+            Kolom("NPM", lambda o: o.npm or "", "isi_npm"),
             Kolom("Memegang kelompok", lambda o: o.kelompok_id, "pilih_kelompok_mentor", urut="kelompok"),
             Kolom("Sudah login SSO", lambda o: o.user_id is not None, "bool"),
         ),
@@ -407,6 +410,9 @@ SUMBER = [
             Kolom("Kelompok", lambda o: o.nama_kelompok, utama=True, urut="nama"),
             Kolom("Mentor", _nama_mentor),
             Kolom("Mentee", lambda o: f"{_jumlah_mentee(o)} / {o.kapasitas}", "tag", urut="peserta"),
+            # Bisa diisi langsung, dan yang masih kosong ditandai merah supaya
+            # kelompok tanpa link gampang ketahuan.
+            Kolom("Link Grup WhatsApp", lambda o: o.link_grup, "isi_link", urut="link"),
             Kolom("Aktif", lambda o: o.is_active, "bool"),
         ),
         pencarian=("nama_kelompok",),
@@ -419,6 +425,9 @@ SUMBER = [
             # Lewat alias anotasi, bukan Count() langsung: order_by() menolak
             # agregat yang tidak pernah masuk annotate().
             "peserta": ("urut_terisi",) + _urut_nama_kelompok(),
+            # Link kosong disimpan sebagai "" (bukan NULL), jadi menaik = yang
+            # belum punya link muncul paling atas.
+            "link": ("link_grup",) + _urut_nama_kelompok(),
         },
         urut_awal="nama",
     ),

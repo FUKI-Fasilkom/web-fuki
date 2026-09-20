@@ -6,8 +6,9 @@ membedakan satu menu dengan menu lain hanyalah isi `Sumber`-nya, bukan kodenya.
 
 Di luar itu ada dua kelompok view kecil: halaman khusus yang memang tidak
 berbentuk CRUD biasa (konten halaman utama dan daftar RSVP per acara), dan
-penyunting relasi (`panel_set_kelompok`, `panel_set_role`) yang dipanggil
-langsung dari dropdown di halaman daftar tanpa membuka form ubah.
+penyunting langsung (`panel_set_kelompok`, `panel_set_role`, `panel_set_link`,
+`panel_set_npm`) yang dipanggil dari dropdown atau isian di halaman daftar tanpa
+membuka form ubah.
 """
 
 import csv
@@ -17,7 +18,8 @@ from urllib.parse import urlencode
 from django.contrib import messages
 from django.contrib.auth.views import redirect_to_login
 from django.core.paginator import Paginator
-from django.db import transaction
+from django.core.exceptions import ValidationError
+from django.db import IntegrityError, transaction
 from django.db.models import F, Max, ProtectedError, Q
 from django.forms import inlineformset_factory
 from django.http import Http404, HttpResponse, HttpResponseForbidden
@@ -133,6 +135,8 @@ URL_SEL = {
     # Sama dengan "pilih_kelompok": beda hanya di label dan hitungan kapasitas.
     "pilih_kelompok_mentor": "siwak:panel_set_kelompok",
     "pilih_role": "siwak:panel_set_role",
+    "isi_link": "siwak:panel_set_link",
+    "isi_npm": "siwak:panel_set_npm",
     "saklar_rsvp": "siwak:panel_rsvp_toggle",
     "pilih_aktif": "siwak:panel_sesi_aktif",
 }
@@ -532,6 +536,82 @@ def panel_set_role(request, pk):
         if lepas:
             pesan += " Kelompok sebelumnya dilepas."
         messages.success(request, pesan)
+    return _kembali(request, cadangan)
+
+
+@staf_required
+@require_POST
+def panel_set_link(request, pk):
+    """Ganti link grup WhatsApp satu kelompok langsung dari daftar Kelompok Mentoring.
+
+    Isian kosong menghapus link (kelompok itu lalu ditandai "Belum ada link").
+    Validasinya validasi field model yang sama dengan form Ubah, jadi kedua jalan
+    menerima dan menolak hal yang persis sama.
+    """
+    kelompok = get_object_or_404(KelompokMentoring, pk=pk)
+    cadangan = reverse("siwak:panel_daftar", args=["kelompok"])
+
+    link = (request.POST.get("link_grup") or "").strip()
+    try:
+        link = KelompokMentoring._meta.get_field("link_grup").clean(link, kelompok)
+    except ValidationError as galat:
+        messages.error(
+            request,
+            f"Link grup {kelompok.nama_kelompok} tidak disimpan: {galat.messages[0]}",
+        )
+        return _kembali(request, cadangan)
+
+    if link != kelompok.link_grup:
+        kelompok.link_grup = link
+        kelompok.save(update_fields=["link_grup"])
+        messages.success(
+            request,
+            f"Link grup {kelompok.nama_kelompok} diperbarui." if link
+            else f"Link grup {kelompok.nama_kelompok} dihapus.",
+        )
+    return _kembali(request, cadangan)
+
+
+@staf_required
+@require_POST
+def panel_set_npm(request, pk):
+    """Isi/ganti NPM satu mentor SSO langsung dari daftar Mentor.
+
+    Hanya untuk mentor SSO: NPM mentor non-SSO harus tetap NULL (itulah yang
+    menjaga akun lokal dan akun CAS tidak pernah bertabrakan), dan NPM mentee
+    punya jalurnya sendiri lewat form Ubah. Kosong ditolak, seperti di
+    `MentorForm`: NPM satu-satunya cara barisnya diklaim saat orangnya login SSO.
+    """
+    profil = get_object_or_404(
+        Profile, pk=pk, role=Profile.ROLE_MENTOR, auth_source=Profile.SOURCE_SSO
+    )
+    cadangan = reverse("siwak:panel_daftar", args=["mentor"])
+
+    npm = (request.POST.get("npm") or "").strip()
+    panjang_maks = Profile._meta.get_field("npm").max_length
+    if not npm:
+        galat = "NPM tidak boleh kosong; NPM yang menyambungkan mentor ini ke akun SSO-nya."
+    elif not npm.isdigit() or len(npm) > panjang_maks:
+        galat = f"NPM harus berupa angka saja, paling banyak {panjang_maks} digit."
+    else:
+        galat = ""
+        pemilik = Profile.objects.filter(npm=npm).exclude(pk=profil.pk).first()
+        if pemilik:
+            galat = f"NPM {npm} sudah dipakai {pemilik.nama_lengkap}."
+
+    if not galat and profil.npm != npm:
+        profil.npm = npm
+        try:
+            with transaction.atomic():
+                profil.save(update_fields=["npm"])
+        except IntegrityError:
+            # Kalah balapan dengan pengurus lain yang baru saja memakai NPM yang sama.
+            galat = f"NPM {npm} sudah dipakai profil lain."
+        else:
+            messages.success(request, f"NPM {profil.nama_lengkap} diperbarui.")
+
+    if galat:
+        messages.error(request, f"NPM {profil.nama_lengkap} tidak disimpan: {galat}")
     return _kembali(request, cadangan)
 
 

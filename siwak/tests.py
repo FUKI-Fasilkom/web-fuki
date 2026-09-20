@@ -1204,8 +1204,11 @@ class PanelRelasiTests(TestCase):
         for slug, profil in (("peserta", self.maba), ("mentor", mentor)):
             with self.subTest(slug=slug):
                 response = self.client.get(reverse("siwak:panel_daftar", args=[slug]))
+                # By type, not "first cell with a url": the mentor list also has
+                # an NPM editor with its own endpoint.
                 dropdown = next(
-                    s for s in response.context["baris"][0]["sel"] if "url" in s
+                    s for s in response.context["baris"][0]["sel"]
+                    if s["tipe"].startswith("pilih_kelompok")
                 )
                 self.assertEqual(
                     dropdown["url"], reverse("siwak:panel_set_kelompok", args=[profil.pk])

@@ -82,4 +82,6 @@ urlpatterns = [
     # `pk` adalah Profile — dipakai baik untuk mentee maupun mentor.
     path("admin/peserta/<int:pk>/kelompok/", panel_views.panel_set_kelompok, name="panel_set_kelompok"),
     path("admin/profil/<int:pk>/role/", panel_views.panel_set_role, name="panel_set_role"),
+    path("admin/profil/<int:pk>/npm/", panel_views.panel_set_npm, name="panel_set_npm"),
+    path("admin/kelompok/<int:pk>/link/", panel_views.panel_set_link, name="panel_set_link"),
 ]

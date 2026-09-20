@@ -51,6 +51,14 @@
   {% endcomment %}
   {% include 'siwak/panel/_dropdown_pilih.html' with aksi=sel.url nama='role' pilihan=daftar_role terpilih=sel.nilai label_kosong='— Belum ditentukan —' aria='Role profil ini' tampil_detail=False konfirmasi='Ubah role profil ini?' konfirmasi_nama=item.obj.nama_lengkap keterangan='Kalau dia sedang punya kelompok, penempatannya ikut dilepas. Presensi, nilai, dan feedback yang sudah tercatat tetap tersimpan.' %}
 
+{% elif sel.tipe == 'isi_link' %}
+  {% comment %}Link kosong = kelompok belum punya grup: isiannya ditandai merah.{% endcomment %}
+  {% include 'siwak/panel/_isi_teks.html' with aksi=sel.url nama='link_grup' nilai=sel.nilai aria='Link grup WhatsApp kelompok ini' placeholder='https://chat.whatsapp.com/…' tipe='url' lebar='lg:w-72' kosong_label='Belum ada link' %}
+
+{% elif sel.tipe == 'isi_npm' %}
+  {% comment %}NPM kosong = mentor belum bisa tersambung ke akun SSO-nya.{% endcomment %}
+  {% include 'siwak/panel/_isi_teks.html' with aksi=sel.url nama='npm' nilai=sel.nilai aria='NPM mentor ini' placeholder='NPM' tipe='text' mode='numeric' lebar='lg:w-40' kosong_label='Belum ada NPM' %}
+
 {% elif sel.tipe == 'saklar_rsvp' %}
   {% comment %}
     Tombol, bukan penanda. Tapi tidak langsung berubah sekali klik: menutup
