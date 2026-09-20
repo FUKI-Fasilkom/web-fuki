@@ -42,7 +42,9 @@ class KegiatanRedesignTests(TestCase):
         self.assertContains(response, reverse('lapor'))
         self.assertContains(response, 'Kajian &amp; Syiar')
         self.assertContains(response, 'Sosial')
-        self.assertContains(response, self.upcoming.gambar.url)
+        # S3 presigned URLs can receive a different timestamp/signature on each
+        # access. Assert the stable object key rendered inside that URL.
+        self.assertContains(response, self.upcoming.gambar.name)
         self.assertContains(response, reverse('kegiatan:detail', args=[self.upcoming.pk]))
         self.assertContains(response, reverse('kegiatan:ics', args=[self.upcoming.pk]))
         self.assertEqual(self.client.get(self.upcoming.get_absolute_url()).status_code, 200)

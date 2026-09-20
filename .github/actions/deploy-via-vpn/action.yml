@@ -49,6 +49,18 @@ inputs:
   discord_role_id:
     required: false
     default: ""
+  aws_access_key_id:
+    required: false
+    default: ""
+  aws_secret_access_key:
+    required: false
+    default: ""
+  aws_storage_bucket_name:
+    required: false
+    default: ""
+  aws_s3_region_name:
+    required: false
+    default: "ap-southeast-3"
 
 runs:
   using: composite
@@ -147,6 +159,10 @@ runs:
         DB_PASSWORD: ${{ inputs.db_password }}
         DISCORD_WEBHOOK_URL: ${{ inputs.discord_webhook_url }}
         DISCORD_ROLE_ID: ${{ inputs.discord_role_id }}
+        AWS_ACCESS_KEY_ID: ${{ inputs.aws_access_key_id }}
+        AWS_SECRET_ACCESS_KEY: ${{ inputs.aws_secret_access_key }}
+        AWS_STORAGE_BUCKET_NAME: ${{ inputs.aws_storage_bucket_name }}
+        AWS_S3_REGION_NAME: ${{ inputs.aws_s3_region_name }}
       run: |
         set -euo pipefail
         umask 077
@@ -185,6 +201,10 @@ runs:
             "DB_PORT": "5432",
             "DISCORD_WEBHOOK_URL": get("DISCORD_WEBHOOK_URL", required=False),
             "DISCORD_ROLE_ID": get("DISCORD_ROLE_ID", required=False),
+            "AWS_ACCESS_KEY_ID": get("AWS_ACCESS_KEY_ID", required=False),
+            "AWS_SECRET_ACCESS_KEY": get("AWS_SECRET_ACCESS_KEY", required=False),
+            "AWS_STORAGE_BUCKET_NAME": get("AWS_STORAGE_BUCKET_NAME", required=False),
+            "AWS_S3_REGION_NAME": get("AWS_S3_REGION_NAME", required=False) or "ap-southeast-3",
             **{k: interpolated[k] for k in ("DB_NAME", "DB_USER", "DB_PASSWORD")},
         }
 
