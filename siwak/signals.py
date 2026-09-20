@@ -1,10 +1,11 @@
-"""Signal untuk inisialisasi mentoring dan pembersihan file galeri/tugas."""
+"""Signal untuk inisialisasi mentoring, akun mentor lokal, dan pembersihan file."""
 
+from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver
 
-from .models import Answer, GaleriFoto, KelompokMentoring, MentoringSession
+from .models import Answer, GaleriFoto, KelompokMentoring, MentoringSession, Profile
 
 
 @receiver(post_save, sender=KelompokMentoring)
@@ -23,6 +24,31 @@ def create_fixed_mentoring_sessions(sender, instance, created, **kwargs):
             for number in range(1, 5)
         ]
     )
+
+
+@receiver(post_delete, sender=Profile, dispatch_uid="siwak.hapus_akun_lokal")
+def hapus_akun_lokal(sender, instance, using, **kwargs):
+    """Akun login mentor non-SSO ikut terhapus bersama profilnya.
+
+    `Profile.user` adalah OneToOne: menghapus User menghapus profil, tapi tidak
+    sebaliknya. Tanpa ini, menghapus mentor dari panel menyisakan User yang
+    masih bisa login — lalu mentok di `require_mentor` dengan 403 yang
+    membingungkan. Akun SSO tidak disentuh: barisnya milik SSO UI, bukan milik
+    panel.
+    """
+    if instance.auth_source != Profile.SOURCE_LOKAL or not instance.user_id:
+        return
+
+    user_id = instance.user_id
+    User = get_user_model()
+
+    def hapus_setelah_commit():
+        # Dicek ulang, bukan dihapus langsung: kalau justru User yang dihapus
+        # lebih dulu (profil ikut lewat CASCADE), barisnya sudah tidak ada di
+        # sini dan panggilan ini tidak boleh berubah jadi rekursi.
+        User.objects.using(using).filter(pk=user_id, profil__isnull=True).delete()
+
+    transaction.on_commit(hapus_setelah_commit, using=using, robust=True)
 
 
 @receiver(post_delete, sender=GaleriFoto, dispatch_uid="siwak.hapus_file_galeri")

@@ -54,10 +54,10 @@
              class="absolute left-0 mt-2 w-max min-w-52 bg-white rounded-xl shadow-lg ring-1 ring-navy/10 py-2">
           <a href="{% url 'siwak:landing' %}" class="block px-4 py-2 text-navy hover:bg-cream transition">Info SIWAK</a>
           <a href="{% url 'siwak:kelompok_search' %}" class="block px-4 py-2 text-navy hover:bg-cream transition">Cari Kelompok Mentoring</a>
-          {% if user.is_authenticated and user.mahasiswa_profile.is_mentee %}
+          {% if user.is_authenticated and user.profil.is_mentee %}
           <a href="{% url 'siwak:tugas_list' %}" class="block px-4 py-2 text-navy hover:bg-cream transition">Tugas Mentoring</a>
           {% endif %}
-          {% if user.is_authenticated and user.mahasiswa_profile.is_mentor %}
+          {% if user.is_authenticated and user.profil.is_mentor %}
           <a href="{% url 'siwak:mentor_dashboard' %}" class="block px-4 py-2 text-navy hover:bg-cream transition">Portal Mentor</a>
           {% endif %}
           {% if user.is_authenticated and user.is_staff %}
@@ -69,17 +69,19 @@
     </div>
 
     {% comment %}
-      SSO UI sudah tersedia
+      Dua pintu masuk: SSO UI dan akun mentor lokal. Keduanya dipertemukan di
+      siwak:login, dan siwak:logout yang memilih cara keluarnya sesuai backend
+      yang dipakai saat masuk.
     {% endcomment %}
     {% if user.is_authenticated %}
-      <a href="{% url 'siwak:cas_ng_logout' %}"
+      <a href="{% url 'siwak:logout' %}"
         class="hidden lg:inline-block bg-navy text-white text-sm xl:text-base font-semibold px-5 py-2 rounded-lg hover:bg-navy-700 transition shrink-0">
         Logout
       </a>
     {% else %}
-      <a href="{% url 'siwak:cas_ng_login' %}"
+      <a href="{% url 'siwak:login' %}"
         class="hidden lg:inline-block bg-navy text-white text-sm xl:text-base font-semibold px-5 py-2 rounded-lg hover:bg-navy-700 transition shrink-0">
-        Login with SSO
+        Login
       </a>
     {% endif %}
 
@@ -110,10 +112,10 @@
     <p class="pt-2 pb-1 text-xs font-semibold uppercase tracking-wide text-navy-400">SIWAK-NG</p>
     <a href="{% url 'siwak:landing' %}" class="block py-2 pl-3 text-navy hover:text-navy-600">Info SIWAK</a>
     <a href="{% url 'siwak:kelompok_search' %}" class="block py-2 pl-3 text-navy hover:text-navy-600">Cari Kelompok Mentoring</a>
-    {% if user.is_authenticated and user.mahasiswa_profile.is_mentee %}
+    {% if user.is_authenticated and user.profil.is_mentee %}
     <a href="{% url 'siwak:tugas_list' %}" class="block py-2 pl-3 text-navy hover:text-navy-600">Tugas Mentoring</a>
     {% endif %}
-    {% if user.is_authenticated and user.mahasiswa_profile.is_mentor %}
+    {% if user.is_authenticated and user.profil.is_mentor %}
     <a href="{% url 'siwak:mentor_dashboard' %}" class="block py-2 pl-3 text-navy hover:text-navy-600">Portal Mentor</a>
     {% endif %}
     {% if user.is_authenticated and user.is_staff %}
@@ -121,12 +123,12 @@
     {% endif %}
     <a href="{% url 'hubungi_kami' %}" class="block py-2 text-navy hover:text-navy-600">Hubungi Kami</a>
     {% if user.is_authenticated %}
-      <a href="{% url 'siwak:cas_ng_logout' %}" class="block mt-3 bg-navy text-white text-center font-semibold px-5 py-2.5 rounded-lg hover:bg-navy-700 transition">
+      <a href="{% url 'siwak:logout' %}" class="block mt-3 bg-navy text-white text-center font-semibold px-5 py-2.5 rounded-lg hover:bg-navy-700 transition">
         Logout
       </a>
     {% else %}
-      <a href="{% url 'siwak:cas_ng_login' %}" class="block mt-3 bg-navy text-white text-center font-semibold px-5 py-2.5 rounded-lg hover:bg-navy-700 transition">
-        Login with SSO
+      <a href="{% url 'siwak:login' %}" class="block mt-3 bg-navy text-white text-center font-semibold px-5 py-2.5 rounded-lg hover:bg-navy-700 transition">
+        Login
       </a>
     {% endif %}
   </div>

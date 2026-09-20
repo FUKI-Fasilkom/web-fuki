@@ -1,7 +1,7 @@
 from django_cas_ng import views as cas_views
 from django.urls import path
 
-from . import mentor_views, panel_views, sso, views
+from . import auth_views, mentor_views, panel_views, sso, views
 
 
 app_name = "siwak"
@@ -13,7 +13,10 @@ urlpatterns = [
     path("event/<int:pk>/", views.event_detail, name="event_detail"),
     path("kelompok/", views.kelompok_search, name="kelompok_search"),
 
-    # 7 — Authentication (with sso ui cas2)
+    # 7 — Authentication (sso ui cas2 + akun lokal khusus mentor non-SSO)
+    path("login/", auth_views.login_pilihan, name="login"),
+    path("login/mentor/", auth_views.MentorLoginView.as_view(), name="mentor_login"),
+    path("logout/", auth_views.logout_cerdas, name="logout"),
     path("sso-login/", sso.RoleRedirectLoginView.as_view(), name="cas_ng_login"),
     path("sso-logout/", cas_views.LogoutView.as_view(), name="cas_ng_logout"),
 
@@ -76,7 +79,7 @@ urlpatterns = [
     path("admin/tugas/<int:pk>/jawaban/csv/", panel_views.panel_jawaban_csv, name="panel_jawaban_csv"),
 
     # Penyunting relasi yang dipanggil dropdown di halaman daftar
-    # `pk` adalah MahasiswaProfile — dipakai baik untuk mentee maupun mentor.
+    # `pk` adalah Profile — dipakai baik untuk mentee maupun mentor.
     path("admin/peserta/<int:pk>/kelompok/", panel_views.panel_set_kelompok, name="panel_set_kelompok"),
     path("admin/profil/<int:pk>/role/", panel_views.panel_set_role, name="panel_set_role"),
 ]

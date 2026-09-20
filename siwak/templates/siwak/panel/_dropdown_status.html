@@ -11,7 +11,7 @@
   {% csrf_token %}
   <input type="hidden" name="medan" value="{{ medan }}" />
   <input type="hidden" name="next" value="{{ url_kembali }}" />
-  <select name="nilai" aria-label="{{ aria }} {{ rsvp.user.mahasiswa_profile.nama_lengkap|default:rsvp.user.username }}"
+  <select name="nilai" aria-label="{{ aria }} {{ rsvp.user.profil.nama_lengkap|default:rsvp.user.username }}"
           onchange="this.form.submit()"
           class="min-h-[38px] w-full rounded-xl border-2 px-2.5 py-1.5 text-[13px] font-semibold transition focus:border-gold focus:outline-none focus:ring-4 focus:ring-gold/25
                  {% if sekarang == aktif_saat %}border-navy bg-cream-300 text-navy{% else %}border-gold-light bg-white text-navy-400{% endif %}">

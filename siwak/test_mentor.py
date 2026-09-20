@@ -14,7 +14,7 @@ from .models import (
     Answer,
     AssessmentAspect,
     KelompokMentoring,
-    MahasiswaProfile,
+    Profile,
     MenteeAssessment,
     MentoringAttendance,
     MentoringSession,
@@ -23,7 +23,7 @@ from .models import (
     Tugas,
     TugasSubmission,
 )
-from .sso import sync_mahasiswa_profile
+from .sso import sync_profile
 
 
 User = get_user_model()
@@ -59,40 +59,40 @@ class MentorFeatureTests(TestCase):
         self.group = KelompokMentoring.objects.create(nama_kelompok="Kelompok A")
         self.other_group = KelompokMentoring.objects.create(nama_kelompok="Kelompok B")
 
-        # Mentor dan mentee sama-sama MahasiswaProfile; bedanya `role`.
-        self.mentor = MahasiswaProfile.objects.create(
+        # Mentor dan mentee sama-sama Profile; bedanya `role`.
+        self.mentor = Profile.objects.create(
             user=self.mentor_user,
             nama_lengkap="Mentor Utama",
             npm="2100000001",
             jurusan="IK",
-            role=MahasiswaProfile.ROLE_MENTOR,
+            role=Profile.ROLE_MENTOR,
             kelompok=self.group,
         )
-        self.other_mentor = MahasiswaProfile.objects.create(
+        self.other_mentor = Profile.objects.create(
             user=self.other_mentor_user,
             nama_lengkap="Mentor Lain",
             npm="2100000002",
             jurusan="IK",
-            role=MahasiswaProfile.ROLE_MENTOR,
+            role=Profile.ROLE_MENTOR,
             kelompok=self.other_group,
         )
 
-        self.participant = MahasiswaProfile.objects.create(
+        self.participant = Profile.objects.create(
             user=self.mentee_user,
             nama_lengkap="Mentee A",
             npm="2500000001",
             jurusan="IK",
             angkatan="2025",
-            role=MahasiswaProfile.ROLE_MENTEE,
+            role=Profile.ROLE_MENTEE,
             kelompok=self.group,
         )
-        self.other_participant = MahasiswaProfile.objects.create(
+        self.other_participant = Profile.objects.create(
             user=self.other_mentee_user,
             nama_lengkap="Mentee B",
             npm="2500000002",
             jurusan="SI",
             angkatan="2025",
-            role=MahasiswaProfile.ROLE_MENTEE,
+            role=Profile.ROLE_MENTEE,
             kelompok=self.other_group,
         )
         self.session = self.group.mentoring_sessions.get(nomor=1)
@@ -449,15 +449,15 @@ class MentorFeatureTests(TestCase):
     def test_prepared_mentor_profile_is_claimed_by_sso_login_and_stays_mentor(self):
         """Pengelola menyiapkan baris mentor hanya dengan NPM; login pertama
         menyambungkan akunnya tanpa mengubah role maupun kelompoknya."""
-        prepared = MahasiswaProfile.objects.create(
+        prepared = Profile.objects.create(
             nama_lengkap="Mentor Seed",
             npm="2100000009",
-            role=MahasiswaProfile.ROLE_MENTOR,
+            role=Profile.ROLE_MENTOR,
             kelompok=self.group,
         )
         unlinked_user = User.objects.create_user(username="2100000009")
 
-        profile = sync_mahasiswa_profile(
+        profile = sync_profile(
             user=unlinked_user,
             npm="2100000009",
             nama_lengkap="Mentor Seed",
@@ -468,14 +468,14 @@ class MentorFeatureTests(TestCase):
         prepared.refresh_from_db()
         self.assertEqual(profile.pk, prepared.pk)
         self.assertEqual(prepared.user, unlinked_user)
-        self.assertEqual(prepared.role, MahasiswaProfile.ROLE_MENTOR)
+        self.assertEqual(prepared.role, Profile.ROLE_MENTOR)
         self.assertEqual(prepared.kelompok, self.group)
 
         self.client.force_login(unlinked_user)
         self.assertEqual(self.client.get(reverse("siwak:mentor_dashboard")).status_code, 200)
 
     def test_relogin_does_not_demote_mentor_or_move_their_group(self):
-        sync_mahasiswa_profile(
+        sync_profile(
             user=self.mentor_user,
             npm="2100000001",
             nama_lengkap="Mentor Utama",
@@ -484,14 +484,14 @@ class MentorFeatureTests(TestCase):
         )
 
         self.mentor.refresh_from_db()
-        self.assertEqual(self.mentor.role, MahasiswaProfile.ROLE_MENTOR)
+        self.assertEqual(self.mentor.role, Profile.ROLE_MENTOR)
         self.assertEqual(self.mentor.kelompok, self.group)
 
     def test_mentor_without_a_group_cannot_download_ungrouped_mentees_files(self):
         """Regresi: `kelompok_id=None` di ORM berarti IS NULL, jadi mentor tanpa
         kelompok dulu bisa mencocokkan SEMUA mentee yang belum berkelompok."""
         ungrouped_user = User.objects.create_user(username="2500000009")
-        MahasiswaProfile.objects.create(
+        Profile.objects.create(
             user=ungrouped_user,
             nama_lengkap="Mentee Tanpa Kelompok",
             npm="2500000009",
@@ -530,10 +530,10 @@ class MentorFeatureTests(TestCase):
         self.assertEqual(self.client.get(url).status_code, 404)
 
     def test_mentee_detail_rejects_a_mentor_profile_in_the_same_group(self):
-        colleague = MahasiswaProfile.objects.create(
+        colleague = Profile.objects.create(
             nama_lengkap="Mentor Rekan",
             npm="2100000003",
-            role=MahasiswaProfile.ROLE_MENTOR,
+            role=Profile.ROLE_MENTOR,
             kelompok=self.group,
         )
         self.client.force_login(self.mentor_user)

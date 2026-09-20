@@ -1,4 +1,4 @@
-"""Tests for SIWAK's CAS/SSO authentication (PRD 7) that drives MahasiswaProfile
+"""Tests for SIWAK's CAS/SSO authentication (PRD 7) that drives Profile
 sync, plus the QR & RSVP features (PRD 5.2 / 6 / 8) and the
 access control around qr_verify (admin-only after the admin_scan removal).
 
@@ -39,11 +39,12 @@ from .models import (
     Choice,
     EventRSVP,
     KelompokMentoring,
-    MahasiswaProfile,
+    Profile,
     MenteeAssessment,
     MentoringSession,
     Question,
     SiwakEvent,
+    SiwakInfo,
     Tugas,
     TugasSubmission
 )
@@ -56,7 +57,7 @@ from .services.qrcode_service import (
     sign_payload,
     unsign_payload
 )
-from .sso import get_attribute, handle_cas_login, sync_mahasiswa_profile
+from .sso import get_attribute, handle_cas_login, sync_profile
 
 
 User = get_user_model()
@@ -94,26 +95,26 @@ class GetAttributeTests(TestCase):
         self.assertEqual(get_attribute({"npm": []}, "npm"), "")
 
 
-class SyncMahasiswaProfileTests(TestCase):
-    """Verify synchronization between Django users and their MahasiswaProfile."""
+class SyncProfileTests(TestCase):
+    """Verify synchronization between Django users and their Profile."""
 
     def setUp(self):
         self.user = User.objects.create_user(username="2506534245")
 
     def test_claims_profile_registered_by_admin_before_first_login(self):
         """A profile pre-registered by an admin should be claimed, not duplicated."""
-        didaftarkan_admin = MahasiswaProfile.objects.create(
+        didaftarkan_admin = Profile.objects.create(
             npm="2506534245",
             nama_lengkap="Fiqhi Deski Ismail",
             jurusan="IK",
         )
-        mahasiswa_lain = MahasiswaProfile.objects.create(
+        mahasiswa_lain = Profile.objects.create(
             npm="2400000000",
             nama_lengkap="Mahasiswa Lain",
             jurusan="SI",
         )
 
-        profile = sync_mahasiswa_profile(
+        profile = sync_profile(
             user=self.user,
             npm="2506534245",
             nama_lengkap="Fiqhi Deski Ismail",
@@ -123,7 +124,7 @@ class SyncMahasiswaProfileTests(TestCase):
 
         mahasiswa_lain.refresh_from_db()
         self.assertEqual(profile.pk, didaftarkan_admin.pk)
-        self.assertEqual(MahasiswaProfile.objects.count(), 2)
+        self.assertEqual(Profile.objects.count(), 2)
         self.assertEqual(profile.user, self.user)
         self.assertEqual(profile.npm, "2506534245")
         self.assertEqual(profile.angkatan, "2025")
@@ -131,7 +132,7 @@ class SyncMahasiswaProfileTests(TestCase):
 
     def test_new_login_creates_a_profile_without_role_or_kelompok(self):
         """A brand-new login is neither mentee nor mentor; staff decide later."""
-        profile = sync_mahasiswa_profile(
+        profile = sync_profile(
             user=self.user,
             npm="2506534245",
             nama_lengkap="Fiqhi Deski Ismail",
@@ -145,12 +146,12 @@ class SyncMahasiswaProfileTests(TestCase):
     def test_keeps_existing_group_assignment_on_later_login(self):
         """A student already placed in a group must stay in it after logging in again."""
         kelompok = KelompokMentoring.objects.create(nama_kelompok="Kelompok 1")
-        MahasiswaProfile.objects.create(
+        Profile.objects.create(
             npm="2506534245", nama_lengkap="Fiqhi Deski Ismail", jurusan="IK",
             kelompok=kelompok,
         )
 
-        profile = sync_mahasiswa_profile(
+        profile = sync_profile(
             user=self.user,
             npm="2506534245",
             nama_lengkap="Fiqhi Deski Ismail",
@@ -158,12 +159,12 @@ class SyncMahasiswaProfileTests(TestCase):
             angkatan="2025",
         )
 
-        self.assertEqual(MahasiswaProfile.objects.count(), 1)
+        self.assertEqual(Profile.objects.count(), 1)
         self.assertEqual(profile.kelompok, kelompok)
 
     def test_updates_existing_profile_without_creating_duplicate(self):
         """Later logins should refresh the same profile instead of duplicating it."""
-        profile = MahasiswaProfile.objects.create(
+        profile = Profile.objects.create(
             user=self.user,
             npm="2506534245",
             nama_lengkap="Nama Lama",
@@ -171,7 +172,7 @@ class SyncMahasiswaProfileTests(TestCase):
             angkatan="2024",
         )
 
-        updated_profile = sync_mahasiswa_profile(
+        updated_profile = sync_profile(
             user=self.user,
             npm="2506534245",
             nama_lengkap="Fiqhi Deski Ismail",
@@ -180,7 +181,7 @@ class SyncMahasiswaProfileTests(TestCase):
         )
 
         self.assertEqual(updated_profile.pk, profile.pk)
-        self.assertEqual(MahasiswaProfile.objects.count(), 1)
+        self.assertEqual(Profile.objects.count(), 1)
         self.assertEqual(updated_profile.nama_lengkap, "Fiqhi Deski Ismail")
         self.assertEqual(updated_profile.jurusan, "IK")
         self.assertEqual(updated_profile.angkatan, "2025")
@@ -189,7 +190,7 @@ class SyncMahasiswaProfileTests(TestCase):
         """Synchronization must leave another student's group placement alone."""
         other_user = User.objects.create_user(username="2400000000")
         kelompok = KelompokMentoring.objects.create(nama_kelompok="Kelompok 1")
-        other_profile = MahasiswaProfile.objects.create(
+        other_profile = Profile.objects.create(
             user=other_user,
             npm="2400000000",
             nama_lengkap="Mahasiswa Lain",
@@ -197,7 +198,7 @@ class SyncMahasiswaProfileTests(TestCase):
             kelompok=kelompok,
         )
 
-        sync_mahasiswa_profile(
+        sync_profile(
             user=self.user,
             npm="2506534245",
             nama_lengkap="Fiqhi Deski Ismail",
@@ -213,16 +214,16 @@ class SyncMahasiswaProfileTests(TestCase):
         """SSO supplies identity only. Role and group belong to the staff, so a
         mentor stays a mentor (and keeps their group) across every login."""
         kelompok = KelompokMentoring.objects.create(nama_kelompok="Kelompok 1")
-        MahasiswaProfile.objects.create(
+        Profile.objects.create(
             user=self.user,
             npm="2506534245",
             nama_lengkap="Kak Fiqhi",
             jurusan="IK",
-            role=MahasiswaProfile.ROLE_MENTOR,
+            role=Profile.ROLE_MENTOR,
             kelompok=kelompok,
         )
 
-        profile = sync_mahasiswa_profile(
+        profile = sync_profile(
             user=self.user,
             npm="2506534245",
             nama_lengkap="Fiqhi Deski Ismail",
@@ -230,7 +231,7 @@ class SyncMahasiswaProfileTests(TestCase):
             angkatan="2025",
         )
 
-        self.assertEqual(profile.role, MahasiswaProfile.ROLE_MENTOR)
+        self.assertEqual(profile.role, Profile.ROLE_MENTOR)
         self.assertEqual(profile.kelompok, kelompok)
         self.assertEqual(profile.nama_lengkap, "Fiqhi Deski Ismail")
 
@@ -241,8 +242,8 @@ class HandleCasLoginTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="cas-user")
 
-    def test_creates_mahasiswa_profile_from_cas_attributes(self):
-        """A complete CAS response should produce the expected MahasiswaProfile."""
+    def test_creates_profil_from_cas_attributes(self):
+        """A complete CAS response should produce the expected Profile."""
         handle_cas_login(
             sender=self.__class__,
             user=self.user,
@@ -254,7 +255,7 @@ class HandleCasLoginTests(TestCase):
             },
         )
 
-        profile = MahasiswaProfile.objects.get(user=self.user)
+        profile = Profile.objects.get(user=self.user)
         self.assertEqual(profile.npm, "2506534245")
         self.assertEqual(profile.nama_lengkap, "Fiqhi Deski Ismail")
         self.assertEqual(profile.jurusan, "IK")
@@ -280,7 +281,7 @@ class HandleCasLoginTests(TestCase):
                         attributes=attributes,
                     )
 
-        self.assertFalse(MahasiswaProfile.objects.filter(user=self.user).exists())
+        self.assertFalse(Profile.objects.filter(user=self.user).exists())
 
     def test_rejects_unknown_program_code(self):
         """An unmapped kd_org program code must not create an invalid profile."""
@@ -300,13 +301,18 @@ class HandleCasLoginTests(TestCase):
 class AuthenticationProtectionTests(TestCase):
     """Verify that protected SIWAK pages require an authenticated session."""
 
-    def test_anonymous_user_is_redirected_to_cas_login(self):
-        """Anonymous access should preserve the destination through the next query."""
+    def test_anonymous_user_is_redirected_to_the_login_chooser(self):
+        """Anonymous access should preserve the destination through the next query.
+
+        Tujuannya halaman pemilih metode, bukan langsung CAS: sejak ada mentor
+        non-SSO, user anonim di halaman ber-@login_required belum tentu punya
+        akun SSO UI.
+        """
         protected_url = reverse("siwak:mentee_feedback_history")
 
         response = self.client.get(protected_url)
 
-        expected_login_url = reverse("siwak:cas_ng_login")
+        expected_login_url = reverse("siwak:login")
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, f"{expected_login_url}?next={protected_url}")
 
@@ -328,14 +334,14 @@ class AuthenticationProtectionTests(TestCase):
         for url in urls:
             assert_redirected(url)  # login tapi role NULL
         mentor = User.objects.create_user(username="mentor")
-        MahasiswaProfile.objects.create(user=mentor, npm="2100000001", role=MahasiswaProfile.ROLE_MENTOR)
+        Profile.objects.create(user=mentor, npm="2100000001", role=Profile.ROLE_MENTOR)
         self.client.force_login(mentor)
         for url in urls:
             assert_redirected(url)  # mentor
 
     def test_mentee_can_open_tugas_list(self):
         mentee = User.objects.create_user(username="mentee")
-        MahasiswaProfile.objects.create(user=mentee, npm="2500000001", role=MahasiswaProfile.ROLE_MENTEE)
+        Profile.objects.create(user=mentee, npm="2500000001", role=Profile.ROLE_MENTEE)
         self.client.force_login(mentee)
 
         self.assertEqual(self.client.get(reverse("siwak:tugas_list")).status_code, 200)
@@ -344,11 +350,11 @@ class AuthenticationProtectionTests(TestCase):
         link = f'href="{reverse("siwak:tugas_list")}"'
         self.assertNotContains(self.client.get(reverse("siwak:kelompok_search")), link)  # anonim
         mentor = User.objects.create_user(username="mentor")
-        MahasiswaProfile.objects.create(user=mentor, npm="2100000002", role=MahasiswaProfile.ROLE_MENTOR)
+        Profile.objects.create(user=mentor, npm="2100000002", role=Profile.ROLE_MENTOR)
         self.client.force_login(mentor)
         self.assertNotContains(self.client.get(reverse("siwak:kelompok_search")), link)
         mentee = User.objects.create_user(username="mentee")
-        MahasiswaProfile.objects.create(user=mentee, npm="2500000002", role=MahasiswaProfile.ROLE_MENTEE)
+        Profile.objects.create(user=mentee, npm="2500000002", role=Profile.ROLE_MENTEE)
         self.client.force_login(mentee)
         self.assertContains(self.client.get(reverse("siwak:kelompok_search")), link)
 
@@ -357,13 +363,13 @@ class AuthenticationProtectionTests(TestCase):
         landing = reverse("siwak:landing")
         self.assertNotContains(self.client.get(landing), cta)  # anonim
         mentee = User.objects.create_user(username="mentee")
-        MahasiswaProfile.objects.create(user=mentee, npm="2500000003", role=MahasiswaProfile.ROLE_MENTEE)
+        Profile.objects.create(user=mentee, npm="2500000003", role=Profile.ROLE_MENTEE)
         self.client.force_login(mentee)
         self.assertContains(self.client.get(landing), cta, count=1)
 
     def test_tugas_pages_have_back_buttons(self):
         mentee = User.objects.create_user(username="mentee")
-        MahasiswaProfile.objects.create(user=mentee, npm="2500000004", role=MahasiswaProfile.ROLE_MENTEE)
+        Profile.objects.create(user=mentee, npm="2500000004", role=Profile.ROLE_MENTEE)
         tugas = Tugas.objects.create(
             judul_tugas="T", deskripsi="d", deadline=timezone.now() + datetime.timedelta(days=1)
         )
@@ -379,6 +385,294 @@ class AuthenticationProtectionTests(TestCase):
         self.assertNotContains(self.client.get(reverse("siwak:landing")), f'href="{panel}"')
         self.client.force_login(User.objects.create_user(username="pengurus", is_staff=True))
         self.assertContains(self.client.get(reverse("siwak:landing")), f'href="{panel}"')
+
+    def test_navbar_reads_the_profile_through_its_accessor(self):
+        """Guard untuk `user.profil` di navbar.html.
+
+        Template Django menelan atribut yang tidak ada tanpa melempar error, jadi
+        salah ketik pada nama accessor ini tidak akan menggagalkan apa pun — link
+        role-nya hanya hilang diam-diam. Ini yang membuatnya perlu diuji.
+        """
+        landing = reverse("siwak:landing")
+        tugas = reverse("siwak:tugas_list")
+        portal = reverse("siwak:mentor_dashboard")
+
+        mentee = User.objects.create_user(username="navbar-mentee")
+        Profile.objects.create(user=mentee, npm="2500000500", role=Profile.ROLE_MENTEE)
+        self.client.force_login(mentee)
+        halaman = self.client.get(landing)
+        self.assertContains(halaman, f'href="{tugas}"')
+        self.assertNotContains(halaman, f'href="{portal}"')
+
+        mentor = User.objects.create_user(username="navbar-mentor")
+        Profile.objects.create(user=mentor, npm="2100000500", role=Profile.ROLE_MENTOR)
+        self.client.force_login(mentor)
+        halaman = self.client.get(landing)
+        self.assertContains(halaman, f'href="{portal}"')
+        self.assertNotContains(halaman, f'href="{tugas}"')
+
+class MentorLokalTests(TestCase):
+    """Mentor non-SSO: akun dibuat pengelola di panel, login lewat form lokal.
+
+    Regression guard yang penting di sini:
+      * Jalur login lokal hanya untuk profil mentor ber-`auth_source="lokal"`.
+        Mentee, staf, dan akun SSO tidak boleh lolos walau passwordnya benar.
+      * Profil tanpa NPM disimpan sebagai NULL, bukan "", supaya dua mentor
+        non-SSO tidak saling menabrak unique constraint.
+      * Menghapus profilnya ikut menghapus akun loginnya — kalau tidak, User
+        yatim tetap bisa login lalu mentok 403 di require_mentor.
+      * Login CAS yang entah bagaimana mendarat di akun lokal harus ditolak,
+        bukan menimpa identitasnya.
+    """
+
+    def setUp(self):
+        self.pengurus = User.objects.create_user(username="pengurus", is_staff=True)
+        self.client.force_login(self.pengurus)
+        self.kelompok = KelompokMentoring.objects.create(nama_kelompok="Kelompok 1")
+
+    def _tambah(self, nama="Kak Rahma", username="rahma", password="RahasiaKuat123", **extra):
+        data = {
+            "nama_lengkap": nama,
+            "username": username,
+            "password1": password,
+            "password2": password,
+            "akun_aktif": "on",
+            "kelompok": self.kelompok.pk,
+        }
+        data.update(extra)
+        return self.client.post(reverse("siwak:panel_tambah", args=["mentor_lokal"]), data)
+
+    def test_panel_creates_the_profile_and_its_login_account_together(self):
+        response = self._tambah()
+
+        self.assertEqual(response.status_code, 302)
+        profil = Profile.objects.get(nama_lengkap="Kak Rahma")
+        self.assertEqual(profil.role, Profile.ROLE_MENTOR)
+        self.assertEqual(profil.auth_source, Profile.SOURCE_LOKAL)
+        self.assertIsNone(profil.npm)
+        self.assertEqual(profil.kelompok, self.kelompok)
+
+        akun = profil.user
+        self.assertEqual(akun.username, "mentor-rahma")
+        self.assertTrue(akun.check_password("RahasiaKuat123"))
+        # Mentor bukan pengurus: panel SIWAK tetap tertutup untuknya.
+        self.assertFalse(akun.is_staff)
+
+    def test_two_mentors_without_npm_do_not_collide(self):
+        """NPM disimpan NULL, bukan "" — dua NULL sah di bawah UNIQUE."""
+        self._tambah(nama="Mentor Satu", username="satu")
+        self._tambah(nama="Mentor Dua", username="dua")
+
+        tanpa_npm = Profile.objects.filter(auth_source=Profile.SOURCE_LOKAL, npm__isnull=True)
+        self.assertEqual(tanpa_npm.count(), 2)
+
+    def test_username_gets_the_reserved_prefix_and_must_be_unique(self):
+        self._tambah(username="mentor-rahma")  # sudah beranwalan, tidak digandakan
+        self.assertTrue(User.objects.filter(username="mentor-rahma").exists())
+
+        response = self._tambah(nama="Nama Lain", username="rahma")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(User.objects.filter(username="mentor-rahma").count(), 1)
+
+    def test_a_local_mentor_can_log_in_and_lands_on_the_mentor_dashboard(self):
+        self._tambah()
+        self.client.logout()
+
+        response = self.client.post(reverse("siwak:mentor_login"), {
+            "username": "mentor-rahma", "password": "RahasiaKuat123",
+        })
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("siwak:mentor_dashboard"))
+
+    def test_the_local_login_refuses_everyone_who_is_not_a_local_mentor(self):
+        """Tanpa penyaring ini, setiap User berpassword valid bisa lewat sini."""
+        mentee = User.objects.create_user(username="mentee", password="RahasiaKuat123")
+        Profile.objects.create(user=mentee, npm="2500000100", role=Profile.ROLE_MENTEE)
+        staf = User.objects.create_user(username="staf", password="RahasiaKuat123", is_staff=True)
+        mentor_sso = User.objects.create_user(username="mentor-sso", password="RahasiaKuat123")
+        Profile.objects.create(user=mentor_sso, npm="2100000100", role=Profile.ROLE_MENTOR)
+        self.client.logout()
+
+        for username in ("mentee", "staf", "mentor-sso"):
+            with self.subTest(username=username):
+                response = self.client.post(reverse("siwak:mentor_login"), {
+                    "username": username, "password": "RahasiaKuat123",
+                })
+                self.assertEqual(response.status_code, 200)
+                self.assertFalse(response.wsgi_request.user.is_authenticated)
+
+    def test_a_deactivated_account_cannot_log_in(self):
+        self._tambah()
+        User.objects.filter(username="mentor-rahma").update(is_active=False)
+        self.client.logout()
+
+        response = self.client.post(reverse("siwak:mentor_login"), {
+            "username": "mentor-rahma", "password": "RahasiaKuat123",
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.wsgi_request.user.is_authenticated)
+
+    def test_editing_without_a_password_keeps_the_old_one(self):
+        """Itu yang membuat halaman ubah sekaligus jadi reset password."""
+        self._tambah()
+        profil = Profile.objects.get(nama_lengkap="Kak Rahma")
+
+        self.client.post(reverse("siwak:panel_ubah", args=["mentor_lokal", profil.pk]), {
+            "nama_lengkap": "Kak Rahmawati",
+            "username": "mentor-rahma",
+            "password1": "",
+            "password2": "",
+            "akun_aktif": "on",
+            "kelompok": self.kelompok.pk,
+        })
+
+        profil.refresh_from_db()
+        self.assertEqual(profil.nama_lengkap, "Kak Rahmawati")
+        self.assertTrue(profil.user.check_password("RahasiaKuat123"))
+
+    def test_editing_with_a_password_replaces_it(self):
+        self._tambah()
+        profil = Profile.objects.get(nama_lengkap="Kak Rahma")
+
+        self.client.post(reverse("siwak:panel_ubah", args=["mentor_lokal", profil.pk]), {
+            "nama_lengkap": "Kak Rahma",
+            "username": "mentor-rahma",
+            "password1": "PasswordBaru456",
+            "password2": "PasswordBaru456",
+            "akun_aktif": "on",
+            "kelompok": "",
+        })
+
+        profil.refresh_from_db()
+        self.assertTrue(profil.user.check_password("PasswordBaru456"))
+
+    def test_mismatched_password_confirmation_is_rejected(self):
+        response = self._tambah(password="RahasiaKuat123", password2="BedaSendiri999")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Profile.objects.filter(nama_lengkap="Kak Rahma").exists())
+        self.assertFalse(User.objects.filter(username="mentor-rahma").exists())
+
+    def test_deleting_the_profile_also_deletes_its_login_account(self):
+        self._tambah()
+        profil = Profile.objects.get(nama_lengkap="Kak Rahma")
+
+        # Pembersihannya dijadwalkan on_commit (lihat signals.py), dan TestCase
+        # tidak pernah commit — jadi callback-nya dijalankan manual di sini.
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post(reverse("siwak:panel_hapus", args=["mentor_lokal", profil.pk]))
+
+        self.assertFalse(Profile.objects.filter(pk=profil.pk).exists())
+        self.assertFalse(User.objects.filter(username="mentor-rahma").exists())
+
+    def test_deleting_an_sso_profile_leaves_its_account_alone(self):
+        """Akun SSO milik SSO UI, bukan milik panel."""
+        akun = User.objects.create_user(username="mahasiswa")
+        profil = Profile.objects.create(user=akun, npm="2500000200", role=Profile.ROLE_MENTEE)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            profil.delete()
+
+        self.assertTrue(User.objects.filter(pk=akun.pk).exists())
+
+    def test_local_mentors_stay_out_of_the_sso_lists(self):
+        """Daftar Mentor memakai MentorForm yang mewajibkan NPM, dan dropdown
+        role di daftar Profile bisa mengunci mentor lokal keluar dari jalurnya."""
+        self._tambah()
+        profil = Profile.objects.get(nama_lengkap="Kak Rahma")
+
+        for slug in ("mentor", "profil"):
+            with self.subTest(slug=slug):
+                # Diperiksa lewat isi halamannya, bukan HTML: notifikasi sukses
+                # "… berhasil ditambahkan" ikut menyebut namanya di permintaan
+                # berikutnya dan akan membuat pemeriksaan teks selalu gagal.
+                response = self.client.get(reverse("siwak:panel_daftar", args=[slug]))
+                self.assertNotIn(profil, response.context["halaman"].object_list)
+
+    def test_the_local_mentor_list_shows_only_local_mentors(self):
+        self._tambah()
+        sso = Profile.objects.create(
+            npm="2100000400", nama_lengkap="Mentor SSO", role=Profile.ROLE_MENTOR
+        )
+
+        response = self.client.get(reverse("siwak:panel_daftar", args=["mentor_lokal"]))
+
+        isi = response.context["halaman"].object_list
+        self.assertEqual([p.nama_lengkap for p in isi], ["Kak Rahma"])
+        self.assertNotIn(sso, isi)
+
+    def test_cas_login_refuses_to_land_on_a_local_account(self):
+        self._tambah()
+        akun = User.objects.get(username="mentor-rahma")
+
+        with self.assertRaises(ValueError):
+            handle_cas_login(
+                sender=None, user=akun, username=akun.username,
+                attributes={"npm": "2506000300", "nama": "Orang Lain", "kd_org": "01.00.12.01"},
+            )
+
+        profil = Profile.objects.get(user=akun)
+        self.assertEqual(profil.nama_lengkap, "Kak Rahma")
+        self.assertIsNone(profil.npm)
+
+    def test_logout_follows_the_way_the_person_signed_in(self):
+        """Akun lokal tidak punya sesi di sso.ui.ac.id, jadi tidak lewat CAS."""
+        self._tambah()
+        self.client.logout()
+        self.client.post(reverse("siwak:mentor_login"), {
+            "username": "mentor-rahma", "password": "RahasiaKuat123",
+        })
+
+        response = self.client.get(reverse("siwak:logout"))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, "/")
+        self.assertFalse(response.wsgi_request.user.is_authenticated)
+
+    def test_logout_sends_cas_sessions_to_the_cas_logout(self):
+        mahasiswa = User.objects.create_user(username="mahasiswa")
+        self.client.force_login(mahasiswa, backend="django_cas_ng.backends.CASBackend")
+
+        response = self.client.get(reverse("siwak:logout"))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("siwak:cas_ng_logout"))
+
+    def test_the_login_chooser_carries_the_next_destination_to_both_doors(self):
+        """Tanpa ini deep link dari @login_required hilang saat metodenya dipilih."""
+        self.client.logout()
+        tujuan = reverse("siwak:mentor_dashboard")
+
+        response = self.client.get(reverse("siwak:login"), {"next": tujuan})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, f'{reverse("siwak:cas_ng_login")}?next=')
+        self.assertContains(response, f'{reverse("siwak:mentor_login")}?next=')
+
+    def test_the_login_chooser_ignores_an_offsite_next(self):
+        self.client.logout()
+
+        response = self.client.get(reverse("siwak:login"), {"next": "https://jahat.example.com/"})
+
+        self.assertNotContains(response, "jahat.example.com")
+
+    def test_the_cp_link_comes_from_the_panel_and_falls_back_when_empty(self):
+        """CP-nya diatur pengelola lewat SiwakInfo, bukan ditulis di template."""
+        self.client.logout()
+
+        info = SiwakInfo.get_solo()
+        info.kontak_cp = "https://wa.me/6281200000000"
+        info.save()
+        self.assertContains(self.client.get(reverse("siwak:login")), info.kontak_cp)
+
+        # Belum diisi: tautannya jatuh ke Hubungi Kami, bukan jadi teks mati.
+        info.kontak_cp = ""
+        info.save()
+        response = self.client.get(reverse("siwak:login"))
+        self.assertContains(response, f'href="{reverse("hubungi_kami")}"')
+
 
 class PanelAccessTests(TestCase):
     """Verify who may open the SIWAK management panel at /siwak/admin/."""
@@ -447,9 +741,9 @@ class PanelPesertaTests(TestCase):
         })
 
         self.assertEqual(response.status_code, 302)
-        profil = MahasiswaProfile.objects.get(npm="2506000009")
+        profil = Profile.objects.get(npm="2506000009")
         self.assertEqual(profil.nama_lengkap, "Marwa Muhlashon")
-        self.assertEqual(profil.role, MahasiswaProfile.ROLE_MENTEE)
+        self.assertEqual(profil.role, Profile.ROLE_MENTEE)
         self.assertEqual(profil.kelompok, self.kelompok)
 
     def test_participant_without_group_is_still_recorded(self):
@@ -462,9 +756,9 @@ class PanelPesertaTests(TestCase):
             "kelompok": "",
         })
 
-        profil = MahasiswaProfile.objects.get(npm="2506000010")
+        profil = Profile.objects.get(npm="2506000010")
         self.assertIsNone(profil.kelompok)
-        self.assertEqual(profil.role, MahasiswaProfile.ROLE_MENTEE)
+        self.assertEqual(profil.role, Profile.ROLE_MENTEE)
 
     def test_a_participant_still_needs_a_jurusan(self):
         """`jurusan` is optional on the model (prepared mentors have none yet),
@@ -477,7 +771,7 @@ class PanelPesertaTests(TestCase):
         })
 
         self.assertEqual(response.status_code, 200)
-        self.assertFalse(MahasiswaProfile.objects.filter(npm="2506000012").exists())
+        self.assertFalse(Profile.objects.filter(npm="2506000012").exists())
 
     def test_adding_a_mentor_creates_a_mentor_profile(self):
         """Mentors can be prepared with only a name and NPM, before they ever log in."""
@@ -488,30 +782,30 @@ class PanelPesertaTests(TestCase):
         })
 
         self.assertEqual(response.status_code, 302)
-        profil = MahasiswaProfile.objects.get(npm="2106000001")
-        self.assertEqual(profil.role, MahasiswaProfile.ROLE_MENTOR)
+        profil = Profile.objects.get(npm="2106000001")
+        self.assertEqual(profil.role, Profile.ROLE_MENTOR)
         self.assertEqual(profil.kelompok, self.kelompok)
         self.assertEqual(profil.jurusan, "")
         self.assertIsNone(profil.user)
 
     def test_deleting_a_participant_removes_the_profile_but_not_the_group(self):
-        profil = MahasiswaProfile.objects.create(
+        profil = Profile.objects.create(
             npm="2506000011", nama_lengkap="Hapus Aku", jurusan="KA", kelompok=self.kelompok,
-            role=MahasiswaProfile.ROLE_MENTEE,
+            role=Profile.ROLE_MENTEE,
         )
 
         self.client.post(reverse("siwak:panel_hapus", args=["peserta", profil.pk]))
 
-        self.assertFalse(MahasiswaProfile.objects.filter(pk=profil.pk).exists())
+        self.assertFalse(Profile.objects.filter(pk=profil.pk).exists())
         self.assertTrue(KelompokMentoring.objects.filter(pk=self.kelompok.pk).exists())
 
     def test_mentors_and_participants_cannot_be_reached_through_each_others_pages(self):
         """Both lists are the same table now; each page must stay inside its role."""
-        mentee = MahasiswaProfile.objects.create(
-            npm="2506000013", nama_lengkap="Si Mentee", jurusan="IK", role=MahasiswaProfile.ROLE_MENTEE
+        mentee = Profile.objects.create(
+            npm="2506000013", nama_lengkap="Si Mentee", jurusan="IK", role=Profile.ROLE_MENTEE
         )
-        mentor = MahasiswaProfile.objects.create(
-            npm="2106000002", nama_lengkap="Si Mentor", role=MahasiswaProfile.ROLE_MENTOR
+        mentor = Profile.objects.create(
+            npm="2106000002", nama_lengkap="Si Mentor", role=Profile.ROLE_MENTOR
         )
 
         for slug, pk in (("peserta", mentor.pk), ("mentor", mentee.pk)):
@@ -523,15 +817,15 @@ class PanelPesertaTests(TestCase):
                     self.client.post(reverse("siwak:panel_hapus", args=[slug, pk])).status_code, 404
                 )
 
-        self.assertTrue(MahasiswaProfile.objects.filter(pk=mentee.pk).exists())
-        self.assertTrue(MahasiswaProfile.objects.filter(pk=mentor.pk).exists())
+        self.assertTrue(Profile.objects.filter(pk=mentee.pk).exists())
+        self.assertTrue(Profile.objects.filter(pk=mentor.pk).exists())
 
     def test_each_list_only_shows_its_own_role(self):
-        MahasiswaProfile.objects.create(
-            npm="2506000014", nama_lengkap="Si Mentee", jurusan="IK", role=MahasiswaProfile.ROLE_MENTEE
+        Profile.objects.create(
+            npm="2506000014", nama_lengkap="Si Mentee", jurusan="IK", role=Profile.ROLE_MENTEE
         )
-        MahasiswaProfile.objects.create(
-            npm="2106000003", nama_lengkap="Si Mentor", role=MahasiswaProfile.ROLE_MENTOR
+        Profile.objects.create(
+            npm="2106000003", nama_lengkap="Si Mentor", role=Profile.ROLE_MENTOR
         )
 
         def nama(slug):
@@ -542,11 +836,11 @@ class PanelPesertaTests(TestCase):
         self.assertEqual(nama("mentor"), ["Si Mentor"])
 
     def test_menu_and_dashboard_counts_are_split_by_role(self):
-        MahasiswaProfile.objects.create(
-            npm="2506000015", nama_lengkap="Mentee", jurusan="IK", role=MahasiswaProfile.ROLE_MENTEE
+        Profile.objects.create(
+            npm="2506000015", nama_lengkap="Mentee", jurusan="IK", role=Profile.ROLE_MENTEE
         )
-        MahasiswaProfile.objects.create(
-            npm="2106000004", nama_lengkap="Mentor", role=MahasiswaProfile.ROLE_MENTOR,
+        Profile.objects.create(
+            npm="2106000004", nama_lengkap="Mentor", role=Profile.ROLE_MENTOR,
             kelompok=self.kelompok,
         )
 
@@ -573,7 +867,7 @@ class PanelProfilTests(TestCase):
     def setUp(self):
         self.client.force_login(User.objects.create_user(username="pengurus", is_staff=True))
         self.kelompok = KelompokMentoring.objects.create(nama_kelompok="Kelompok 1")
-        self.profil = MahasiswaProfile.objects.create(
+        self.profil = Profile.objects.create(
             npm="2506000040", nama_lengkap="Belum Ditentukan", jurusan="IK"
         )
         self.url_role = reverse("siwak:panel_set_role", args=[self.profil.pk])
@@ -595,12 +889,12 @@ class PanelProfilTests(TestCase):
                 self.assertEqual(self._daftar(slug).context["baris"], [])
 
     def test_the_profile_list_shows_everyone_with_a_running_number(self):
-        MahasiswaProfile.objects.create(
+        Profile.objects.create(
             npm="2506000041", nama_lengkap="Sudah Mentee", jurusan="SI",
-            role=MahasiswaProfile.ROLE_MENTEE,
+            role=Profile.ROLE_MENTEE,
         )
-        MahasiswaProfile.objects.create(
-            npm="2106000041", nama_lengkap="Sudah Mentor", role=MahasiswaProfile.ROLE_MENTOR,
+        Profile.objects.create(
+            npm="2106000041", nama_lengkap="Sudah Mentor", role=Profile.ROLE_MENTOR,
         )
 
         response = self._daftar("profil")
@@ -613,7 +907,7 @@ class PanelProfilTests(TestCase):
 
     def test_the_running_number_continues_across_pages(self):
         for i in range(30):
-            MahasiswaProfile.objects.create(npm=f"26000001{i:02d}", nama_lengkap=f"Orang {i:02d}")
+            Profile.objects.create(npm=f"26000001{i:02d}", nama_lengkap=f"Orang {i:02d}")
 
         response = self.client.get(reverse("siwak:panel_daftar", args=["profil"]), {"page": 2})
 
@@ -655,7 +949,7 @@ class PanelProfilTests(TestCase):
 
     def test_the_group_dropdowns_still_save_without_asking(self):
         """Only the role dropdown got the dialog; moving groups stays one step."""
-        self.profil.role = MahasiswaProfile.ROLE_MENTEE
+        self.profil.role = Profile.ROLE_MENTEE
         self.profil.save()
 
         response = self._daftar("peserta")
@@ -666,7 +960,7 @@ class PanelProfilTests(TestCase):
     def test_picking_mentee_moves_the_profile_to_the_mentee_list(self):
         self.client.post(self.url_role, {"role": "mentee"})
 
-        self.assertEqual(self._role(), MahasiswaProfile.ROLE_MENTEE)
+        self.assertEqual(self._role(), Profile.ROLE_MENTEE)
         nama = [b["obj"].nama_lengkap for b in self._daftar("peserta").context["baris"]]
         self.assertEqual(nama, ["Belum Ditentukan"])
         self.assertEqual(self._daftar("mentor").context["baris"], [])
@@ -674,26 +968,26 @@ class PanelProfilTests(TestCase):
     def test_picking_mentor_moves_the_profile_to_the_mentor_list(self):
         self.client.post(self.url_role, {"role": "mentor"})
 
-        self.assertEqual(self._role(), MahasiswaProfile.ROLE_MENTOR)
+        self.assertEqual(self._role(), Profile.ROLE_MENTOR)
         nama = [b["obj"].nama_lengkap for b in self._daftar("mentor").context["baris"]]
         self.assertEqual(nama, ["Belum Ditentukan"])
 
     def test_changing_role_releases_the_group(self):
         """`kelompok` means a seat for a mentee but a post for a mentor, so it
         must not silently carry over."""
-        self.profil.role = MahasiswaProfile.ROLE_MENTEE
+        self.profil.role = Profile.ROLE_MENTEE
         self.profil.kelompok = self.kelompok
         self.profil.save()
 
         self.client.post(self.url_role, {"role": "mentor"})
 
         self.profil.refresh_from_db()
-        self.assertEqual(self.profil.role, MahasiswaProfile.ROLE_MENTOR)
+        self.assertEqual(self.profil.role, Profile.ROLE_MENTOR)
         self.assertIsNone(self.profil.kelompok)
         self.assertEqual(self.kelompok.daftar_mentor.count(), 0)
 
     def test_picking_the_same_role_again_keeps_the_group(self):
-        self.profil.role = MahasiswaProfile.ROLE_MENTEE
+        self.profil.role = Profile.ROLE_MENTEE
         self.profil.kelompok = self.kelompok
         self.profil.save()
 
@@ -755,7 +1049,7 @@ class PanelProfilTests(TestCase):
         bagian = next(m for m in response.context["menu"] if m["bagian"].slug == "kelompok")
         self.assertEqual(
             [b["label"] for b in bagian["butir"]],
-            ["Profile", "Mentee", "Mentor", "Kelompok Mentoring"],
+            ["Profile", "Mentee", "Mentor", "Mentor Non-SSO", "Kelompok Mentoring"],
         )
 
 
@@ -766,15 +1060,15 @@ class PanelRelasiTests(TestCase):
         self.client.force_login(User.objects.create_user(username="pengurus", is_staff=True))
         self.k1 = KelompokMentoring.objects.create(nama_kelompok="Kelompok 1")
         self.k2 = KelompokMentoring.objects.create(nama_kelompok="Kelompok 2")
-        self.maba = MahasiswaProfile.objects.create(
+        self.maba = Profile.objects.create(
             npm="2506000020", nama_lengkap="Pindah Aku", jurusan="IK", kelompok=self.k1,
-            role=MahasiswaProfile.ROLE_MENTEE,
+            role=Profile.ROLE_MENTEE,
         )
         self.url_kelompok = reverse("siwak:panel_set_kelompok", args=[self.maba.pk])
 
     def _mentor(self, nama, npm, kelompok=None):
-        return MahasiswaProfile.objects.create(
-            npm=npm, nama_lengkap=nama, role=MahasiswaProfile.ROLE_MENTOR, kelompok=kelompok
+        return Profile.objects.create(
+            npm=npm, nama_lengkap=nama, role=Profile.ROLE_MENTOR, kelompok=kelompok
         )
 
     def test_the_dropdown_moves_a_mentee_to_another_group(self):
@@ -793,8 +1087,8 @@ class PanelRelasiTests(TestCase):
 
     def test_a_student_without_a_group_can_be_placed(self):
         """Staff-registered students start unplaced and get a group later."""
-        baru = MahasiswaProfile.objects.create(
-            npm="2506000022", nama_lengkap="Baru Didaftarkan", jurusan="SI", role=MahasiswaProfile.ROLE_MENTEE
+        baru = Profile.objects.create(
+            npm="2506000022", nama_lengkap="Baru Didaftarkan", jurusan="SI", role=Profile.ROLE_MENTEE
         )
 
         self.client.post(
@@ -807,9 +1101,9 @@ class PanelRelasiTests(TestCase):
 
     def test_moving_one_mentee_leaves_the_other_rows_alone(self):
         """Editing a single row must never touch the rest of the list."""
-        lain = MahasiswaProfile.objects.create(
+        lain = Profile.objects.create(
             npm="2506000021", nama_lengkap="Peserta Lain", jurusan="SI", kelompok=self.k1,
-            role=MahasiswaProfile.ROLE_MENTEE,
+            role=Profile.ROLE_MENTEE,
         )
 
         self.client.post(self.url_kelompok, {"kelompok": str(self.k2.pk)})
@@ -828,7 +1122,7 @@ class PanelRelasiTests(TestCase):
 
         mentor.refresh_from_db()
         self.assertEqual(mentor.kelompok, self.k2)
-        self.assertEqual(mentor.role, MahasiswaProfile.ROLE_MENTOR)
+        self.assertEqual(mentor.role, Profile.ROLE_MENTOR)
 
     def test_the_mentor_dropdown_can_release_the_group(self):
         """The blank option means "holds nothing", not "leave it as it was"."""
@@ -869,7 +1163,7 @@ class PanelRelasiTests(TestCase):
         self.assertEqual(self.k1.daftar_mentor.count(), 2)
 
     def test_the_mentor_and_mentee_dropdowns_post_to_the_same_endpoint(self):
-        """Both are MahasiswaProfile, so the list must not invent a second route."""
+        """Both are Profile, so the list must not invent a second route."""
         mentor = self._mentor("Kak Fatimah", "2106000010")
 
         for slug, profil in (("peserta", self.maba), ("mentor", mentor)):
@@ -940,13 +1234,13 @@ class KelompokSearchTests(TestCase):
         self.kelompok = KelompokMentoring.objects.create(
             nama_kelompok="Kelompok 7", link_grup="https://chat.whatsapp.com/contoh"
         )
-        MahasiswaProfile.objects.create(
+        Profile.objects.create(
             npm="2506000050", nama_lengkap="Aisyah Putri", jurusan="IK", kelompok=self.kelompok,
-            role=MahasiswaProfile.ROLE_MENTEE,
+            role=Profile.ROLE_MENTEE,
         )
-        MahasiswaProfile.objects.create(
+        Profile.objects.create(
             npm="2106000050", nama_lengkap="Kak Ahmad", jurusan="IK",
-            role=MahasiswaProfile.ROLE_MENTOR, kelompok=self.kelompok,
+            role=Profile.ROLE_MENTOR, kelompok=self.kelompok,
         )
 
     def _cari(self, nama, jurusan="IK"):
@@ -966,8 +1260,8 @@ class KelompokSearchTests(TestCase):
         self.assertEqual(response.context["result_state"], "not_found")
 
     def test_a_mentee_without_a_group_is_told_so(self):
-        MahasiswaProfile.objects.create(
-            npm="2506000051", nama_lengkap="Belum Ada", jurusan="SI", role=MahasiswaProfile.ROLE_MENTEE
+        Profile.objects.create(
+            npm="2506000051", nama_lengkap="Belum Ada", jurusan="SI", role=Profile.ROLE_MENTEE
         )
 
         response = self._cari("Belum Ada", jurusan="SI")
@@ -988,8 +1282,8 @@ class PanelUrutanTests(TestCase):
         return [baris["obj"].nama_lengkap for baris in response.context["baris"]]
 
     def _buat_peserta(self, nama, npm, kelompok):
-        MahasiswaProfile.objects.create(
-            npm=npm, nama_lengkap=nama, jurusan="IK", kelompok=kelompok, role=MahasiswaProfile.ROLE_MENTEE
+        Profile.objects.create(
+            npm=npm, nama_lengkap=nama, jurusan="IK", kelompok=kelompok, role=Profile.ROLE_MENTEE
         )
 
     def test_participants_are_listed_by_name_by_default(self):
@@ -1039,13 +1333,13 @@ class PanelUrutanTests(TestCase):
 
     def test_mentors_can_be_sorted_by_the_group_they_hold(self):
         """The mentor list gets the same group ordering as the participants."""
-        MahasiswaProfile.objects.create(
+        Profile.objects.create(
             npm="2106000021", nama_lengkap="Kak Ahmad",
-            role=MahasiswaProfile.ROLE_MENTOR, kelompok=self.k10,
+            role=Profile.ROLE_MENTOR, kelompok=self.k10,
         )
-        MahasiswaProfile.objects.create(
+        Profile.objects.create(
             npm="2106000022", nama_lengkap="Kak Zaid",
-            role=MahasiswaProfile.ROLE_MENTOR, kelompok=self.k2,
+            role=Profile.ROLE_MENTOR, kelompok=self.k2,
         )
 
         response = self.client.get(
@@ -1195,12 +1489,12 @@ class PanelRsvpPencarianTests(TestCase):
 
     def _rsvp(self, npm, nama, event=None):
         user = User.objects.create_user(username=npm)
-        MahasiswaProfile.objects.create(user=user, npm=npm, nama_lengkap=nama, jurusan="IK")
+        Profile.objects.create(user=user, npm=npm, nama_lengkap=nama, jurusan="IK")
         return EventRSVP.objects.create(event=event or self.event, user=user)
 
     def _nama(self, response):
         return [
-            r.user.mahasiswa_profile.nama_lengkap
+            r.user.profil.nama_lengkap
             for r in response.context["halaman"].object_list
         ]
 
@@ -1351,7 +1645,7 @@ class RSVPViewTests(TestCase):
 
     def setUp(self):
         self.user = User.objects.create_user(username="2506534245")
-        MahasiswaProfile.objects.create(
+        Profile.objects.create(
             user=self.user, npm="2506534245", nama_lengkap="Fiqhi Deski Ismail", jurusan="IK",
         )
         self.staff = User.objects.create_user(username="panitia", is_staff=True)
@@ -1835,7 +2129,7 @@ class PanelAspekTests(TestCase):
         """MenteeAssessment protects the aspect, so the panel must say why."""
         aspek = AssessmentAspect.objects.get(nama="Kehadiran")
         kelompok = KelompokMentoring.objects.create(nama_kelompok="Kelompok 1")
-        peserta = MahasiswaProfile.objects.create(
+        peserta = Profile.objects.create(
             npm="2506000030", nama_lengkap="Peserta Dinilai", jurusan="IK", kelompok=kelompok
         )
         MenteeAssessment.objects.create(peserta=peserta, aspect=aspek, score=80)
@@ -2041,7 +2335,7 @@ class PanelJawabanTests(TestCase):
 
     def _peserta(self, nama, npm):
         user = User.objects.create_user(username=npm)
-        MahasiswaProfile.objects.create(
+        Profile.objects.create(
             user=user, npm=npm, nama_lengkap=nama, jurusan="IK"
         )
         return user
@@ -2143,9 +2437,9 @@ class TugasUploadTests(TestCase):
         }))
         self.user = User.objects.create_user(username="upload-mentee")
         self.group = KelompokMentoring.objects.create(nama_kelompok="Upload group")
-        self.profile = MahasiswaProfile.objects.create(
+        self.profile = Profile.objects.create(
             user=self.user, npm="2600000001", nama_lengkap="Mentee Upload",
-            role=MahasiswaProfile.ROLE_MENTEE, kelompok=self.group,
+            role=Profile.ROLE_MENTEE, kelompok=self.group,
         )
         self.tugas = Tugas.objects.create(
             judul_tugas="Tugas Upload", deskripsi="Kumpulkan jawaban.",
@@ -2310,10 +2604,10 @@ class TugasUploadTests(TestCase):
         landing = reverse("siwak:landing")
         for method in (self.client.get, self.client.post):
             self.assertRedirects(method(self.url), landing)
-        for role in (None, MahasiswaProfile.ROLE_MENTOR):
+        for role in (None, Profile.ROLE_MENTOR):
             user = User.objects.create_user(username=f"non-mentee-{role}", is_staff=True)
             if role:
-                MahasiswaProfile.objects.create(user=user, npm="2600000002", role=role)
+                Profile.objects.create(user=user, npm="2600000002", role=role)
             self.client.force_login(user)
             self.assertRedirects(self.client.get(self.url), landing)
             self.assertRedirects(self.submit(), landing)
@@ -2398,8 +2692,8 @@ class TugasUploadTests(TestCase):
         sub = self.submission()
         url = reverse("siwak:answer_download", args=[sub.pk, sub.answers.get().pk])
         mentor = User.objects.create_user(username="download-mentor")
-        profile = MahasiswaProfile.objects.create(
-            user=mentor, npm="2600000002", role=MahasiswaProfile.ROLE_MENTOR, kelompok=self.group,
+        profile = Profile.objects.create(
+            user=mentor, npm="2600000002", role=Profile.ROLE_MENTOR, kelompok=self.group,
         )
         staff = User.objects.create_user(username="download-staff", is_staff=True)
         for user in (self.user, mentor, staff):
@@ -2497,8 +2791,8 @@ class TugasUploadTests(TestCase):
         })
         sub = self.submission()
         mentor = User.objects.create_user(username="review-mentor")
-        MahasiswaProfile.objects.create(
-            user=mentor, npm="2600000002", role=MahasiswaProfile.ROLE_MENTOR, kelompok=self.group,
+        Profile.objects.create(
+            user=mentor, npm="2600000002", role=Profile.ROLE_MENTOR, kelompok=self.group,
         )
         self.client.force_login(mentor)
         attachment_url = reverse("siwak:answer_download", args=[sub.pk, sub.answers.get(question=file).pk])

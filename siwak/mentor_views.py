@@ -21,7 +21,7 @@ from .models import (
     AssignmentReviewHistory,
     AssessmentAspect,
     KelompokMentoring,
-    MahasiswaProfile,
+    Profile,
     MentoringAttendance,
     MentorFeedback,
     Tugas,
@@ -118,10 +118,10 @@ def mentee_detail(request, participant_id):
         raise Http404
     group = mentor.kelompok
     participant = get_object_or_404(
-        MahasiswaProfile.objects.select_related("user"),
+        Profile.objects.select_related("user"),
         pk=participant_id,
         kelompok=group,
-        role=MahasiswaProfile.ROLE_MENTEE,
+        role=Profile.ROLE_MENTEE,
     )
 
     action = request.POST.get("action") if request.method == "POST" else None
@@ -409,9 +409,9 @@ def answer_download(request, submission_id, answer_id):
     is_responsible_mentor = bool(
         mentor
         and mentor.kelompok_id
-        and MahasiswaProfile.objects.filter(
+        and Profile.objects.filter(
             user=submission.user,
-            role=MahasiswaProfile.ROLE_MENTEE,
+            role=Profile.ROLE_MENTEE,
             kelompok_id=mentor.kelompok_id,
         ).exists()
     )

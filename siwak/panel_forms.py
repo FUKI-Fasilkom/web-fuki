@@ -7,6 +7,9 @@ ke model otomatis ikut bergaya benar tanpa disentuh lagi.
 """
 
 from django import forms
+from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
+from django.db import transaction
 
 from .models import (
     AssessmentAspect,
@@ -14,10 +17,10 @@ from .models import (
     GaleriFoto,
     KelompokMentoring,
     KetuaSiwak,
-    MahasiswaProfile,
     MentoringBenefit,
     MentoringSession,
     MentoringTujuan,
+    Profile,
     Question,
     SistemMentoring,
     SiwakEvent,
@@ -25,6 +28,8 @@ from .models import (
     TimelineEvent,
     Tugas,
 )
+
+User = get_user_model()
 
 ISIAN = (
     "w-full rounded-xl border-2 border-gold-light bg-white px-4 py-3 text-[15px] text-navy "
@@ -192,14 +197,14 @@ class TimelineForm(PanelForm):
 # ---------------------------------------------------------------------------
 
 class MentorForm(PanelForm):
-    """Mentor = MahasiswaProfile ber-role mentor.
+    """Mentor = Profile ber-role mentor.
 
     Baris boleh disiapkan hanya dengan nama dan NPM; jurusan dan angkatan
     diisi SSO saat orangnya login pertama kali dan baris ini diklaim.
     """
 
     class Meta:
-        model = MahasiswaProfile
+        model = Profile
         fields = ["nama_lengkap", "npm", "kelompok"]
         labels = {
             "nama_lengkap": "Nama mentor",
@@ -213,8 +218,11 @@ class MentorForm(PanelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.instance.role = MahasiswaProfile.ROLE_MENTOR
+        self.instance.role = Profile.ROLE_MENTOR
         self.fields["kelompok"].empty_label = "— Tanpa kelompok —"
+        # `npm` boleh kosong di model sejak mentor non-SSO ada, tapi mentor SSO
+        # tetap wajib punya: NPM itu satu-satunya cara barisnya diklaim saat login.
+        self.fields["npm"].required = True
 
 
 class KelompokForm(PanelForm):
@@ -231,12 +239,12 @@ class KelompokForm(PanelForm):
 class PesertaForm(PanelForm):
     """Satu form untuk identitas mentee sekaligus penempatan kelompoknya.
 
-    `kelompok` kini field MahasiswaProfile sungguhan, jadi tidak perlu lagi
+    `kelompok` kini field Profile sungguhan, jadi tidak perlu lagi
     ditambahkan manual dan disimpan ke tabel kedua.
     """
 
     class Meta:
-        model = MahasiswaProfile
+        model = Profile
         fields = ["nama_lengkap", "npm", "jurusan", "angkatan", "kelompok"]
         labels = {"kelompok": "Kelompok mentoring"}
         help_texts = {
@@ -247,11 +255,121 @@ class PesertaForm(PanelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.instance.role = MahasiswaProfile.ROLE_MENTEE
+        self.instance.role = Profile.ROLE_MENTEE
         self.fields["kelompok"].empty_label = "— Belum ditempatkan —"
         # `jurusan` boleh kosong di model (mentor yang disiapkan sebelum login),
         # tapi mentee tetap wajib punya jurusan — "Cari Kelompok" mencarinya lewat itu.
         self.fields["jurusan"].required = True
+        # Sama untuk NPM: opsional di model demi mentor non-SSO, tetap wajib di sini.
+        self.fields["npm"].required = True
+
+
+class MentorLokalForm(PanelForm):
+    """Mentor non-SSO: satu form yang mengurus Profile sekaligus akun loginnya.
+
+    Beda dari form panel lain, form ini ikut membuat `auth.User` — mentor yang
+    tidak punya SSO UI aktif tidak akan pernah mendapat akun lewat jalur CAS.
+    `save()` sengaja di-override supaya view CRUD generik (`_simpan` di
+    panel_views.py) tetap bisa dipakai apa adanya, tanpa view tambah/ubah sendiri.
+
+    Password dikosongkan = tidak diubah. Itu yang membuat halaman ubah sekaligus
+    berfungsi sebagai reset password, jadi tidak perlu aksi baris terpisah.
+    """
+
+    username = forms.CharField(
+        max_length=150,
+        label="Username",
+        help_text=(
+            f"Dipakai mentor untuk login. Otomatis diawali “{Profile.USERNAME_LOKAL_PREFIX}” "
+            "supaya tidak pernah bentrok dengan akun SSO UI."
+        ),
+    )
+    password1 = forms.CharField(
+        label="Password",
+        widget=forms.PasswordInput(render_value=False),
+        required=False,
+        help_text="Saat mengubah data, kosongkan kalau password tidak perlu diganti.",
+    )
+    password2 = forms.CharField(
+        label="Ulangi password",
+        widget=forms.PasswordInput(render_value=False),
+        required=False,
+    )
+    akun_aktif = forms.BooleanField(
+        label="Akun aktif",
+        required=False,
+        initial=True,
+        help_text="Matikan untuk mencabut akses mentor tanpa menghapus datanya.",
+    )
+
+    class Meta:
+        model = Profile
+        fields = ["nama_lengkap", "kelompok"]
+        labels = {
+            "nama_lengkap": "Nama mentor",
+            "kelompok": "Memegang kelompok",
+        }
+        help_texts = {
+            "kelompok": "Satu mentor memegang satu kelompok. Boleh dikosongkan.",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.instance.role = Profile.ROLE_MENTOR
+        self.instance.auth_source = Profile.SOURCE_LOKAL
+        self.fields["kelompok"].empty_label = "— Tanpa kelompok —"
+
+        if self.instance.pk and self.instance.user:
+            self.fields["username"].initial = self.instance.user.username
+            self.fields["akun_aktif"].initial = self.instance.user.is_active
+
+    def clean_username(self):
+        username = (self.cleaned_data["username"] or "").strip().lower()
+        prefix = Profile.USERNAME_LOKAL_PREFIX
+        if not username.startswith(prefix):
+            username = f"{prefix}{username}"
+        if username == prefix:
+            raise forms.ValidationError("Username tidak boleh hanya berisi awalannya.")
+
+        bentrok = User.objects.filter(username=username)
+        if self.instance.pk and self.instance.user_id:
+            bentrok = bentrok.exclude(pk=self.instance.user_id)
+        if bentrok.exists():
+            raise forms.ValidationError("Username ini sudah dipakai akun lain.")
+        return username
+
+    def clean(self):
+        data = super().clean()
+        password1 = data.get("password1") or ""
+        password2 = data.get("password2") or ""
+        akun_baru = not (self.instance.pk and self.instance.user_id)
+
+        if akun_baru and not password1:
+            self.add_error("password1", "Password wajib diisi untuk akun baru.")
+        elif password1 != password2:
+            self.add_error("password2", "Ulangan password tidak sama.")
+        elif password1:
+            try:
+                validate_password(password1)
+            except forms.ValidationError as exc:
+                self.add_error("password1", exc)
+        return data
+
+    @transaction.atomic
+    def save(self, commit=True):
+        user = self.instance.user or User()
+        user.username = self.cleaned_data["username"]
+        user.is_active = self.cleaned_data["akun_aktif"]
+        # Mentor bukan pengurus: panel SIWAK tetap tertutup untuk dia.
+        user.is_staff = False
+        if self.cleaned_data.get("password1"):
+            user.set_password(self.cleaned_data["password1"])
+        user.save()
+
+        self.instance.user = user
+        # Tanpa NPM sama sekali, bukan string kosong — lihat Profile.save().
+        self.instance.npm = None
+        return super().save(commit=commit)
 
 
 # ---------------------------------------------------------------------------

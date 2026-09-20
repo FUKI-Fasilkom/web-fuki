@@ -16,8 +16,8 @@ JURUSAN_CHOICES = [
 ]
 
 
-class MahasiswaProfile(models.Model):
-    """Profil tunggal setiap mahasiswa di program mentoring (PRD 7 - Authentication).
+class Profile(models.Model):
+    """Profil tunggal setiap orang di program mentoring (PRD 7 - Authentication).
 
     Satu baris ini menggantikan MabaProfile + PesertaMentoring + Mentor. `role`
     menentukan perannya di `kelompok`: mentee berarti dia peserta kelompok itu,
@@ -26,6 +26,11 @@ class MahasiswaProfile(models.Model):
     Dibuat 1-1 dengan auth.User. Barisnya boleh disiapkan pengelola lebih dulu
     hanya dengan NPM (`user` masih kosong); saat orangnya login lewat SSO UI,
     baris itu diklaim (lihat siwak/sso.py) dan `role`/`kelompok`-nya tidak berubah.
+
+    Namanya sengaja umum, bukan khusus mahasiswa: mentor belum tentu mahasiswa
+    UI. Mentor non-SSO dibuat pengelola di panel dengan username dan password
+    sendiri, jadi `npm`, `jurusan`, dan `angkatan` semuanya opsional untuk dia.
+    `auth_source` yang membedakan asal akunnya.
     """
 
     ROLE_MENTEE = "mentee"
@@ -35,16 +40,34 @@ class MahasiswaProfile(models.Model):
         (ROLE_MENTOR, "Mentor"),
     ]
 
+    SOURCE_SSO = "sso"
+    SOURCE_LOKAL = "lokal"
+    AUTH_SOURCE_CHOICES = [
+        (SOURCE_SSO, "SSO UI"),
+        (SOURCE_LOKAL, "Akun lokal"),
+    ]
+
+    # Awalan yang dipesan untuk username akun lokal. CAS mencocokkan User lewat
+    # username, jadi awalan ini yang menjamin akun buatan pengelola tidak pernah
+    # kebetulan dipakai ulang oleh login SSO orang lain.
+    USERNAME_LOKAL_PREFIX = "mentor-"
+
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name="mahasiswa_profile",
+        related_name="profil",
         null=True,
         blank=True,
         verbose_name="Akun login",
         help_text="Terisi otomatis saat orangnya login lewat SSO UI. Boleh kosong.",
     )
-    npm = models.CharField(max_length=20, unique=True, verbose_name="NPM")
+    # null=True, bukan sekadar blank: mentor non-SSO tidak punya NPM sama sekali.
+    # Postgres memperlakukan tiap NULL sebagai berbeda di bawah UNIQUE, jadi
+    # banyak profil tanpa NPM tetap sah — asal tidak ada yang menyimpan "" (lihat
+    # normalisasi di save()).
+    npm = models.CharField(
+        max_length=20, unique=True, null=True, blank=True, verbose_name="NPM"
+    )
     nama_lengkap = models.CharField(max_length=200, verbose_name="Nama Lengkap")
     # blank=True: mentor yang disiapkan pengelola sebelum login belum punya jurusan;
     # SSO yang mengisinya nanti.
@@ -64,6 +87,15 @@ class MahasiswaProfile(models.Model):
         default=None,
         verbose_name="Peran",
     )
+    # Penanda eksplisit, bukan ditebak dari password: User buatan CAS lahir lewat
+    # get_or_create() tanpa password sama sekali, dan password "" itu masih
+    # dilaporkan "usable" oleh Django walau tidak pernah bisa dipakai login.
+    auth_source = models.CharField(
+        max_length=10,
+        choices=AUTH_SOURCE_CHOICES,
+        default=SOURCE_SSO,
+        verbose_name="Sumber akun",
+    )
     kelompok = models.ForeignKey(
         "KelompokMentoring",
         on_delete=models.SET_NULL,
@@ -76,12 +108,18 @@ class MahasiswaProfile(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        verbose_name = "Profil Mahasiswa"
-        verbose_name_plural = "Profil Mahasiswa"
+        verbose_name = "Profil"
+        verbose_name_plural = "Profil"
         ordering = ["nama_lengkap"]
 
     def __str__(self):
-        return f"{self.nama_lengkap} ({self.npm})"
+        return f"{self.nama_lengkap} ({self.npm})" if self.npm else self.nama_lengkap
+
+    def save(self, *args, **kwargs):
+        # "" bukan NULL: dua profil tanpa NPM yang sama-sama menyimpan string
+        # kosong akan saling menabrak unique. NULL tidak.
+        self.npm = self.npm or None
+        super().save(*args, **kwargs)
 
     @property
     def is_mentor(self):
@@ -90,6 +128,10 @@ class MahasiswaProfile(models.Model):
     @property
     def is_mentee(self):
         return self.role == self.ROLE_MENTEE
+
+    @property
+    def is_akun_lokal(self):
+        return self.auth_source == self.SOURCE_LOKAL
 
 
 class SiwakInfo(models.Model):
@@ -209,11 +251,11 @@ class KelompokMentoring(models.Model):
     # `Count("peserta_list")` yang lolos import tapi pecah saat query.
     @property
     def daftar_mentor(self):
-        return self.anggota.filter(role=MahasiswaProfile.ROLE_MENTOR)
+        return self.anggota.filter(role=Profile.ROLE_MENTOR)
 
     @property
     def daftar_mentee(self):
-        return self.anggota.filter(role=MahasiswaProfile.ROLE_MENTEE)
+        return self.anggota.filter(role=Profile.ROLE_MENTEE)
 
 
 class MentoringSession(models.Model):
@@ -278,18 +320,18 @@ class MentoringAttendance(models.Model):
         related_name="attendance_records",
     )
     peserta = models.ForeignKey(
-        MahasiswaProfile,
+        Profile,
         on_delete=models.CASCADE,
         related_name="mentoring_attendance",
     )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES)
     catatan = models.CharField(max_length=300, blank=True)
     recorded_by = models.ForeignKey(
-        MahasiswaProfile,
+        Profile,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        limit_choices_to={"role": MahasiswaProfile.ROLE_MENTOR},
+        limit_choices_to={"role": Profile.ROLE_MENTOR},
         related_name="recorded_attendance",
     )
     created_at = models.DateTimeField(auto_now_add=True)
@@ -325,7 +367,7 @@ class AssessmentAspect(models.Model):
 
 class MenteeAssessment(models.Model):
     peserta = models.ForeignKey(
-        MahasiswaProfile,
+        Profile,
         on_delete=models.CASCADE,
         related_name="assessments",
     )
@@ -340,11 +382,11 @@ class MenteeAssessment(models.Model):
     )
     catatan = models.TextField(blank=True, verbose_name="Catatan Mentor")
     assessed_by = models.ForeignKey(
-        MahasiswaProfile,
+        Profile,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        limit_choices_to={"role": MahasiswaProfile.ROLE_MENTOR},
+        limit_choices_to={"role": Profile.ROLE_MENTOR},
         related_name="mentee_assessments",
     )
     created_at = models.DateTimeField(auto_now_add=True)
@@ -371,15 +413,15 @@ class MentorFeedback(models.Model):
         related_name="mentee_feedback",
     )
     peserta = models.ForeignKey(
-        MahasiswaProfile,
+        Profile,
         on_delete=models.CASCADE,
         related_name="mentor_feedback",
     )
     mentor = models.ForeignKey(
-        MahasiswaProfile,
+        Profile,
         on_delete=models.SET_NULL,
         null=True,
-        limit_choices_to={"role": MahasiswaProfile.ROLE_MENTOR},
+        limit_choices_to={"role": Profile.ROLE_MENTOR},
         related_name="feedback_entries",
     )
     isi = models.TextField(verbose_name="Feedback")
@@ -588,10 +630,10 @@ class AssignmentReview(models.Model):
     )
     feedback = models.TextField(blank=True)
     reviewer = models.ForeignKey(
-        MahasiswaProfile,
+        Profile,
         on_delete=models.SET_NULL,
         null=True,
-        limit_choices_to={"role": MahasiswaProfile.ROLE_MENTOR},
+        limit_choices_to={"role": Profile.ROLE_MENTOR},
         related_name="assignment_reviews",
     )
     created_at = models.DateTimeField(auto_now_add=True)
@@ -619,10 +661,10 @@ class AssignmentReviewHistory(models.Model):
     )
     feedback = models.TextField(blank=True)
     reviewer = models.ForeignKey(
-        MahasiswaProfile,
+        Profile,
         on_delete=models.SET_NULL,
         null=True,
-        limit_choices_to={"role": MahasiswaProfile.ROLE_MENTOR},
+        limit_choices_to={"role": Profile.ROLE_MENTOR},
         related_name="assignment_review_history",
     )
     created_at = models.DateTimeField(auto_now_add=True)

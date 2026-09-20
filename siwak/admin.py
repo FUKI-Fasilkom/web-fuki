@@ -17,7 +17,7 @@ from .models import (
     GaleriFoto,
     KelompokMentoring,
     KetuaSiwak,
-    MahasiswaProfile,
+    Profile,
     MenteeAssessment,
     MentorFeedback,
     MentoringAttendance,
@@ -189,8 +189,8 @@ class TugasAdmin(admin.ModelAdmin):
         return response
 
 
-@admin.register(MahasiswaProfile)
-class MahasiswaProfileAdmin(admin.ModelAdmin):
+@admin.register(Profile)
+class ProfileAdmin(admin.ModelAdmin):
     """Satu-satunya tempat mentee dan mentor. Untuk pengelolaan sehari-hari pakai
     panel SIWAK di /siwak/admin/data/peserta/ (Mentee) dan /siwak/admin/data/mentor/,
     yang punya dropdown kelompok langsung di daftarnya; halaman ini cadangan
@@ -207,7 +207,7 @@ class MahasiswaProfileAdmin(admin.ModelAdmin):
 class EventRSVPAdmin(admin.ModelAdmin):
     list_display = ["user", "event", "status_kehadiran", "status_kupon", "created_at"]
     list_filter = ["event", "status_kehadiran", "status_kupon"]
-    search_fields = ["user__username", "user__mahasiswa_profile__nama_lengkap"]
+    search_fields = ["user__username", "user__profil__nama_lengkap"]
     actions = ["export_attendance_csv"]
 
     @admin.action(description="Export attendance (CSV)")
@@ -217,8 +217,8 @@ class EventRSVPAdmin(admin.ModelAdmin):
         response["Content-Disposition"] = 'attachment; filename="attendance_siwak.csv"'
         writer = csv.writer(response)
         writer.writerow(["Nama", "NPM", "Event", "Status Kehadiran", "Check-in", "Status Kupon", "Redeemed"])
-        for rsvp in queryset.select_related("user__mahasiswa_profile", "event"):
-            profile = getattr(rsvp.user, "mahasiswa_profile", None)
+        for rsvp in queryset.select_related("user__profil", "event"):
+            profile = getattr(rsvp.user, "profil", None)
             writer.writerow([
                 profile.nama_lengkap if profile else rsvp.user.username,
                 profile.npm if profile else "",
@@ -356,7 +356,7 @@ class TugasSubmissionAdmin(admin.ModelAdmin):
 
     list_display = ["tugas", "user", "status", "nilai", "jumlah_jawaban", "submitted_at"]
     list_filter = ["status", "tugas"]
-    search_fields = ["tugas__judul_tugas", "user__username", "user__mahasiswa_profile__nama_lengkap"]
+    search_fields = ["tugas__judul_tugas", "user__username", "user__profil__nama_lengkap"]
     autocomplete_fields = ["tugas"]
     list_select_related = ["tugas", "user"]
     readonly_fields = ["status", "submitted_at"]

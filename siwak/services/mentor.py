@@ -3,7 +3,7 @@ from django.db import transaction
 
 from siwak.models import (
     AssignmentReviewHistory,
-    MahasiswaProfile,
+    Profile,
     MenteeAssessment,
     MentoringAttendance,
     MentorFeedback,
@@ -14,8 +14,8 @@ def mentor_for_user(user):
     """Profil mentor milik `user`, atau None kalau dia bukan mentor."""
     if not user or not user.is_authenticated:
         return None
-    return MahasiswaProfile.objects.filter(
-        user=user, role=MahasiswaProfile.ROLE_MENTOR
+    return Profile.objects.filter(
+        user=user, role=Profile.ROLE_MENTOR
     ).first()
 
 

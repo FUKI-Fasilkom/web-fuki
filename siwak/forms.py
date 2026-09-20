@@ -77,7 +77,7 @@ class RSVPForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         if user:
-            profile = getattr(user, "mahasiswa_profile", None)
+            profile = getattr(user, "profil", None)
             self.fields["name"].initial = profile.nama_lengkap if profile else ""
             self.fields["npm"].initial = profile.npm if profile else ""
 

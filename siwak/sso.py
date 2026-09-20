@@ -9,7 +9,7 @@ things this environment cannot provide on its own:
   2. A CAS client library talking to that server (e.g. `django-cas-ng`).
 
 So this module implements the same shape a real CAS login would have — a
-"login" entrypoint that resolves to a Django `User` + `MahasiswaProfile`, after
+"login" entrypoint that resolves to a Django `User` + `Profile`, after
 which every other authorized feature (tugas, RSVP, QR) works identically —
 but the entrypoint itself is a simple NPM + Nama + Jurusan form instead of a
 redirect to sso.ui.ac.id. That keeps the swap to real SSO a small, isolated
@@ -23,7 +23,7 @@ from django.db import transaction
 from django.shortcuts import resolve_url
 from django_cas_ng.views import LoginView
 
-from .models import MahasiswaProfile
+from .models import Profile
 
 
 from django.dispatch import receiver
@@ -117,6 +117,17 @@ KD_ORG_PROGRAM_MAP = {
 def handle_cas_login(sender, user, username, attributes, **kwargs):
     attributes = attributes or {}
 
+    # Jaring pengaman untuk tabrakan akun. CAS mencocokkan User lewat username,
+    # sedangkan profil diklaim lewat NPM — kalau sebuah username SSO kebetulan
+    # sama dengan username akun lokal, login ini akan mendarat di akun mentor
+    # non-SSO dan menimpa identitasnya. Awalan `mentor-` membuatnya praktis
+    # mustahil; ini penjaga terakhirnya.
+    if Profile.objects.filter(user=user, auth_source=Profile.SOURCE_LOKAL).exists():
+        raise ValueError(
+            "Akun ini terdaftar sebagai mentor non-SSO. Masuk lewat halaman "
+            "login mentor, bukan SSO UI."
+        )
+
     npm = get_attribute(attributes, "npm")
     nama_lengkap = get_attribute(attributes, "nama")
     kd_org = get_attribute(attributes, "kd_org")
@@ -135,7 +146,7 @@ def handle_cas_login(sender, user, username, attributes, **kwargs):
     if not jurusan:
         raise ValueError(f"Kode program tidak dikenal: {program_code}")
 
-    sync_mahasiswa_profile(
+    sync_profile(
         user=user,
         npm=npm,
         nama_lengkap=nama_lengkap,
@@ -149,10 +160,10 @@ def handle_cas_login(sender, user, username, attributes, **kwargs):
 
 
 @transaction.atomic
-def sync_mahasiswa_profile(
+def sync_profile(
     *, user, npm: str, nama_lengkap: str, jurusan: str, angkatan: str = ""
-) -> MahasiswaProfile:
-    """Satukan data SSO dengan MahasiswaProfile.
+) -> Profile:
+    """Satukan data SSO dengan Profile.
 
     Profil dicari dalam tiga langkah, dan urutannya menentukan:
 
@@ -161,7 +172,7 @@ def sync_mahasiswa_profile(
     2. Profil ber-NPM sama yang *belum* dipegang akun mana pun — inilah baris
        yang dibuat pengelola di panel SIWAK sebelum orangnya pernah login, dan
        inilah yang diklaim sekarang. Profil yang sudah ada pemiliknya sengaja
-       dilewati supaya tidak bisa direbut.
+       dilewati supaya tidak bisa direbut, begitu pula profil akun lokal.
     3. Kalau tidak ada keduanya, profil baru tanpa role dan tanpa kelompok.
 
     `role` dan `kelompok` sengaja TIDAK disentuh di sini. Akun yang baru login
@@ -171,9 +182,14 @@ def sync_mahasiswa_profile(
     kelompok juga tidak hilang saat login ulang.
     """
     profile = (
-        MahasiswaProfile.objects.filter(user=user).first()
-        or MahasiswaProfile.objects.filter(npm=npm, user__isnull=True).first()
-        or MahasiswaProfile(npm=npm)
+        Profile.objects.filter(user=user).first()
+        # `auth_source` eksplisit walau mentor non-SSO ber-NPM NULL dan selalu
+        # punya `user`: dua-duanya sudah menyingkirkannya dari cabang ini, dan
+        # filter ini yang menuliskan niatnya.
+        or Profile.objects.filter(
+            npm=npm, user__isnull=True, auth_source=Profile.SOURCE_SSO
+        ).first()
+        or Profile(npm=npm)
     )
 
     profile.user = user
@@ -185,16 +201,16 @@ def sync_mahasiswa_profile(
     return profile
 
 def role_landing_url(user):
-    """Tujuan default setelah login, ditentukan role di MahasiswaProfile.
+    """Tujuan default setelah login, ditentukan role di Profile.
 
     mentee -> daftar tugas, mentor -> dashboard mentor, selain itu (role NULL,
     belum punya profil, dst.) -> beranda FUKI.
     """
-    profile = MahasiswaProfile.objects.filter(user=user).only("role").first()
+    profile = Profile.objects.filter(user=user).only("role").first()
     role = profile.role if profile else None
-    if role == MahasiswaProfile.ROLE_MENTEE:
+    if role == Profile.ROLE_MENTEE:
         return resolve_url("siwak:tugas_list")
-    if role == MahasiswaProfile.ROLE_MENTOR:
+    if role == Profile.ROLE_MENTOR:
         return resolve_url("siwak:mentor_dashboard")
     return "/"
 

@@ -103,7 +103,9 @@ CAS_LOGIN_URL_NAME = "siwak:cas_ng_login"
 CAS_LOGOUT_URL_NAME = "siwak:cas_ng_logout"
 CAS_LOGIN_MSG = None
 
-LOGIN_URL = "siwak:cas_ng_login"
+# Halaman pemilih metode, bukan langsung CAS: sejak ada mentor non-SSO, user
+# anonim yang membuka halaman ber-@login_required belum tentu punya akun SSO.
+LOGIN_URL = "siwak:login"
 CAS_REDIRECT_URL = "siwak:tugas_list"
 CAS_IGNORE_REFERER = True
 CAS_LOGOUT_NEXT_PAGE = "/"

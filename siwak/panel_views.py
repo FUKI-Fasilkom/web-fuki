@@ -32,7 +32,7 @@ from .models import (
     Choice,
     EventRSVP,
     KelompokMentoring,
-    MahasiswaProfile,
+    Profile,
     MentoringSession,
     Question,
     SiwakEvent,
@@ -240,11 +240,11 @@ def panel_beranda(request):
             ],
         })
 
-    mentee = MahasiswaProfile.objects.filter(role=MahasiswaProfile.ROLE_MENTEE)
+    mentee = Profile.objects.filter(role=Profile.ROLE_MENTEE)
     ringkasan = [
         ("Mentee", mentee.count()),
         ("Kelompok mentoring", KelompokMentoring.objects.count()),
-        ("Mentor", MahasiswaProfile.objects.filter(role=MahasiswaProfile.ROLE_MENTOR).count()),
+        ("Mentor", Profile.objects.filter(role=Profile.ROLE_MENTOR).count()),
         ("Belum punya kelompok", mentee.filter(kelompok__isnull=True).count()),
     ]
 
@@ -460,13 +460,13 @@ def panel_hapus(request, slug, pk):
 def panel_set_kelompok(request, pk):
     """Ganti kelompok satu mahasiswa langsung dari daftar Peserta atau daftar Mentor.
 
-    `pk` adalah MahasiswaProfile — mentee maupun mentor — karena `kelompok` kini
+    `pk` adalah Profile — mentee maupun mentor — karena `kelompok` kini
     kolom di profilnya sendiri; tidak ada lagi dua penyunting yang berbeda.
     Memilih kelompok lain memindahkannya, memilih pilihan kosong melepasnya.
     Mentor yang dipindahkan ke kelompok yang sudah punya mentor tidak
     menggantikan siapa pun: sebuah kelompok memang boleh dipegang lebih dari satu.
     """
-    profil = get_object_or_404(MahasiswaProfile, pk=pk)
+    profil = get_object_or_404(Profile, pk=pk)
     mentor = profil.is_mentor
     cadangan = reverse("siwak:panel_daftar", args=["mentor" if mentor else "peserta"])
 
@@ -512,11 +512,11 @@ def panel_set_role(request, pk):
     kelompok tempat dia tadinya jadi peserta. Presensi, nilai, dan feedback
     yang sudah tercatat menempel di profilnya, jadi tidak ikut hilang.
     """
-    profil = get_object_or_404(MahasiswaProfile, pk=pk)
+    profil = get_object_or_404(Profile, pk=pk)
     cadangan = reverse("siwak:panel_daftar", args=["profil"])
 
     role = (request.POST.get("role") or "").strip() or None
-    if role is not None and role not in dict(MahasiswaProfile.ROLE_CHOICES):
+    if role is not None and role not in dict(Profile.ROLE_CHOICES):
         messages.error(request, "Role yang dipilih tidak dikenal.")
         return _kembali(request, cadangan)
 
@@ -572,8 +572,8 @@ def panel_info(request):
 # Nama diambil dari profil maba, tapi peserta yang belum punya profil tetap
 # harus bisa dicari, jadi username ikut dicocokkan.
 CARI_RSVP = (
-    "user__mahasiswa_profile__nama_lengkap",
-    "user__mahasiswa_profile__npm",
+    "user__profil__nama_lengkap",
+    "user__profil__npm",
     "user__username",
 )
 
@@ -581,8 +581,8 @@ CARI_RSVP = (
 def _rsvp_queryset(event, kata=""):
     qs = (
         EventRSVP.objects.filter(event=event)
-        .select_related("user__mahasiswa_profile")
-        .order_by("user__mahasiswa_profile__nama_lengkap", "user__username")
+        .select_related("user__profil")
+        .order_by("user__profil__nama_lengkap", "user__username")
     )
     if kata:
         saringan = Q()
@@ -646,7 +646,7 @@ def panel_rsvp_csv(request, pk):
     penulis = csv.writer(respons)
     penulis.writerow(["Nama", "NPM", "Kehadiran", "Alasan izin", "QR Kehadiran", "QR Kupon"])
     for rsvp in _rsvp_queryset(event, kata):
-        profil = getattr(rsvp.user, "mahasiswa_profile", None)
+        profil = getattr(rsvp.user, "profil", None)
         penulis.writerow([
             profil.nama_lengkap if profil else rsvp.user.username,
             profil.npm if profil else "",
@@ -698,7 +698,7 @@ def panel_rsvp_status(request, pk):
         setattr(rsvp, nama_waktu, None)
     rsvp.save(update_fields=[nama_status, nama_waktu])
 
-    profil = getattr(rsvp.user, "mahasiswa_profile", None)
+    profil = getattr(rsvp.user, "profil", None)
     nama = profil.nama_lengkap if profil else rsvp.user.username
     messages.success(request, f"{nama} · {dict(pilihan)[nilai]}.")
     return _kembali(request, cadangan)
@@ -712,10 +712,10 @@ def panel_rsvp_hapus(request, pk):
     Peserta yang RSVP-nya dihapus bisa mendaftar lagi selama RSVP acara masih
     dibuka; QR lamanya tidak berlaku lagi karena barisnya sudah tidak ada.
     """
-    rsvp = get_object_or_404(EventRSVP.objects.select_related("user__mahasiswa_profile"), pk=pk)
+    rsvp = get_object_or_404(EventRSVP.objects.select_related("user__profil"), pk=pk)
     cadangan = reverse("siwak:panel_rsvp", args=[rsvp.event_id])
 
-    profil = getattr(rsvp.user, "mahasiswa_profile", None)
+    profil = getattr(rsvp.user, "profil", None)
     nama = profil.nama_lengkap if profil else rsvp.user.username
     rsvp.delete()
     messages.success(request, f"RSVP {nama} berhasil dihapus.")
@@ -978,17 +978,17 @@ def panel_pertanyaan_urut(request, pk):
 # ---------------------------------------------------------------------------
 
 CARI_JAWABAN = (
-    "user__mahasiswa_profile__nama_lengkap",
-    "user__mahasiswa_profile__npm",
+    "user__profil__nama_lengkap",
+    "user__profil__npm",
     "user__username",
 )
 
 
 def _jawaban_queryset(tugas, kata=""):
     qs = (
-        tugas.submissions.select_related("user__mahasiswa_profile")
+        tugas.submissions.select_related("user__profil")
         .prefetch_related("answers__question", "answers__selected_choice")
-        .order_by("user__mahasiswa_profile__nama_lengkap", "user__username")
+        .order_by("user__profil__nama_lengkap", "user__username")
     )
     if kata:
         saring = Q()
@@ -1032,7 +1032,7 @@ def panel_jawaban(request, pk):
     )
     baris = []
     for pengumpulan in halaman.object_list:
-        profil = getattr(pengumpulan.user, "mahasiswa_profile", None)
+        profil = getattr(pengumpulan.user, "profil", None)
         pasangan = _pasangkan_jawaban(pengumpulan, pertanyaan)
         baris.append({
             "obj": pengumpulan,
@@ -1076,7 +1076,7 @@ def panel_jawaban_csv(request, pk):
         ["Nama", "NPM", "Status", "Waktu Kumpul"] + [s.pertanyaan for s in pertanyaan]
     )
     for pengumpulan in _jawaban_queryset(tugas, kata):
-        profil = getattr(pengumpulan.user, "mahasiswa_profile", None)
+        profil = getattr(pengumpulan.user, "profil", None)
         peta = {j.question_id: j for j in pengumpulan.answers.all()}
         penulis.writerow(
             [

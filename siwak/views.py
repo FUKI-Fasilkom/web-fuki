@@ -22,7 +22,7 @@ from .models import (
     FAQMentoring,
     GaleriFoto,
     KetuaSiwak,
-    MahasiswaProfile,
+    Profile,
     MentoringBenefit,
     MentoringTujuan,
     SistemMentoring,
@@ -72,7 +72,10 @@ def landing(request):
         "benefit_list": MentoringBenefit.objects.all(),
         "sistem_list": SistemMentoring.objects.all(),
         "galeri_list": GaleriFoto.objects.all()[:6],
-        "ketua_list": KetuaSiwak.objects.all(),
+        # Menaik, menimpa Meta.ordering `-tahun`: judulnya "dari Tahun ke Tahun",
+        # jadi kartunya harus terbaca maju dari kiri ke kanan. Sengaja di sini,
+        # bukan di Meta, supaya daftar panel tetap menaruh yang terbaru di atas.
+        "ketua_list": KetuaSiwak.objects.order_by("tahun"),
         "timeline_list": TimelineEvent.objects.filter(is_active=True),
         "faq_list": FAQMentoring.objects.all(),
     }
@@ -97,10 +100,10 @@ def kelompok_search(request):
     peserta = None
 
     if request.method == "POST" and form.is_valid():
-        peserta = MahasiswaProfile.objects.filter(
+        peserta = Profile.objects.filter(
             nama_lengkap__iexact=form.cleaned_data["nama_lengkap"].strip(),
             jurusan=form.cleaned_data["jurusan"],
-            role=MahasiswaProfile.ROLE_MENTEE,
+            role=Profile.ROLE_MENTEE,
         ).select_related("kelompok").first()
 
         if not peserta:
@@ -133,8 +136,8 @@ def mentee_required(view_func):
     @wraps(view_func)
     def _wrapped(request, *args, **kwargs):
         if request.user.is_authenticated:
-            is_mentee = MahasiswaProfile.objects.filter(
-                user=request.user, role=MahasiswaProfile.ROLE_MENTEE
+            is_mentee = Profile.objects.filter(
+                user=request.user, role=Profile.ROLE_MENTEE
             ).exists()
             if is_mentee:
                 return view_func(request, *args, **kwargs)
@@ -249,8 +252,8 @@ def tugas_detail(request, pk):
     uploaded_files = []
     try:
         with transaction.atomic():
-            profiles = MahasiswaProfile.objects.filter(
-                user=request.user, role=MahasiswaProfile.ROLE_MENTEE
+            profiles = Profile.objects.filter(
+                user=request.user, role=Profile.ROLE_MENTEE
             )
             if request.method == "POST":
                 # Kunci profil juga menserialkan dua pengumpulan pertama sekaligus.

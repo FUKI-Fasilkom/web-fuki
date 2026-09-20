@@ -20,10 +20,10 @@ from .models import (
     GaleriFoto,
     KelompokMentoring,
     KetuaSiwak,
-    MahasiswaProfile,
     MentoringBenefit,
     MentoringSession,
     MentoringTujuan,
+    Profile,
     SistemMentoring,
     SiwakEvent,
     TimelineEvent,
@@ -137,13 +137,13 @@ def _nama_mentor(kelompok):
     nama = [
         a.nama_lengkap
         for a in kelompok.anggota.all()
-        if a.role == MahasiswaProfile.ROLE_MENTOR
+        if a.role == Profile.ROLE_MENTOR
     ]
     return ", ".join(nama) or "—"
 
 
 def _jumlah_mentee(kelompok):
-    return sum(a.role == MahasiswaProfile.ROLE_MENTEE for a in kelompok.anggota.all())
+    return sum(a.role == Profile.ROLE_MENTEE for a in kelompok.anggota.all())
 
 
 def _saklar_rsvp(acara):
@@ -270,7 +270,7 @@ SUMBER = [
     ),
 
     # --- Bagian 3: Cari Kelompok SIWAK ---------------------------------------
-    # Urutan menunya: Profile -> Mentee -> Mentor -> Kelompok.
+    # Urutan menunya: Profile -> Mentee -> Mentor -> Mentor Non-SSO -> Kelompok.
     Sumber(
         slug="profil",
         bagian="kelompok",
@@ -280,7 +280,7 @@ SUMBER = [
             "Semua akun yang pernah login lewat SSO UI. Role-nya kosong sampai "
             "dipilih di sini: Mentee masuk ke daftar Mentee, Mentor ke daftar Mentor."
         ),
-        model=MahasiswaProfile,
+        model=Profile,
         form=None,
         # Hanya tampilan: profil lahir dari login SSO dan identitasnya berasal
         # dari sana. Satu-satunya yang disunting pengelola adalah role, lewat
@@ -291,11 +291,15 @@ SUMBER = [
         kolom=(
             Kolom("No", lambda o: None, "nomor"),
             Kolom("Nama", lambda o: o.nama_lengkap, utama=True, urut="nama"),
-            Kolom("NPM", lambda o: o.npm, urut="npm"),
+            Kolom("NPM", lambda o: o.npm or "—", urut="npm"),
             Kolom("Role", lambda o: o.role, "pilih_role", urut="role"),
         ),
         pencarian=("nama_lengkap", "npm"),
         kosong="Belum ada akun yang login.",
+        # Mentor non-SSO sengaja tidak ikut: dia punya menunya sendiri, dan
+        # dropdown role di sini bisa mengubahnya jadi mentee — yang langsung
+        # mengunci dia keluar dari jalur login lokal.
+        queryset=lambda: Profile.objects.filter(auth_source=Profile.SOURCE_SSO),
         pengurutan={
             "nama": ("nama_lengkap",),
             "npm": ("npm",),
@@ -309,11 +313,11 @@ SUMBER = [
         label="Mentee",
         label_jamak="Mentee",
         deskripsi="Profil ber-role Mentee. Kelompoknya bisa langsung diganti lewat dropdown di kolom Kelompok.",
-        model=MahasiswaProfile,
+        model=Profile,
         form=f.PesertaForm,
         kolom=(
             Kolom("Nama", lambda o: o.nama_lengkap, utama=True, urut="nama"),
-            Kolom("NPM", lambda o: o.npm, urut="npm"),
+            Kolom("NPM", lambda o: o.npm or "—", urut="npm"),
             Kolom("Jurusan", lambda o: o.get_jurusan_display(), "tag"),
             # Dropdown, bukan tulisan: memindahkan mentee adalah pekerjaan yang
             # paling sering dilakukan di halaman ini, jadi tidak masuk akal
@@ -323,8 +327,8 @@ SUMBER = [
         ),
         pencarian=("nama_lengkap", "npm"),
         kosong="Belum ada mentee. Pilih role Mentee untuk sebuah akun di daftar Profile.",
-        queryset=lambda: MahasiswaProfile.objects.filter(
-            role=MahasiswaProfile.ROLE_MENTEE
+        queryset=lambda: Profile.objects.filter(
+            role=Profile.ROLE_MENTEE
         ).select_related("kelompok", "user"),
         pengurutan={
             "nama": ("nama_lengkap",),
@@ -338,22 +342,55 @@ SUMBER = [
         bagian="kelompok",
         label="Mentor",
         label_jamak="Mentor",
-        deskripsi="Daftar mentor. Satu mentor memegang satu kelompok, dan kelompoknya bisa langsung diganti lewat dropdown. Mentor yang barisnya disiapkan di sini tersambung ke akunnya begitu login SSO.",
-        model=MahasiswaProfile,
+        deskripsi="Daftar mentor ber-akun SSO UI. Satu mentor memegang satu kelompok, dan kelompoknya bisa langsung diganti lewat dropdown. Mentor yang barisnya disiapkan di sini tersambung ke akunnya begitu login SSO.",
+        model=Profile,
         form=f.MentorForm,
         kolom=(
             Kolom("Nama", lambda o: o.nama_lengkap, utama=True, urut="nama"),
-            Kolom("NPM", lambda o: o.npm),
+            Kolom("NPM", lambda o: o.npm or "—"),
             Kolom("Memegang kelompok", lambda o: o.kelompok_id, "pilih_kelompok_mentor", urut="kelompok"),
             Kolom("Sudah login SSO", lambda o: o.user_id is not None, "bool"),
         ),
         pencarian=("nama_lengkap", "npm"),
         kosong="Belum ada mentor yang terdaftar.",
-        queryset=lambda: MahasiswaProfile.objects.filter(
-            role=MahasiswaProfile.ROLE_MENTOR
+        # Mentor non-SSO punya menunya sendiri. Kalau ikut di sini, dia bisa
+        # disunting lewat MentorForm yang mewajibkan NPM — yang justru tidak
+        # dimilikinya.
+        queryset=lambda: Profile.objects.filter(
+            role=Profile.ROLE_MENTOR, auth_source=Profile.SOURCE_SSO
         ).select_related("kelompok", "user"),
         pengurutan={
             "nama": ("nama_lengkap",),
+            "kelompok": _urut_nama_kelompok("kelompok__") + ("nama_lengkap",),
+        },
+        urut_awal="nama",
+    ),
+    Sumber(
+        slug="mentor_lokal",
+        bagian="kelompok",
+        label="Mentor Non-SSO",
+        label_jamak="Mentor Non-SSO",
+        deskripsi=(
+            "Mentor yang tidak punya akun SSO UI aktif. Akunnya dibuat di sini — "
+            "login pakai username dan password, bukan SSO. Mengosongkan password "
+            "saat mengubah berarti password lama tetap dipakai."
+        ),
+        model=Profile,
+        form=f.MentorLokalForm,
+        kolom=(
+            Kolom("Nama", lambda o: o.nama_lengkap, utama=True, urut="nama"),
+            Kolom("Username", lambda o: o.user.username if o.user else "—", urut="username"),
+            Kolom("Memegang kelompok", lambda o: o.kelompok_id, "pilih_kelompok_mentor", urut="kelompok"),
+            Kolom("Akun aktif", lambda o: bool(o.user and o.user.is_active), "bool"),
+        ),
+        pencarian=("nama_lengkap", "user__username"),
+        kosong="Belum ada mentor non-SSO.",
+        queryset=lambda: Profile.objects.filter(
+            role=Profile.ROLE_MENTOR, auth_source=Profile.SOURCE_LOKAL
+        ).select_related("kelompok", "user"),
+        pengurutan={
+            "nama": ("nama_lengkap",),
+            "username": ("user__username",),
             "kelompok": _urut_nama_kelompok("kelompok__") + ("nama_lengkap",),
         },
         urut_awal="nama",
@@ -375,7 +412,7 @@ SUMBER = [
         pencarian=("nama_kelompok",),
         kosong="Belum ada kelompok mentoring.",
         queryset=lambda: KelompokMentoring.objects.prefetch_related("anggota").annotate(
-            urut_terisi=Count("anggota", filter=Q(anggota__role=MahasiswaProfile.ROLE_MENTEE))
+            urut_terisi=Count("anggota", filter=Q(anggota__role=Profile.ROLE_MENTEE))
         ),
         pengurutan={
             "nama": _urut_nama_kelompok(),
@@ -516,7 +553,7 @@ def daftar_kelompok():
     templat dropdown (`_dropdown_pilih.html`) melayani keduanya."""
     kelompok = (
         KelompokMentoring.objects.annotate(
-            terisi=Count("anggota", filter=Q(anggota__role=MahasiswaProfile.ROLE_MENTEE))
+            terisi=Count("anggota", filter=Q(anggota__role=Profile.ROLE_MENTEE))
         )
         .order_by(*_urut_nama_kelompok())
     )
@@ -528,7 +565,7 @@ def daftar_kelompok():
 
 def daftar_role():
     """Isi dropdown role di daftar Profile."""
-    return [{"nilai": nilai, "label": label} for nilai, label in MahasiswaProfile.ROLE_CHOICES]
+    return [{"nilai": nilai, "label": label} for nilai, label in Profile.ROLE_CHOICES]
 
 
 # ---------------------------------------------------------------------------
@@ -551,7 +588,7 @@ BAGIAN = [
     Bagian(
         slug="kelompok",
         nama="Cari Kelompok SIWAK",
-        deskripsi="Profile, mentee, mentor, dan kelompok — termasuk role dan penempatan kelompoknya.",
+        deskripsi="Profile, mentee, mentor (SSO maupun non-SSO), dan kelompok — termasuk role dan penempatan kelompoknya.",
         ikon="orang",
     ),
     Bagian(

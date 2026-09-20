@@ -12,7 +12,7 @@ from .models import (
     AssignmentReviewHistory,
     AssessmentAspect,
     KelompokMentoring,
-    MahasiswaProfile,
+    Profile,
     MenteeAssessment,
     MentoringAttendance,
     MentorFeedback,
@@ -40,18 +40,18 @@ class MentorRekapPagesTests(TestCase):
         shutil.rmtree(cls._media_root, ignore_errors=True)
         super().tearDownClass()
 
-    def _profile(self, npm, nama, role=MahasiswaProfile.ROLE_MENTEE, kelompok=None):
+    def _profile(self, npm, nama, role=Profile.ROLE_MENTEE, kelompok=None):
         user = User.objects.create_user(username=npm)
-        return MahasiswaProfile.objects.create(
+        return Profile.objects.create(
             user=user, npm=npm, nama_lengkap=nama, jurusan="IK", role=role, kelompok=kelompok
         )
 
     def setUp(self):
         self.group = KelompokMentoring.objects.create(nama_kelompok="Kelompok A")
         self.other_group = KelompokMentoring.objects.create(nama_kelompok="Kelompok B")
-        self.mentor = self._profile("2100000001", "Mentor Utama", MahasiswaProfile.ROLE_MENTOR, self.group)
+        self.mentor = self._profile("2100000001", "Mentor Utama", Profile.ROLE_MENTOR, self.group)
         self.other_mentor = self._profile(
-            "2100000002", "Mentor Lain", MahasiswaProfile.ROLE_MENTOR, self.other_group
+            "2100000002", "Mentor Lain", Profile.ROLE_MENTOR, self.other_group
         )
         self.ani = self._profile("2500000001", "Ani Mentee", kelompok=self.group)
         self.budi = self._profile("2500000002", "Budi Mentee", kelompok=self.group)

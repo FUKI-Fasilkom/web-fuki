@@ -19,7 +19,8 @@
   {% include 'components/hero_logo.html' with variant='redesign' %}
   {% endif %}
   <div class="max-w-[75%]">
-    <h1 class="bg-[linear-gradient(-24.53deg,#001B3D_21.124%,#0048A3_151.6%)] bg-clip-text font-bold text-transparent
+    {# pb + -mb: bg-clip-text hanya melukis di dalam kotak elemen, jadi ekor huruf (g, y, p) terpotong bila line-height rapat / tertimpa lg:text-5xl. Padding memperluas kotak, margin negatif menjaga tata letak. #}
+    <h1 class="-mb-[0.2em] bg-[linear-gradient(-24.53deg,#001B3D_21.124%,#0048A3_151.6%)] bg-clip-text pb-[0.2em] font-bold text-transparent
                {% if judul_besar %}text-3xl sm:text-5xl lg:text-[64px]{% elif ringkas %}text-3xl sm:text-4xl lg:text-[52px]{% else %}text-[32px] lg:text-5xl{% endif %}
                {% if judul_baris_2 or ringkas %}leading-snug sm:leading-snug{% elif judul_besar %}leading-none{% else %}leading-[1.5]{% endif %}">{{ page_title }}{% if judul_baris_2 %}<br>{{ judul_baris_2 }}{% endif %}</h1>
     {% if subtitle %}

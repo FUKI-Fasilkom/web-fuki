@@ -42,7 +42,7 @@
           {{ info.apa_itu_deskripsi|default:"Informasi tentang SIWAK-NG akan segera hadir." }}
         </p>
       </div>
-      {% if user.is_authenticated and user.mahasiswa_profile.is_mentee %}
+      {% if user.is_authenticated and user.profil.is_mentee %}
       <div class="mt-8 flex justify-center">
         <a href="{% url 'siwak:tugas_list' %}" class="inline-flex min-h-10 items-center gap-2 rounded-lg bg-gradient-to-r from-[#E0BE6B] to-[#C79A3A] px-5 py-2 text-xs sm:text-sm font-semibold text-[#281F0C] shadow-lg hover:brightness-105 focus:outline-none focus-visible:ring-4 focus-visible:ring-gold/60 transition">
           Kumpulkan Tugas Mentoring

@@ -8,7 +8,7 @@ from siwak.models import (
     FAQMentoring,
     KelompokMentoring,
     KetuaSiwak,
-    MahasiswaProfile,
+    Profile,
     MentoringBenefit,
     MentoringTujuan,
     SistemMentoring,
@@ -128,31 +128,31 @@ class Command(BaseCommand):
             defaults={"link_grup": "https://chat.whatsapp.com/contoh-link-kelompok-1"},
         )
 
-        # Mentor dan mentee sama-sama MahasiswaProfile; bedanya hanya `role`.
+        # Mentor dan mentee sama-sama Profile; bedanya hanya `role`.
         # Mentor diberi NPM supaya baris ini tersambung ke akunnya begitu login
         # SSO (NPM contoh ini fiktif — ganti dengan NPM asli saat QA dengan akun sungguhan).
         for npm, nama, jurusan in (
             ("2206000001", "Kak Ahmad", "IK"),
             ("2206000002", "Kak Fatimah", "SI"),
         ):
-            MahasiswaProfile.objects.update_or_create(
+            Profile.objects.update_or_create(
                 npm=npm,
                 defaults={
                     "nama_lengkap": nama,
                     "jurusan": jurusan,
                     "angkatan": "2022",
-                    "role": MahasiswaProfile.ROLE_MENTOR,
+                    "role": Profile.ROLE_MENTOR,
                     "kelompok": kelompok1,
                 },
             )
 
-        MahasiswaProfile.objects.update_or_create(
+        Profile.objects.update_or_create(
             npm="2506000001",
             defaults={
                 "nama_lengkap": "Marwa Muhlashon",
                 "jurusan": "SI",
                 "angkatan": "2025",
-                "role": MahasiswaProfile.ROLE_MENTEE,
+                "role": Profile.ROLE_MENTEE,
                 "kelompok": kelompok1,
             },
         )
