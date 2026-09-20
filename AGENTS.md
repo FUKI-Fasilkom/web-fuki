@@ -8,7 +8,7 @@ Django 6.0 (Python 3.12) + PostgreSQL website for FUKI Fasilkom UI. Settings liv
 - `DEBUG` is only true when exactly `"True"`, and `DJANGO_SECRET` is required (also fails fast in `entrypoint.sh`).
 - Commands: `pip install -r requirements.txt` (fully pinned), `python manage.py migrate`, `python manage.py runserver`. Seed demo data for `siwak` with `python manage.py seed_siwak`.
 - `python manage.py check --deploy --fail-level ERROR` is the CI gate, but it is not the only verification: `siwak` has a real suite (~250 tests in `siwak/tests.py`, `test_mentor.py`, `test_mentor_rekap.py`, `test_gallery_storage.py`) covering CAS/SSO sync, the panel, QR/RSVP, and tugas upload. Run `python manage.py test siwak` before touching any of those. The other apps' `tests.py` are still empty.
-- Two tests in `siwak/tests.py` fail on `staging` for reasons unrelated to auth (`test_tugas_pages_have_back_buttons`, `test_submitted_page_is_read_only_with_file_placeholder`) — both assert exact template whitespace that the redesign moved. Treat 2 failures as the current baseline, not as breakage you introduced.
+- The suite is expected to be fully green. Several tests assert exact template whitespace (e.g. the `_back_button.html` include), so a purely cosmetic template edit can fail them — that is the test doing its job, not noise to silence.
 
 ## Migrations
 

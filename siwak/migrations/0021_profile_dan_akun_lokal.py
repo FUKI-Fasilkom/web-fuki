@@ -6,6 +6,11 @@ menghapus seluruh baris profil. RenameModel hanya me-rename tabel.
 
 Semua operasi di sini non-destruktif (rename tabel, satu kolom jadi nullable,
 satu kolom baru ber-default), jadi aman dijalankan dalam satu deploy.
+
+Harus berjalan SESUDAH `0020_remove_si_iup_choice`, bukan paralel dengannya:
+migrasi itu memakai `apps.get_model("siwak", "MahasiswaProfile")` dan
+`model_name="mahasiswaprofile"`, nama yang hanya ada sebelum RenameModel di
+bawah. Kalau urutannya terbalik, migrasi itu gagal dengan LookupError.
 """
 
 import django.db.models.deletion
@@ -17,7 +22,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ("siwak", "0019_hapus_berkas_utama_submission"),
+        ("siwak", "0020_remove_si_iup_choice"),
     ]
 
     operations = [
