@@ -139,7 +139,8 @@
       {% endif %}
 
 
-      <!-- CTA RSVP -->
+      <!-- CTA RSVP (disembunyikan saat RSVP ditutup) -->
+      {% if event.rsvp_dibuka %}
       <div class="mt-8 flex justify-center sm:mt-10">
         <a
           href="{% url 'siwak:rsvp' event.pk %}"
@@ -162,6 +163,7 @@
           </svg>
         </a>
       </div>
+      {% endif %}
 
     </div>
 

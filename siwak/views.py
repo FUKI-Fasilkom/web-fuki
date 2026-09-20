@@ -10,7 +10,6 @@ from django.contrib.auth.views import redirect_to_login
 from django.core import signing
 from django.core.files.uploadedfile import UploadedFile
 from django.db import transaction
-from django.db.models import Q
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -102,12 +101,13 @@ def kelompok_search(request):
 
     if request.method == "POST" and form.is_valid():
         identitas = form.cleaned_data["nama_lengkap"].strip()
-        jurusan = form.cleaned_data["jurusan"]
-        peserta = Profile.objects.filter(
-            Q(nama_lengkap__iexact=identitas) | Q(npm__iexact=identitas),
-            jurusan=jurusan,
-            role=Profile.ROLE_MENTEE,
-        ).select_related("kelompok").first()
+        mentee = Profile.objects.filter(role=Profile.ROLE_MENTEE).select_related("kelompok")
+        # NPM unik, nama tidak — tanpa jurusan sebagai pembeda, cocokkan NPM lebih dulu
+        # supaya dua mentee dengan nama sama tidak tertukar.
+        peserta = (
+            mentee.filter(npm__iexact=identitas).first()
+            or mentee.filter(nama_lengkap__iexact=identitas).order_by("pk").first()
+        )
 
         if not peserta:
             result_state = "not_found"

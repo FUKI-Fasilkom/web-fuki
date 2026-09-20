@@ -4,7 +4,6 @@ from django.core.validators import RegexValidator
 from django.core.files.uploadedfile import UploadedFile
 
 from .models import (
-    JURUSAN_CHOICES,
     EventRSVP,
     Question,
     Tugas,
@@ -25,11 +24,6 @@ class CariKelompokForm(forms.Form):
         widget=forms.TextInput(
             attrs={"placeholder": "Masukkan nama lengkap atau NPM", "class": INPUT_CLASSES}
         ),
-    )
-    jurusan = forms.ChoiceField(
-        label="Jurusan",
-        choices=[("", "Pilih Jurusan")] + JURUSAN_CHOICES,
-        widget=forms.Select(attrs={"class": INPUT_CLASSES}),
     )
 
 

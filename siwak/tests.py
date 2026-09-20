@@ -105,9 +105,8 @@ class GetAttributeTests(TestCase):
 class JurusanChoiceTests(TestCase):
     """Pilihan jurusan aktif harus konsisten di model, form, dan mapping SSO."""
 
-    def test_si_iup_is_not_available_in_model_or_search_form(self):
+    def test_si_iup_is_not_available_in_model(self):
         self.assertNotIn("SI-IUP", dict(JURUSAN_CHOICES))
-        self.assertNotIn("SI-IUP", dict(CariKelompokForm().fields["jurusan"].choices))
 
     def test_sso_mapping_only_uses_supported_departments(self):
         supported_departments = {value for value, _label in JURUSAN_CHOICES}
@@ -119,9 +118,8 @@ class JurusanChoiceTests(TestCase):
 class JurusanChoiceTests(TestCase):
     """Pilihan jurusan aktif harus konsisten di model, form, dan mapping SSO."""
 
-    def test_si_iup_is_not_available_in_model_or_search_form(self):
+    def test_si_iup_is_not_available_in_model(self):
         self.assertNotIn("SI-IUP", dict(JURUSAN_CHOICES))
-        self.assertNotIn("SI-IUP", dict(CariKelompokForm().fields["jurusan"].choices))
 
     def test_sso_mapping_only_uses_supported_departments(self):
         supported_departments = {value for value, _label in JURUSAN_CHOICES}
@@ -1280,8 +1278,8 @@ class KelompokSearchTests(TestCase):
             role=Profile.ROLE_MENTOR, kelompok=self.kelompok,
         )
 
-    def _cari(self, nama, jurusan="IK"):
-        return self.client.post(self.url, {"nama_lengkap": nama, "jurusan": jurusan})
+    def _cari(self, nama):
+        return self.client.post(self.url, {"nama_lengkap": nama})
 
     def test_a_mentee_finds_their_group_and_its_mentors(self):
         response = self._cari("aisyah putri")
@@ -1298,10 +1296,31 @@ class KelompokSearchTests(TestCase):
         self.assertEqual(response.context["peserta"].nama_lengkap, "Aisyah Putri")
         self.assertContains(response, "Kelompok 7")
 
-    def test_name_or_npm_still_has_to_match_the_selected_department(self):
-        response = self._cari("2506000050", jurusan="SI")
+    def test_search_form_has_no_jurusan_field(self):
+        self.assertNotIn("jurusan", CariKelompokForm().fields)
+        response = self.client.get(self.url)
+        self.assertNotContains(response, 'name="jurusan"')
 
-        self.assertEqual(response.context["result_state"], "not_found")
+    def test_name_or_npm_alone_is_enough_to_submit(self):
+        response = self._cari("Aisyah Putri")
+
+        self.assertTrue(response.context["form"].is_valid())
+        self.assertEqual(response.context["result_state"], "found")
+
+    def test_blank_input_is_rejected(self):
+        response = self._cari("")
+
+        self.assertFalse(response.context["form"].is_valid())
+        self.assertIsNone(response.context["result_state"])
+
+    def test_npm_match_wins_over_a_same_named_mentee(self):
+        Profile.objects.create(
+            npm="2506000099", nama_lengkap="2506000050", jurusan="SI", role=Profile.ROLE_MENTEE
+        )
+
+        response = self._cari("2506000050")
+
+        self.assertEqual(response.context["peserta"].npm, "2506000050")
 
     def test_a_mentor_is_not_found_as_if_they_were_a_participant(self):
         response = self._cari("Kak Ahmad")
@@ -1313,7 +1332,7 @@ class KelompokSearchTests(TestCase):
             npm="2506000051", nama_lengkap="Belum Ada", jurusan="SI", role=Profile.ROLE_MENTEE
         )
 
-        response = self._cari("Belum Ada", jurusan="SI")
+        response = self._cari("Belum Ada")
 
         self.assertEqual(response.context["result_state"], "no_group_yet")
 
@@ -1796,6 +1815,25 @@ class RSVPViewTests(TestCase):
         self.assertNotContains(response, "RSVP Telah Ditutup")
         self.assertContains(response, "QR RSVP")
         self.assertContains(response, "data:image/png;base64,")
+
+    def test_rsvp_button_shown_on_landing_and_detail_when_open(self):
+        rsvp_url = reverse("siwak:rsvp", args=[self.event.id])
+        landing = self.client.get(reverse("siwak:landing"))
+        self.assertContains(landing, f'href="{rsvp_url}"')
+        self.assertContains(landing, "Isi RSVP Main Event SIWAK")
+        detail = self.client.get(reverse("siwak:event_detail", args=[self.event.id]))
+        self.assertContains(detail, f'href="{rsvp_url}"')
+        self.assertContains(detail, "Isi RSVP Main Event SIWAK")
+
+    def test_rsvp_button_hidden_on_landing_and_detail_when_closed(self):
+        rsvp_url = reverse("siwak:rsvp", args=[self.closed_event.id])
+        landing = self.client.get(reverse("siwak:landing"))
+        self.assertNotContains(landing, f'href="{rsvp_url}"')
+        self.assertNotContains(landing, "Isi RSVP Closed Event")
+        detail = self.client.get(reverse("siwak:event_detail", args=[self.closed_event.id]))
+        self.assertEqual(detail.status_code, 200)
+        self.assertNotContains(detail, f'href="{rsvp_url}"')
+        self.assertNotContains(detail, "Isi RSVP Closed Event")
 
     # -- QR presence --------------------------------------------------------
 
