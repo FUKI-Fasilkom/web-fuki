@@ -145,7 +145,7 @@
     <dl class="space-y-2">
       {% for sel in item.sel %}
       {% if not sel.utama and sel.tipe != 'gambar' %}
-      {% if sel.tipe == 'pilih_kelompok' or sel.tipe == 'pilih_kelompok_mentor' or sel.tipe == 'pilih_role' or sel.tipe == 'pilih_aktif' %}
+      {% if sel.tipe == 'pilih_kelompok' or sel.tipe == 'pilih_kelompok_mentor' or sel.tipe == 'pilih_role' or sel.tipe == 'pilih_aktif' or sel.tipe == 'isi_link' or sel.tipe == 'isi_npm' %}
       {% comment %}
         Kolom yang bisa disunting butuh lebar penuh: dropdown dan keping mentor
         tidak muat kalau dipepetkan ke kanan seperti nilai biasa.
