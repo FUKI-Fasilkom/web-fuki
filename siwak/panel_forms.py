@@ -14,12 +14,10 @@ from .models import (
     GaleriFoto,
     KelompokMentoring,
     KetuaSiwak,
-    MabaProfile,
-    Mentor,
+    MahasiswaProfile,
     MentoringBenefit,
     MentoringSession,
     MentoringTujuan,
-    PesertaMentoring,
     Question,
     SistemMentoring,
     SiwakEvent,
@@ -194,35 +192,34 @@ class TimelineForm(PanelForm):
 # ---------------------------------------------------------------------------
 
 class MentorForm(PanelForm):
+    """Mentor = MahasiswaProfile ber-role mentor.
+
+    Baris boleh disiapkan hanya dengan nama dan NPM; jurusan dan angkatan
+    diisi SSO saat orangnya login pertama kali dan baris ini diklaim.
+    """
+
     class Meta:
-        model = Mentor
-        fields = ["nama", "npm", "kelompok"]
+        model = MahasiswaProfile
+        fields = ["nama_lengkap", "npm", "kelompok"]
         labels = {
-            "nama": "Nama mentor",
+            "nama_lengkap": "Nama mentor",
             "npm": "NPM mentor",
             "kelompok": "Memegang kelompok",
         }
+        help_texts = {
+            "npm": "Dipakai untuk menyambungkan baris ini dengan akun SSO mentor saat dia login.",
+            "kelompok": "Satu mentor memegang satu kelompok. Boleh dikosongkan.",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.instance.role = MahasiswaProfile.ROLE_MENTOR
+        self.fields["kelompok"].empty_label = "— Tanpa kelompok —"
 
 
 class KelompokForm(PanelForm):
-    """Form kelompok, termasuk daftar mentornya.
-
-    Sejak mentor hanya boleh memegang satu kelompok, `mentor_list` bukan lagi
-    field milik KelompokMentoring melainkan relasi balik dari Mentor. Jadi
-    isiannya ditambahkan manual di sini dan disimpan di `save()` — mencentang
-    mentor yang sedang memegang kelompok lain berarti memindahkannya ke sini.
-    """
-
-    mentor_list = forms.ModelMultipleChoiceField(
-        queryset=Mentor.objects.all(),
-        required=False,
-        label="Mentor",
-        help_text=(
-            "Boleh lebih dari satu. Mentor yang sedang memegang kelompok lain "
-            "akan dipindahkan ke kelompok ini."
-        ),
-        widget=forms.CheckboxSelectMultiple,
-    )
+    """Form kelompok. Anggotanya (mentor dan mentee) tidak disunting di sini:
+    penempatannya lewat dropdown di daftar Mentor dan daftar Peserta."""
 
     class Meta:
         model = KelompokMentoring
@@ -230,60 +227,31 @@ class KelompokForm(PanelForm):
         labels = {"is_active": "Kelompok masih aktif"}
         help_texts = {"link_grup": "Link undangan grup WhatsApp kelompok ini."}
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # Urutan field mengikuti urutan lama: mentor tepat di bawah namanya.
-        self.order_fields(["nama_kelompok", "mentor_list", "link_grup", "kapasitas", "is_active"])
-        if self.instance.pk:
-            self.fields["mentor_list"].initial = self.instance.mentor_list.all()
-
-    def save(self, commit=True):
-        kelompok = super().save(commit=commit)
-        if commit:
-            # `set()` di relasi balik ikut melepas mentor yang tidak dicentang.
-            kelompok.mentor_list.set(self.cleaned_data["mentor_list"])
-        return kelompok
-
 
 class PesertaForm(PanelForm):
-    """Satu form untuk identitas maba sekaligus penempatan kelompoknya.
+    """Satu form untuk identitas mentee sekaligus penempatan kelompoknya.
 
-    Model yang disunting adalah MabaProfile — di sanalah nama, NPM, dan jurusan
-    kini tinggal. Kolom `kelompok` bukan milik MabaProfile, melainkan milik
-    PesertaMentoring, jadi ia ditambahkan manual dan disimpan di `save()`.
-    Dengan begitu pengelola cukup mengisi satu formulir, bukan dua.
+    `kelompok` kini field MahasiswaProfile sungguhan, jadi tidak perlu lagi
+    ditambahkan manual dan disimpan ke tabel kedua.
     """
 
-    kelompok = forms.ModelChoiceField(
-        queryset=KelompokMentoring.objects.all(),
-        required=False,
-        label="Kelompok mentoring",
-        empty_label="— Belum ditempatkan —",
-        help_text="Boleh dikosongkan dulu; kelompoknya bisa diganti kapan saja lewat dropdown di daftar Peserta Mentoring.",
-    )
-
     class Meta:
-        model = MabaProfile
-        fields = ["nama_lengkap", "npm", "jurusan", "angkatan"]
+        model = MahasiswaProfile
+        fields = ["nama_lengkap", "npm", "jurusan", "angkatan", "kelompok"]
+        labels = {"kelompok": "Kelompok mentoring"}
         help_texts = {
             "npm": "Dipakai untuk mencocokkan data ini dengan akun SSO maba saat dia login.",
             "angkatan": "Contoh: 2025. Boleh dikosongkan.",
+            "kelompok": "Boleh dikosongkan dulu; kelompoknya bisa diganti kapan saja lewat dropdown di daftar Peserta Mentoring.",
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if self.instance.pk:
-            peserta = PesertaMentoring.objects.filter(maba=self.instance).first()
-            if peserta:
-                self.fields["kelompok"].initial = peserta.kelompok_id
-
-    def save(self, commit=True):
-        maba = super().save(commit=commit)
-        if commit:
-            PesertaMentoring.objects.update_or_create(
-                maba=maba, defaults={"kelompok": self.cleaned_data["kelompok"]},
-            )
-        return maba
+        self.instance.role = MahasiswaProfile.ROLE_MENTEE
+        self.fields["kelompok"].empty_label = "— Belum ditempatkan —"
+        # `jurusan` boleh kosong di model (mentor yang disiapkan sebelum login),
+        # tapi mentee tetap wajib punya jurusan — "Cari Kelompok" mencarinya lewat itu.
+        self.fields["jurusan"].required = True
 
 
 # ---------------------------------------------------------------------------

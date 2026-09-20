@@ -16,34 +16,67 @@ JURUSAN_CHOICES = [
 ]
 
 
-class MabaProfile(models.Model):
-    """Data tambahan untuk user hasil login SSO UI (PRD 7 - Authentication).
+class MahasiswaProfile(models.Model):
+    """Profil tunggal setiap mahasiswa di program mentoring (PRD 7 - Authentication).
 
-    Dibuat 1-1 dengan auth.User. `npm` dipakai sebagai username saat login.
-    Lihat siwak/sso.py untuk catatan integrasi SSO UI yang sesungguhnya.
+    Satu baris ini menggantikan MabaProfile + PesertaMentoring + Mentor. `role`
+    menentukan perannya di `kelompok`: mentee berarti dia peserta kelompok itu,
+    mentor berarti dia yang memegangnya.
+
+    Dibuat 1-1 dengan auth.User. Barisnya boleh disiapkan pengelola lebih dulu
+    hanya dengan NPM (`user` masih kosong); saat orangnya login lewat SSO UI,
+    baris itu diklaim (lihat siwak/sso.py) dan `role`/`kelompok`-nya tidak berubah.
     """
+
+    ROLE_MENTEE = "mentee"
+    ROLE_MENTOR = "mentor"
+    ROLE_CHOICES = [
+        (ROLE_MENTEE, "Mentee"),
+        (ROLE_MENTOR, "Mentor"),
+    ]
 
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name="maba_profile",
+        related_name="mahasiswa_profile",
         null=True,
         blank=True,
         verbose_name="Akun login",
-        help_text="Terisi otomatis saat maba login lewat SSO UI. Boleh kosong.",
+        help_text="Terisi otomatis saat orangnya login lewat SSO UI. Boleh kosong.",
     )
     npm = models.CharField(max_length=20, unique=True, verbose_name="NPM")
     nama_lengkap = models.CharField(max_length=200, verbose_name="Nama Lengkap")
-    jurusan = models.CharField(max_length=10, choices=JURUSAN_CHOICES, verbose_name="Jurusan")
+    # blank=True: mentor yang disiapkan pengelola sebelum login belum punya jurusan;
+    # SSO yang mengisinya nanti.
+    jurusan = models.CharField(
+        max_length=10, choices=JURUSAN_CHOICES, blank=True, verbose_name="Jurusan"
+    )
     angkatan = models.CharField(max_length=4, blank=True, verbose_name="Angkatan")
+    role = models.CharField(
+        max_length=10, choices=ROLE_CHOICES, default=ROLE_MENTEE, verbose_name="Peran"
+    )
+    kelompok = models.ForeignKey(
+        "KelompokMentoring",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="anggota",
+        verbose_name="Kelompok",
+        help_text="Mentee: kelompok tempat dia jadi peserta. Mentor: kelompok yang dia pegang.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        verbose_name = "Profil Maba"
-        verbose_name_plural = "Profil Maba"
+        verbose_name = "Profil Mahasiswa"
+        verbose_name_plural = "Profil Mahasiswa"
+        ordering = ["nama_lengkap"]
 
     def __str__(self):
         return f"{self.nama_lengkap} ({self.npm})"
+
+    @property
+    def is_mentor(self):
+        return self.role == self.ROLE_MENTOR
 
 
 class SiwakInfo(models.Model):
@@ -141,49 +174,6 @@ class TimelineEvent(models.Model):
         return {"upcoming": "Upcoming", "ongoing": "Ongoing", "completed": "Completed"}[self.status]
 
 
-class Mentor(models.Model):
-    """Satu mentor memegang paling banyak satu kelompok.
-
-    Relasinya sengaja dipasang sebagai ForeignKey di sisi Mentor, bukan
-    ManyToMany di sisi kelompok: aturan "satu mentor satu kelompok" jadi
-    dijaga basis data, bukan hanya oleh tampilan panel. Satu kelompok tetap
-    boleh dipegang lebih dari satu mentor lewat `kelompok.mentor_list`.
-    """
-
-    nama = models.CharField(max_length=200)
-    npm = models.CharField(
-        max_length=20,
-        unique=True,
-        null=True,
-        blank=True,
-        verbose_name="NPM",
-        help_text="Dipakai untuk menghubungkan data mentor dengan akun SSO UI.",
-    )
-    user = models.OneToOneField(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="mentor_profile",
-    )
-    kelompok = models.ForeignKey(
-        "KelompokMentoring",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="mentor_list",
-        verbose_name="Kelompok",
-        help_text="Satu mentor hanya boleh memegang satu kelompok. Boleh dikosongkan.",
-    )
-
-    class Meta:
-        verbose_name = "Mentor"
-        ordering = ["nama"]
-
-    def __str__(self):
-        return self.nama
-
-
 class KelompokMentoring(models.Model):
     """Kelompok mentoring + link grup WhatsApp (PRD 4.3)."""
 
@@ -200,6 +190,18 @@ class KelompokMentoring(models.Model):
 
     def __str__(self):
         return self.nama_kelompok
+
+    # Sengaja bukan `mentor_list` / `peserta_list`: itu dulu relasi ORM sungguhan,
+    # jadi memakai nama yang sama untuk property akan mengundang
+    # `Count("peserta_list")` yang lolos import tapi pecah saat query.
+    @property
+    def daftar_mentor(self):
+        return self.anggota.filter(role=MahasiswaProfile.ROLE_MENTOR)
+
+    @property
+    def daftar_mentee(self):
+        return self.anggota.filter(role=MahasiswaProfile.ROLE_MENTEE)
+
 
 class MentoringSession(models.Model):
     SESSION_CHOICES = [(number, f"Sesi {number}") for number in range(1, 5)]
@@ -247,56 +249,6 @@ class MentoringSession(models.Model):
         return f"{self.kelompok} - {self.judul}"
 
 
-class PesertaMentoring(models.Model):
-    """Penempatan satu maba di satu kelompok mentoring (PRD 4.3).
-
-    Baris ini sengaja tidak lagi menyimpan nama, NPM, atau jurusan: semuanya
-    sudah ada di MabaProfile. Yang disimpan di sini hanya relasinya — maba ini
-    masuk kelompok yang mana — sehingga memindahkan peserta antar kelompok
-    tidak pernah menggandakan atau membuat identitasnya jadi tidak sinkron.
-    """
-
-    maba = models.OneToOneField(
-        MabaProfile,
-        on_delete=models.CASCADE,
-        related_name="peserta",
-        verbose_name="Maba",
-    )
-    kelompok = models.ForeignKey(
-        KelompokMentoring, on_delete=models.SET_NULL, null=True, blank=True,
-        related_name="peserta_list", verbose_name="Kelompok",
-    )
-
-    class Meta:
-        verbose_name = "Peserta Mentoring"
-        verbose_name_plural = "Peserta Mentoring"
-        ordering = ["maba__nama_lengkap"]
-
-    def __str__(self):
-        return f"{self.maba.nama_lengkap} - {self.maba.jurusan}"
-
-    # Alias baca-saja supaya template & kode lama yang menulis `peserta.nama_lengkap`
-    # tetap jalan tanpa harus tahu identitasnya kini tinggal di MabaProfile.
-    @property
-    def nama_lengkap(self):
-        return self.maba.nama_lengkap
-
-    @property
-    def npm(self):
-        return self.maba.npm
-
-    @property
-    def jurusan(self):
-        return self.maba.jurusan
-
-    @property
-    def user(self):
-        return self.maba.user
-
-    def get_jurusan_display(self):
-        return self.maba.get_jurusan_display()
-
-
 class MentoringAttendance(models.Model):
     STATUS_HADIR = "hadir"
     STATUS_TIDAK_HADIR = "tidak_hadir"
@@ -313,17 +265,18 @@ class MentoringAttendance(models.Model):
         related_name="attendance_records",
     )
     peserta = models.ForeignKey(
-        PesertaMentoring,
+        MahasiswaProfile,
         on_delete=models.CASCADE,
         related_name="mentoring_attendance",
     )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES)
     catatan = models.CharField(max_length=300, blank=True)
     recorded_by = models.ForeignKey(
-        Mentor,
+        MahasiswaProfile,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
+        limit_choices_to={"role": MahasiswaProfile.ROLE_MENTOR},
         related_name="recorded_attendance",
     )
     created_at = models.DateTimeField(auto_now_add=True)
@@ -359,7 +312,7 @@ class AssessmentAspect(models.Model):
 
 class MenteeAssessment(models.Model):
     peserta = models.ForeignKey(
-        PesertaMentoring,
+        MahasiswaProfile,
         on_delete=models.CASCADE,
         related_name="assessments",
     )
@@ -374,10 +327,11 @@ class MenteeAssessment(models.Model):
     )
     catatan = models.TextField(blank=True, verbose_name="Catatan Mentor")
     assessed_by = models.ForeignKey(
-        Mentor,
+        MahasiswaProfile,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
+        limit_choices_to={"role": MahasiswaProfile.ROLE_MENTOR},
         related_name="mentee_assessments",
     )
     created_at = models.DateTimeField(auto_now_add=True)
@@ -404,14 +358,15 @@ class MentorFeedback(models.Model):
         related_name="mentee_feedback",
     )
     peserta = models.ForeignKey(
-        PesertaMentoring,
+        MahasiswaProfile,
         on_delete=models.CASCADE,
         related_name="mentor_feedback",
     )
     mentor = models.ForeignKey(
-        Mentor,
+        MahasiswaProfile,
         on_delete=models.SET_NULL,
         null=True,
+        limit_choices_to={"role": MahasiswaProfile.ROLE_MENTOR},
         related_name="feedback_entries",
     )
     isi = models.TextField(verbose_name="Feedback")
@@ -619,9 +574,10 @@ class AssignmentReview(models.Model):
     )
     feedback = models.TextField(blank=True)
     reviewer = models.ForeignKey(
-        Mentor,
+        MahasiswaProfile,
         on_delete=models.SET_NULL,
         null=True,
+        limit_choices_to={"role": MahasiswaProfile.ROLE_MENTOR},
         related_name="assignment_reviews",
     )
     created_at = models.DateTimeField(auto_now_add=True)
@@ -649,9 +605,10 @@ class AssignmentReviewHistory(models.Model):
     )
     feedback = models.TextField(blank=True)
     reviewer = models.ForeignKey(
-        Mentor,
+        MahasiswaProfile,
         on_delete=models.SET_NULL,
         null=True,
+        limit_choices_to={"role": MahasiswaProfile.ROLE_MENTOR},
         related_name="assignment_review_history",
     )
     created_at = models.DateTimeField(auto_now_add=True)

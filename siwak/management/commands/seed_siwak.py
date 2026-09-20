@@ -8,11 +8,9 @@ from siwak.models import (
     FAQMentoring,
     KelompokMentoring,
     KetuaSiwak,
-    MabaProfile,
+    MahasiswaProfile,
     MentoringBenefit,
     MentoringTujuan,
-    Mentor,
-    PesertaMentoring,
     SistemMentoring,
     SiwakEvent,
     SiwakInfo,
@@ -125,21 +123,38 @@ class Command(BaseCommand):
             defaults={"jawaban": "Gunakan menu 'Cari Kelompok' atau hubungi CP Fakultas yang tertera.", "urutan": 1},
         )
 
-        mentor1, _ = Mentor.objects.get_or_create(nama="Kak Ahmad")
-        mentor2, _ = Mentor.objects.get_or_create(nama="Kak Fatimah")
         kelompok1, _ = KelompokMentoring.objects.get_or_create(
             nama_kelompok="Kelompok 1",
             defaults={"link_grup": "https://chat.whatsapp.com/contoh-link-kelompok-1"},
         )
-        kelompok1.mentor_list.set([mentor1, mentor2])
 
-        maba, _ = MabaProfile.objects.update_or_create(
+        # Mentor dan mentee sama-sama MahasiswaProfile; bedanya hanya `role`.
+        # Mentor diberi NPM supaya baris ini tersambung ke akunnya begitu login
+        # SSO (NPM contoh ini fiktif — ganti dengan NPM asli saat QA dengan akun sungguhan).
+        for npm, nama, jurusan in (
+            ("2206000001", "Kak Ahmad", "IK"),
+            ("2206000002", "Kak Fatimah", "SI"),
+        ):
+            MahasiswaProfile.objects.update_or_create(
+                npm=npm,
+                defaults={
+                    "nama_lengkap": nama,
+                    "jurusan": jurusan,
+                    "angkatan": "2022",
+                    "role": MahasiswaProfile.ROLE_MENTOR,
+                    "kelompok": kelompok1,
+                },
+            )
+
+        MahasiswaProfile.objects.update_or_create(
             npm="2506000001",
-            defaults={"nama_lengkap": "Marwa Muhlashon", "jurusan": "SI", "angkatan": "2025"},
-        )
-        PesertaMentoring.objects.update_or_create(
-            maba=maba,
-            defaults={"kelompok": kelompok1},
+            defaults={
+                "nama_lengkap": "Marwa Muhlashon",
+                "jurusan": "SI",
+                "angkatan": "2025",
+                "role": MahasiswaProfile.ROLE_MENTEE,
+                "kelompok": kelompok1,
+            },
         )
 
         Tugas.objects.update_or_create(

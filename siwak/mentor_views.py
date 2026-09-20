@@ -2,10 +2,12 @@ from pathlib import Path
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
 from django.db.models import Count, Prefetch, Q
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils.http import urlencode
 
 from .mentor_forms import (
     AssignmentReviewForm,
@@ -17,20 +19,27 @@ from .models import (
     AssignmentReviewHistory,
     AssessmentAspect,
     KelompokMentoring,
+    MahasiswaProfile,
     MentoringAttendance,
     MentorFeedback,
-    PesertaMentoring,
     Tugas,
     TugasSubmission,
 )
-from .services.mentor import require_mentor, save_assessments, save_session_record
+from .services.mentor import (
+    mentor_for_user,
+    require_mentor,
+    save_assessments,
+    save_assignment_review,
+    save_attendance_row,
+    save_session_record,
+)
+
+PER_HALAMAN = 20
 
 
 def _mentor_group_or_404(mentor, group_id):
-    return get_object_or_404(
-        KelompokMentoring.objects.filter(mentor_list=mentor).distinct(),
-        pk=group_id,
-    )
+    # `anggota=mentor`: kelompok ini hanya boleh dibuka oleh mentor yang memegangnya.
+    return get_object_or_404(KelompokMentoring, pk=group_id, anggota=mentor)
 
 
 @login_required
@@ -43,7 +52,7 @@ def mentor_dashboard(request):
 
     if group:
         participants = list(
-            group.peserta_list.select_related("maba", "maba__user")
+            group.daftar_mentee.select_related("user")
             .annotate(
                 assessment_count=Count("assessments", distinct=True),
                 attendance_count=Count("mentoring_attendance", distinct=True),
@@ -53,12 +62,12 @@ def mentor_dashboard(request):
                     distinct=True,
                 ),
             )
-            .order_by("maba__nama_lengkap")
+            .order_by("nama_lengkap")
         )
         user_ids = [
-            participant.maba.user_id
+            participant.user_id
             for participant in participants
-            if participant.maba.user_id
+            if participant.user_id
         ]
         active_tasks = list(Tugas.objects.filter(is_active=True))
         task_count = len(active_tasks)
@@ -73,7 +82,7 @@ def mentor_dashboard(request):
         aspect_count = AssessmentAspect.objects.filter(is_active=True).count()
         session_count = group.mentoring_sessions.filter(is_active=True).count()
         for participant in participants:
-            participant_submissions = submissions_by_user.get(participant.maba.user_id, [])
+            participant_submissions = submissions_by_user.get(participant.user_id, [])
             submitted_count = len(participant_submissions)
             mentee_cards.append(
                 {
@@ -107,9 +116,10 @@ def mentee_detail(request, participant_id):
         raise Http404
     group = mentor.kelompok
     participant = get_object_or_404(
-        PesertaMentoring.objects.select_related("maba", "maba__user"),
+        MahasiswaProfile.objects.select_related("user"),
         pk=participant_id,
         kelompok=group,
+        role=MahasiswaProfile.ROLE_MENTEE,
     )
 
     action = request.POST.get("action") if request.method == "POST" else None
@@ -169,15 +179,8 @@ def mentee_detail(request, participant_id):
             prefix=f"assignment_{assignment_target.pk}",
         )
         if assignment_target_form.is_valid():
-            review = assignment_target_form.save(commit=False)
-            review.submission = assignment_target
-            review.reviewer = mentor
-            review.save()
-            AssignmentReviewHistory.objects.create(
-                submission=assignment_target,
-                score=review.score,
-                feedback=review.feedback,
-                reviewer=mentor,
+            save_assignment_review(
+                form=assignment_target_form, submission=assignment_target, mentor=mentor
             )
             messages.success(request, "Nilai dan feedback assignment berhasil disimpan.")
             return redirect(
@@ -191,7 +194,7 @@ def mentee_detail(request, participant_id):
             queryset=TugasSubmission.objects.filter(user=participant.user).select_related(
                 "mentor_review__reviewer"
             )
-            if participant.maba.user_id
+            if participant.user_id
             else TugasSubmission.objects.none(),
             to_attr="participant_submissions",
         )
@@ -322,14 +325,12 @@ def assignments(request, group_id):
     mentor = require_mentor(request.user)
     group = _mentor_group_or_404(mentor, group_id)
     participants = list(
-        group.peserta_list.select_related("maba", "maba__user").order_by(
-            "maba__nama_lengkap"
-        )
+        group.daftar_mentee.select_related("user").order_by("nama_lengkap")
     )
     user_ids = [
-        participant.maba.user_id
+        participant.user_id
         for participant in participants
-        if participant.maba.user_id
+        if participant.user_id
     ]
     tasks = Tugas.objects.all().prefetch_related(
         Prefetch(
@@ -350,7 +351,7 @@ def assignments(request, group_id):
         participant_tasks = []
         for task in tasks:
             submission = submissions_by_task_and_user.get(
-                (task.pk, participant.maba.user_id)
+                (task.pk, participant.user_id)
             )
             participant_tasks.append(
                 {
@@ -376,8 +377,7 @@ def assignments(request, group_id):
 
 @login_required
 def mentee_feedback_history(request):
-    participants = PesertaMentoring.objects.filter(maba__user=request.user)
-    feedback_entries = MentorFeedback.objects.filter(peserta__in=participants).select_related(
+    feedback_entries = MentorFeedback.objects.filter(peserta__user=request.user).select_related(
         "session", "mentor", "peserta"
     )
     assignment_review_history = AssignmentReviewHistory.objects.filter(
@@ -400,12 +400,17 @@ def submission_download(request, submission_id):
         pk=submission_id,
     )
     is_owner = submission.user_id == request.user.id
-    mentor = getattr(request.user, "mentor_profile", None)
+    mentor = mentor_for_user(request.user)
+    # `mentor.kelompok_id` wajib dicek: mentor tanpa kelompok akan menghasilkan
+    # `kelompok_id=None`, yang di ORM berarti IS NULL dan cocok dengan SEMUA
+    # mentee yang belum punya kelompok.
     is_responsible_mentor = bool(
         mentor
-        and PesertaMentoring.objects.filter(
-            maba__user=submission.user,
-            kelompok__mentor_list=mentor,
+        and mentor.kelompok_id
+        and MahasiswaProfile.objects.filter(
+            user=submission.user,
+            role=MahasiswaProfile.ROLE_MENTEE,
+            kelompok_id=mentor.kelompok_id,
         ).exists()
     )
     if not (is_owner or is_responsible_mentor or request.user.is_staff):
@@ -417,4 +422,282 @@ def submission_download(request, submission_id):
         submission.file.open("rb"),
         as_attachment=True,
         filename=Path(submission.file.name).name,
+    )
+
+
+# --- Halaman rekap mentor: presensi, nilai mentee, penilaian tugas ---------
+#
+# Ketiganya berbentuk satu <form> besar berisi banyak baris. Baris yang tidak
+# disentuh (`has_changed()` False) dilewati; kalau ada baris yang tidak valid,
+# tidak ada yang disimpan (all-or-nothing) supaya mentor melihat semua galatnya
+# sekaligus tanpa kehilangan isian.
+
+
+def _rekap_context(request):
+    """Mentor + kelompok aktifnya, atau group=None kalau belum punya kelompok aktif."""
+    mentor = require_mentor(request.user)
+    group = mentor.kelompok if mentor.kelompok_id and mentor.kelompok.is_active else None
+    return mentor, group
+
+
+def _matches(query, *texts):
+    return not query or any(query in (text or "").lower() for text in texts)
+
+
+def _paginate(request, rows):
+    halaman = Paginator(rows, PER_HALAMAN).get_page(request.GET.get("page"))
+    kueri = urlencode({k: v for k, v in request.GET.items() if k != "page" and v})
+    return halaman, kueri
+
+
+def _rekap_selesai(request, error_count):
+    """Balasan sesudah POST: pesan galat (None), atau PRG ke halaman yang sama."""
+    if error_count:
+        messages.error(
+            request,
+            f"{error_count} baris belum valid. Perbaiki isian yang ditandai lalu simpan lagi.",
+        )
+        return None
+    messages.success(request, "Perubahan berhasil disimpan.")
+    return redirect(request.get_full_path())
+
+
+@login_required
+def mentor_attendance(request):
+    mentor, group = _rekap_context(request)
+    if group is None:
+        return render(request, "siwak/mentor/attendance.html", {"mentor": mentor, "group": None})
+
+    query = request.GET.get("q", "").strip()
+    sesi_filter = request.GET.get("sesi", "")
+    participants = list(group.daftar_mentee.order_by("nama_lengkap"))
+    sessions = list(group.mentoring_sessions.order_by("nomor"))
+
+    attendance = {
+        (a.session_id, a.peserta_id): a
+        for a in MentoringAttendance.objects.filter(session__in=sessions, peserta__in=participants)
+    }
+    # Feedback terbaru milik mentor ini per (sesi, mentee); itulah yang disunting.
+    feedback = {}
+    for entry in MentorFeedback.objects.filter(
+        session__in=sessions, peserta__in=participants, mentor=mentor
+    ).order_by("-created_at"):
+        feedback.setdefault((entry.session_id, entry.peserta_id), entry)
+
+    rows = []
+    for session in sessions:
+        if sesi_filter and str(session.nomor) != sesi_filter:
+            continue
+        for participant in participants:
+            if not _matches(query.lower(), participant.nama_lengkap, participant.npm, session.judul):
+                continue
+            rows.append({"session": session, "participant": participant})
+
+    halaman, kueri = _paginate(request, rows)
+    posting = request.method == "POST"
+    error_count = 0
+    valid = []
+    for row in halaman.object_list:
+        session, participant = row["session"], row["participant"]
+        row["attendance"] = attendance.get((session.pk, participant.pk))
+        row["feedback_entry"] = feedback.get((session.pk, participant.pk))
+        # Sesi yang belum diaktifkan pengurus hanya dibaca (aturan yang sama
+        # dengan halaman detail mentee).
+        row["form"] = None
+        if session.is_active:
+            row["form"] = MenteeSessionForm(
+                request.POST if posting else None,
+                existing_attendance=row["attendance"],
+                existing_feedback=row["feedback_entry"],
+                prefix=f"s{session.pk}m{participant.pk}",
+            )
+            if posting and row["form"].has_changed():
+                if row["form"].is_valid():
+                    valid.append(row)
+                else:
+                    error_count += 1
+
+    if posting:
+        if not error_count:
+            for row in valid:
+                save_attendance_row(
+                    form=row["form"],
+                    participant=row["participant"],
+                    session=row["session"],
+                    mentor=mentor,
+                    feedback_entry=row["feedback_entry"],
+                )
+        response = _rekap_selesai(request, error_count)
+        if response:
+            return response
+
+    return render(
+        request,
+        "siwak/mentor/attendance.html",
+        {
+            "mentor": mentor,
+            "group": group,
+            "halaman": halaman,
+            "kueri": kueri,
+            "q": query,
+            "sesi": sesi_filter,
+            "session_choices": sessions,
+            "total_rows": len(rows),
+            "editable_count": sum(1 for row in halaman.object_list if row["form"]),
+        },
+    )
+
+
+@login_required
+def mentor_assessments(request):
+    mentor, group = _rekap_context(request)
+    if group is None:
+        return render(request, "siwak/mentor/assessments.html", {"mentor": mentor, "group": None})
+
+    query = request.GET.get("q", "").strip()
+    # Aspek diambil dari database, sama seperti di halaman detail mentee.
+    aspects = list(AssessmentAspect.objects.filter(is_active=True))
+    participants = [
+        participant
+        for participant in group.daftar_mentee.order_by("nama_lengkap")
+        if _matches(query.lower(), participant.nama_lengkap, participant.npm)
+    ]
+
+    halaman, kueri = _paginate(request, participants)
+    posting = request.method == "POST"
+    error_count = 0
+    valid = []
+    rows = []
+    for participant in halaman.object_list:
+        form = MenteeAssessmentForm(
+            request.POST if posting else None,
+            participant=participant,
+            aspects=aspects,
+            prefix=f"m{participant.pk}",
+        )
+        if posting and form.has_changed():
+            if form.is_valid():
+                valid.append((participant, form))
+            else:
+                error_count += 1
+        rows.append(
+            {
+                "participant": participant,
+                "form": form,
+                "cells": [
+                    {
+                        "aspect": aspect,
+                        "score_field": form[f"score_{aspect.pk}"],
+                        "note_field": form[f"catatan_{aspect.pk}"],
+                    }
+                    for aspect in aspects
+                ],
+            }
+        )
+
+    if posting:
+        if not error_count:
+            for participant, form in valid:
+                save_assessments(form=form, participant=participant, mentor=mentor)
+        response = _rekap_selesai(request, error_count)
+        if response:
+            return response
+
+    return render(
+        request,
+        "siwak/mentor/assessments.html",
+        {
+            "mentor": mentor,
+            "group": group,
+            "halaman": halaman,
+            "kueri": kueri,
+            "q": query,
+            "aspects": aspects,
+            "rows": rows,
+        },
+    )
+
+
+@login_required
+def mentor_task_reviews(request):
+    mentor, group = _rekap_context(request)
+    if group is None:
+        return render(request, "siwak/mentor/task_reviews.html", {"mentor": mentor, "group": None})
+
+    query = request.GET.get("q", "").strip()
+    tugas_filter = request.GET.get("tugas", "")
+    status_filter = request.GET.get("status", "")
+    participants = {
+        participant.user_id: participant
+        for participant in group.daftar_mentee.filter(user__isnull=False)
+    }
+    tasks = list(Tugas.objects.filter(is_active=True))
+
+    submissions = TugasSubmission.objects.filter(
+        user_id__in=participants.keys(), tugas__in=tasks
+    ).select_related("tugas", "user", "mentor_review__reviewer")
+    if tugas_filter.isdigit():
+        submissions = submissions.filter(tugas_id=int(tugas_filter))
+    if status_filter == "belum":
+        submissions = submissions.filter(mentor_review__isnull=True)
+    elif status_filter == "sudah":
+        submissions = submissions.filter(mentor_review__isnull=False)
+
+    rows = []
+    for submission in submissions:
+        participant = participants[submission.user_id]
+        if _matches(
+            query.lower(), participant.nama_lengkap, participant.npm, submission.tugas.judul_tugas
+        ):
+            rows.append({"submission": submission, "participant": participant})
+    rows.sort(
+        key=lambda row: (
+            row["submission"].tugas.deadline,
+            row["submission"].tugas_id,
+            row["participant"].nama_lengkap,
+        )
+    )
+
+    halaman, kueri = _paginate(request, rows)
+    posting = request.method == "POST"
+    error_count = 0
+    valid = []
+    for row in halaman.object_list:
+        submission = row["submission"]
+        row["review"] = getattr(submission, "mentor_review", None)
+        row["form"] = AssignmentReviewForm(
+            request.POST if posting else None,
+            instance=row["review"],
+            prefix=f"t{submission.pk}",
+        )
+        if posting and row["form"].has_changed():
+            if row["form"].is_valid():
+                valid.append(row)
+            else:
+                error_count += 1
+
+    if posting:
+        if not error_count:
+            for row in valid:
+                save_assignment_review(
+                    form=row["form"], submission=row["submission"], mentor=mentor
+                )
+        response = _rekap_selesai(request, error_count)
+        if response:
+            return response
+
+    return render(
+        request,
+        "siwak/mentor/task_reviews.html",
+        {
+            "mentor": mentor,
+            "group": group,
+            "halaman": halaman,
+            "kueri": kueri,
+            "q": query,
+            "tugas": tugas_filter,
+            "status": status_filter,
+            "task_choices": tasks,
+            "total_rows": len(rows),
+        },
     )

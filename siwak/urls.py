@@ -40,6 +40,9 @@ urlpatterns = [
         mentor_views.assignments,
         name="mentor_assignments",
     ),
+    path("mentor/presensi/", mentor_views.mentor_attendance, name="mentor_attendance"),
+    path("mentor/nilai-mentee/", mentor_views.mentor_assessments, name="mentor_assessments"),
+    path("mentor/penilaian-tugas/", mentor_views.mentor_task_reviews, name="mentor_task_reviews"),
     # 5.2 / 6 — RSVP & QR
     path("rsvp/<int:id>/", views.rsvp_event, name="rsvp"),
     path("qr/<str:signed>/", views.qr_verify, name="qr_verify"),
@@ -52,6 +55,7 @@ urlpatterns = [
     path("admin/acara/<int:pk>/rsvp/csv/", panel_views.panel_rsvp_csv, name="panel_rsvp_csv"),
     path("admin/acara/<int:pk>/rsvp/buka-tutup/", panel_views.panel_rsvp_toggle, name="panel_rsvp_toggle"),
     path("admin/rsvp/<int:pk>/status/", panel_views.panel_rsvp_status, name="panel_rsvp_status"),
+    path("admin/rsvp/<int:pk>/hapus/", panel_views.panel_rsvp_hapus, name="panel_rsvp_hapus"),
     path("admin/data/<slug:slug>/", panel_views.panel_daftar, name="panel_daftar"),
     path("admin/data/<slug:slug>/tambah/", panel_views.panel_tambah, name="panel_tambah"),
     path("admin/data/<slug:slug>/<int:pk>/ubah/", panel_views.panel_ubah, name="panel_ubah"),
@@ -72,7 +76,6 @@ urlpatterns = [
     path("admin/tugas/<int:pk>/jawaban/csv/", panel_views.panel_jawaban_csv, name="panel_jawaban_csv"),
 
     # Penyunting relasi yang dipanggil dropdown di halaman daftar
+    # `pk` adalah MahasiswaProfile — dipakai baik untuk mentee maupun mentor.
     path("admin/peserta/<int:pk>/kelompok/", panel_views.panel_set_kelompok, name="panel_set_kelompok"),
-    path("admin/penugasan-mentor/", panel_views.panel_set_mentor, name="panel_set_mentor"),
-    path("admin/mentor/<int:pk>/kelompok/", panel_views.panel_set_mentor_kelompok, name="panel_set_mentor_kelompok"),
 ]

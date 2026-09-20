@@ -13,17 +13,15 @@ from .models import (
     AssignmentReviewHistory,
     AssessmentAspect,
     KelompokMentoring,
-    MabaProfile,
+    MahasiswaProfile,
     MenteeAssessment,
     MentoringAttendance,
     MentoringSession,
-    Mentor,
     MentorFeedback,
-    PesertaMentoring,
     Tugas,
     TugasSubmission,
 )
-from .sso import sync_maba_profile
+from .sso import sync_mahasiswa_profile
 
 
 User = get_user_model()
@@ -50,44 +48,41 @@ class MentorFeatureTests(TestCase):
         self.other_mentee_user = User.objects.create_user(username="2500000002")
         self.outsider = User.objects.create_user(username="2500000003")
 
-        self.mentor = Mentor.objects.create(
-            nama="Mentor Utama",
-            npm="2100000001",
-            user=self.mentor_user,
-        )
-        self.other_mentor = Mentor.objects.create(
-            nama="Mentor Lain",
-            npm="2100000002",
-            user=self.other_mentor_user,
-        )
-
         self.group = KelompokMentoring.objects.create(nama_kelompok="Kelompok A")
         self.other_group = KelompokMentoring.objects.create(nama_kelompok="Kelompok B")
-        self.mentor.kelompok = self.group
-        self.mentor.save(update_fields=["kelompok"])
-        self.other_mentor.kelompok = self.other_group
-        self.other_mentor.save(update_fields=["kelompok"])
 
-        self.mentee_profile = MabaProfile.objects.create(
+        # Mentor dan mentee sama-sama MahasiswaProfile; bedanya `role`.
+        self.mentor = MahasiswaProfile.objects.create(
+            user=self.mentor_user,
+            nama_lengkap="Mentor Utama",
+            npm="2100000001",
+            jurusan="IK",
+            role=MahasiswaProfile.ROLE_MENTOR,
+            kelompok=self.group,
+        )
+        self.other_mentor = MahasiswaProfile.objects.create(
+            user=self.other_mentor_user,
+            nama_lengkap="Mentor Lain",
+            npm="2100000002",
+            jurusan="IK",
+            role=MahasiswaProfile.ROLE_MENTOR,
+            kelompok=self.other_group,
+        )
+
+        self.participant = MahasiswaProfile.objects.create(
             user=self.mentee_user,
             nama_lengkap="Mentee A",
             npm="2500000001",
             jurusan="IK",
             angkatan="2025",
+            kelompok=self.group,
         )
-        self.other_mentee_profile = MabaProfile.objects.create(
+        self.other_participant = MahasiswaProfile.objects.create(
             user=self.other_mentee_user,
             nama_lengkap="Mentee B",
             npm="2500000002",
             jurusan="SI",
             angkatan="2025",
-        )
-        self.participant = PesertaMentoring.objects.create(
-            maba=self.mentee_profile,
-            kelompok=self.group,
-        )
-        self.other_participant = PesertaMentoring.objects.create(
-            maba=self.other_mentee_profile,
             kelompok=self.other_group,
         )
         self.session = self.group.mentoring_sessions.get(nomor=1)
@@ -427,11 +422,18 @@ class MentorFeatureTests(TestCase):
         response = self.client.get(reverse("siwak:mentee_feedback_history"))
         self.assertNotContains(response, "Perkembangan sangat baik.")
 
-    def test_seeded_mentor_is_linked_on_matching_sso_profile_sync(self):
+    def test_prepared_mentor_profile_is_claimed_by_sso_login_and_stays_mentor(self):
+        """Pengelola menyiapkan baris mentor hanya dengan NPM; login pertama
+        menyambungkan akunnya tanpa mengubah role maupun kelompoknya."""
+        prepared = MahasiswaProfile.objects.create(
+            nama_lengkap="Mentor Seed",
+            npm="2100000009",
+            role=MahasiswaProfile.ROLE_MENTOR,
+            kelompok=self.group,
+        )
         unlinked_user = User.objects.create_user(username="2100000009")
-        unlinked_mentor = Mentor.objects.create(nama="Mentor Seed", npm="2100000009")
 
-        sync_maba_profile(
+        profile = sync_mahasiswa_profile(
             user=unlinked_user,
             npm="2100000009",
             nama_lengkap="Mentor Seed",
@@ -439,5 +441,115 @@ class MentorFeatureTests(TestCase):
             angkatan="2021",
         )
 
-        unlinked_mentor.refresh_from_db()
-        self.assertEqual(unlinked_mentor.user, unlinked_user)
+        prepared.refresh_from_db()
+        self.assertEqual(profile.pk, prepared.pk)
+        self.assertEqual(prepared.user, unlinked_user)
+        self.assertEqual(prepared.role, MahasiswaProfile.ROLE_MENTOR)
+        self.assertEqual(prepared.kelompok, self.group)
+
+        self.client.force_login(unlinked_user)
+        self.assertEqual(self.client.get(reverse("siwak:mentor_dashboard")).status_code, 200)
+
+    def test_relogin_does_not_demote_mentor_or_move_their_group(self):
+        sync_mahasiswa_profile(
+            user=self.mentor_user,
+            npm="2100000001",
+            nama_lengkap="Mentor Utama",
+            jurusan="IK",
+            angkatan="2021",
+        )
+
+        self.mentor.refresh_from_db()
+        self.assertEqual(self.mentor.role, MahasiswaProfile.ROLE_MENTOR)
+        self.assertEqual(self.mentor.kelompok, self.group)
+
+    def test_mentor_without_a_group_cannot_download_ungrouped_mentees_files(self):
+        """Regresi: `kelompok_id=None` di ORM berarti IS NULL, jadi mentor tanpa
+        kelompok dulu bisa mencocokkan SEMUA mentee yang belum berkelompok."""
+        ungrouped_user = User.objects.create_user(username="2500000009")
+        MahasiswaProfile.objects.create(
+            user=ungrouped_user,
+            nama_lengkap="Mentee Tanpa Kelompok",
+            npm="2500000009",
+            jurusan="IK",
+        )
+        ungrouped_submission = TugasSubmission.objects.create(
+            tugas=self.task,
+            user=ungrouped_user,
+            file=SimpleUploadedFile("rahasia.pdf", b"secret", content_type="application/pdf"),
+        )
+        self.mentor.kelompok = None
+        self.mentor.save(update_fields=["kelompok"])
+
+        self.client.force_login(self.mentor_user)
+        response = self.client.get(
+            reverse("siwak:submission_download", kwargs={"submission_id": ungrouped_submission.pk})
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_mentor_of_another_group_cannot_download_submission(self):
+        url = reverse("siwak:submission_download", kwargs={"submission_id": self.submission.pk})
+
+        self.client.force_login(self.other_mentor_user)
+
+        self.assertEqual(self.client.get(url).status_code, 404)
+
+    def test_mentee_detail_rejects_a_mentor_profile_in_the_same_group(self):
+        colleague = MahasiswaProfile.objects.create(
+            nama_lengkap="Mentor Rekan",
+            npm="2100000003",
+            role=MahasiswaProfile.ROLE_MENTOR,
+            kelompok=self.group,
+        )
+        self.client.force_login(self.mentor_user)
+
+        response = self.client.get(
+            reverse("siwak:mentor_mentee_detail", kwargs={"participant_id": colleague.pk})
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_group_lists_show_mentees_but_not_the_mentors_holding_it(self):
+        self.client.force_login(self.mentor_user)
+
+        response = self.client.get(reverse("siwak:mentor_dashboard"))
+
+        self.assertContains(response, "Mentee A")
+        self.assertNotContains(response, "Mentor Lain")
+
+    def test_navbar_shows_portal_mentor_link_only_for_mentors(self):
+        """Regresi senyap: `user.mentor_profile` yang hilang tidak menimbulkan
+        error, tautannya cuma lenyap dari navbar."""
+        landing = reverse("siwak:landing")
+
+        self.client.force_login(self.mentor_user)
+        self.assertContains(self.client.get(landing), reverse("siwak:mentor_dashboard"))
+
+        self.client.force_login(self.mentee_user)
+        self.assertNotContains(self.client.get(landing), reverse("siwak:mentor_dashboard"))
+
+        self.client.logout()
+        self.assertNotContains(self.client.get(landing), reverse("siwak:mentor_dashboard"))
+
+    def test_mentee_sees_reviewer_name_on_assignment_feedback(self):
+        """Regresi senyap: `reviewer.nama` yang hilang jatuh diam-diam ke kata "Mentor"."""
+        self.client.force_login(self.mentor_user)
+        detail_url = reverse(
+            "siwak:mentor_mentee_detail",
+            kwargs={"participant_id": self.participant.pk},
+        )
+        self.client.post(
+            detail_url,
+            {
+                "action": "assignment_review",
+                "submission_id": self.submission.pk,
+                f"assignment_{self.submission.pk}-score": 90,
+                f"assignment_{self.submission.pk}-feedback": "Mantap.",
+            },
+        )
+
+        self.client.force_login(self.mentee_user)
+        response = self.client.get(reverse("siwak:mentee_feedback_history"))
+
+        self.assertContains(response, "Mentor Utama")

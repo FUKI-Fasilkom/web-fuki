@@ -39,15 +39,19 @@ class MenteeSessionForm(forms.Form):
         ),
     )
 
-    def __init__(self, *args, existing_attendance=None, **kwargs):
+    def __init__(self, *args, existing_attendance=None, existing_feedback=None, **kwargs):
         super().__init__(*args, **kwargs)
-        if existing_attendance and not self.is_bound:
+        # `initial` dipasang juga saat bound supaya `has_changed()` bisa dipakai
+        # halaman rekap untuk hanya menyimpan baris yang benar-benar disunting.
+        if existing_attendance:
             self.initial.update(
                 {
                     "status": existing_attendance.status,
                     "catatan": existing_attendance.catatan,
                 }
             )
+        if existing_feedback:
+            self.initial["feedback"] = existing_feedback.isi
 
 
 class MenteeAssessmentForm(forms.Form):

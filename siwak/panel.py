@@ -10,7 +10,7 @@ hapus langsung ada tanpa menulis view atau template baru.
 from dataclasses import dataclass, field
 from typing import Callable
 
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.db.models.functions import Length
 from django.utils import formats
 
@@ -20,8 +20,7 @@ from .models import (
     GaleriFoto,
     KelompokMentoring,
     KetuaSiwak,
-    MabaProfile,
-    Mentor,
+    MahasiswaProfile,
     MentoringBenefit,
     MentoringSession,
     MentoringTujuan,
@@ -39,8 +38,9 @@ class Kolom:
     `tipe` menentukan cara sel digambar: "teks", "panjang" (dipotong),
     "gambar", "bool" (centang/silang), "tanggal", "tag", "saklar_rsvp"
     (tombol buka/tutup RSVP), "pilih_kelompok" / "pilih_kelompok_mentor"
-    (dropdown kelompok untuk peserta dan untuk mentor), atau "atur_mentor"
-    (keping mentor sebuah kelompok). Lihat templat panel/_sel.html.
+    (dropdown kelompok untuk peserta dan untuk mentor; keduanya menyimpan lewat
+    satu alamat yang sama, bedanya hanya label dan hitungan kapasitas), atau
+    "pilih_aktif". Lihat templat panel/_sel.html.
 
     `urut` diisi kunci pengurutan kalau judul kolomnya boleh diklik untuk
     mengurutkan; kuncinya harus ada di `Sumber.pengurutan`.
@@ -125,10 +125,19 @@ def _rentang_tanggal(tahapan):
     return f"{formats.date_format(mulai, 'j M')} - {formats.date_format(selesai, 'j M Y')}"
 
 
-def _kelompok_peserta(maba):
-    """Id kelompok maba ini, jadi pilihan terpilih di dropdown kolom Kelompok."""
-    peserta = getattr(maba, "peserta", None)
-    return peserta.kelompok_id if peserta else None
+def _nama_mentor(kelompok):
+    """Nama mentor kelompok ini. Dibaca dari `anggota` yang sudah di-prefetch
+    (bukan `kelompok.daftar_mentor`, yang menembak satu query per baris)."""
+    nama = [
+        a.nama_lengkap
+        for a in kelompok.anggota.all()
+        if a.role == MahasiswaProfile.ROLE_MENTOR
+    ]
+    return ", ".join(nama) or "—"
+
+
+def _jumlah_mentee(kelompok):
+    return sum(a.role == MahasiswaProfile.ROLE_MENTEE for a in kelompok.anggota.all())
 
 
 def _saklar_rsvp(acara):
@@ -261,7 +270,7 @@ SUMBER = [
         label="Peserta Mentoring",
         label_jamak="Peserta Mentoring",
         deskripsi="Identitas maba peserta mentoring. Kelompoknya bisa langsung diganti lewat dropdown di kolom Kelompok.",
-        model=MabaProfile,
+        model=MahasiswaProfile,
         form=f.PesertaForm,
         kolom=(
             Kolom("Nama", lambda o: o.nama_lengkap, utama=True, urut="nama"),
@@ -270,16 +279,18 @@ SUMBER = [
             # Dropdown, bukan tulisan: memindahkan peserta adalah pekerjaan yang
             # paling sering dilakukan di halaman ini, jadi tidak masuk akal
             # kalau harus membuka form ubah dulu setiap kali.
-            Kolom("Kelompok", _kelompok_peserta, "pilih_kelompok", urut="kelompok"),
+            Kolom("Kelompok", lambda o: o.kelompok_id, "pilih_kelompok", urut="kelompok"),
             Kolom("Sudah login SSO", lambda o: o.user_id is not None, "bool"),
         ),
         pencarian=("nama_lengkap", "npm"),
         kosong="Belum ada peserta mentoring yang terdaftar.",
-        queryset=lambda: MabaProfile.objects.select_related("peserta__kelompok", "user"),
+        queryset=lambda: MahasiswaProfile.objects.filter(
+            role=MahasiswaProfile.ROLE_MENTEE
+        ).select_related("kelompok", "user"),
         pengurutan={
             "nama": ("nama_lengkap",),
             "npm": ("npm",),
-            "kelompok": _urut_nama_kelompok("peserta__kelompok__") + ("nama_lengkap",),
+            "kelompok": _urut_nama_kelompok("kelompok__") + ("nama_lengkap",),
         },
         urut_awal="nama",
     ),
@@ -288,20 +299,20 @@ SUMBER = [
         bagian="kelompok",
         label="Kelompok Mentoring",
         label_jamak="Kelompok Mentoring",
-        deskripsi="Daftar kelompok beserta link grup WhatsApp-nya. Mentor kelompok bisa langsung ditambah atau dilepas dari daftar ini.",
+        deskripsi="Daftar kelompok beserta link grup WhatsApp-nya. Mentor dan peserta ditempatkan lewat dropdown di daftar Mentor dan daftar Peserta Mentoring.",
         model=KelompokMentoring,
         form=f.KelompokForm,
         kolom=(
             Kolom("Kelompok", lambda o: o.nama_kelompok, utama=True, urut="nama"),
-            Kolom("Mentor", lambda o: list(o.mentor_list.all()), "atur_mentor"),
-            Kolom("Peserta", lambda o: f"{o.peserta_list.count()} / {o.kapasitas}", "tag", urut="peserta"),
+            Kolom("Mentor", _nama_mentor),
+            Kolom("Peserta", lambda o: f"{_jumlah_mentee(o)} / {o.kapasitas}", "tag", urut="peserta"),
             Kolom("Aktif", lambda o: o.is_active, "bool"),
         ),
         pencarian=("nama_kelompok",),
         kosong="Belum ada kelompok mentoring.",
-        queryset=lambda: KelompokMentoring.objects.prefetch_related(
-            "mentor_list", "peserta_list"
-        ).annotate(urut_terisi=Count("peserta_list")),
+        queryset=lambda: KelompokMentoring.objects.prefetch_related("anggota").annotate(
+            urut_terisi=Count("anggota", filter=Q(anggota__role=MahasiswaProfile.ROLE_MENTEE))
+        ),
         pengurutan={
             "nama": _urut_nama_kelompok(),
             # Lewat alias anotasi, bukan Count() langsung: order_by() menolak
@@ -315,20 +326,23 @@ SUMBER = [
         bagian="kelompok",
         label="Mentor",
         label_jamak="Mentor",
-        deskripsi="Daftar nama mentor. Satu mentor memegang satu kelompok, dan kelompoknya bisa langsung diganti lewat dropdown.",
-        model=Mentor,
+        deskripsi="Daftar mentor. Satu mentor memegang satu kelompok, dan kelompoknya bisa langsung diganti lewat dropdown. Mentor yang barisnya disiapkan di sini tersambung ke akunnya begitu login SSO.",
+        model=MahasiswaProfile,
         form=f.MentorForm,
         kolom=(
-            Kolom("Nama", lambda o: o.nama, utama=True, urut="nama"),
-            Kolom("NPM", lambda o: o.npm or "-"),
+            Kolom("Nama", lambda o: o.nama_lengkap, utama=True, urut="nama"),
+            Kolom("NPM", lambda o: o.npm),
             Kolom("Memegang kelompok", lambda o: o.kelompok_id, "pilih_kelompok_mentor", urut="kelompok"),
+            Kolom("Sudah login SSO", lambda o: o.user_id is not None, "bool"),
         ),
-        pencarian=("nama", "npm"),
+        pencarian=("nama_lengkap", "npm"),
         kosong="Belum ada mentor yang terdaftar.",
-        queryset=lambda: Mentor.objects.select_related("kelompok"),
+        queryset=lambda: MahasiswaProfile.objects.filter(
+            role=MahasiswaProfile.ROLE_MENTOR
+        ).select_related("kelompok", "user"),
         pengurutan={
-            "nama": ("nama",),
-            "kelompok": _urut_nama_kelompok("kelompok__") + ("nama",),
+            "nama": ("nama_lengkap",),
+            "kelompok": _urut_nama_kelompok("kelompok__") + ("nama_lengkap",),
         },
         urut_awal="nama",
     ),
@@ -378,7 +392,7 @@ SUMBER = [
         boleh_hapus=False,
         kolom=(
             Kolom("Kelompok", lambda o: o.kelompok.nama_kelompok, utama=True, urut="kelompok"),
-            Kolom("Sesi", lambda o: o.judul),
+            Kolom("Sesi", lambda o: o.judul, urut="sesi"),
             Kolom("Tanggal", lambda o: o.tanggal, "tanggal", urut="tanggal"),
             # Dropdown, bukan penanda: membuka sesi berikutnya untuk semua
             # kelompok adalah pekerjaan paling sering di halaman ini, dan
@@ -392,6 +406,9 @@ SUMBER = [
         queryset=lambda: MentoringSession.objects.select_related("kelompok"),
         pengurutan={
             "kelompok": _urut_nama_kelompok("kelompok__") + ("nomor",),
+            # Dikelompokkan per nomor sesi (semua "Sesi 1" berdampingan), baru
+            # per kelompok di dalamnya.
+            "sesi": ("nomor",) + _urut_nama_kelompok("kelompok__"),
             "tanggal": ("tanggal", "nomor"),
         },
         urut_awal="kelompok",
@@ -410,15 +427,9 @@ SUMBER = [
         kolom=(
             Kolom("Nama", lambda o: o.nama, utama=True, urut="nama"),
             Kolom("Aktif", lambda o: o.is_active, "bool"),
-            Kolom("Dipakai", lambda o: f"{o.jumlah_nilai} penilaian"),
         ),
         kosong="Belum ada aspek penilaian. Mentor belum bisa memberi nilai sampai ada minimal satu.",
-        # order_by ditulis ulang di sini: annotate() dengan agregat membuang
-        # Meta.ordering, jadi tanpa ini daftarnya jatuh ke urutan acak dari
-        # database begitu kolom urutnya tidak lagi dipilih pengguna.
-        queryset=lambda: AssessmentAspect.objects.annotate(
-            jumlah_nilai=Count("mentee_assessments")
-        ).order_by("urutan", "nama"),
+        queryset=lambda: AssessmentAspect.objects.order_by("urutan", "nama"),
         # Tanpa urut_awal: daftarnya mengikuti urutan rubrik di model, sama
         # dengan yang dilihat mentor saat menilai.
         pengurutan={"nama": ("nama",)},
@@ -461,16 +472,11 @@ def sumber_bagian(slug_bagian):
 def daftar_kelompok():
     """Isi dropdown kelompok, lengkap dengan hitungan terisi/kapasitas."""
     return (
-        KelompokMentoring.objects.annotate(terisi=Count("peserta_list"))
+        KelompokMentoring.objects.annotate(
+            terisi=Count("anggota", filter=Q(anggota__role=MahasiswaProfile.ROLE_MENTEE))
+        )
         .order_by(*_urut_nama_kelompok())
     )
-
-
-def daftar_mentor():
-    """Isi dropdown "+ mentor". Kelompok yang sedang dipegang ikut dibawa
-    supaya pengelola melihat bahwa memilih mentor itu berarti memindahkannya,
-    bukan menambah kelompok kedua."""
-    return Mentor.objects.select_related("kelompok")
 
 
 # ---------------------------------------------------------------------------

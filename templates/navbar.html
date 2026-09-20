@@ -42,7 +42,7 @@
       </div>
 
       <a href="{% url 'siwak:landing' %}" class="text-navy hover:text-navy-600 transition">SIWAK-NG</a>
-      {% if user.is_authenticated and user.mentor_profile %}
+      {% if user.is_authenticated and user.mahasiswa_profile.is_mentor %}
       <a href="{% url 'siwak:mentor_dashboard' %}" class="text-navy hover:text-navy-600 transition">Portal Mentor</a>
       {% endif %}
       <a href="{% url 'hubungi_kami' %}" class="text-navy hover:text-navy-600 transition">Hubungi Kami</a>
@@ -88,7 +88,7 @@
     <a href="{% url 'kegiatan:home' %}" class="block py-2 pl-3 text-navy hover:text-navy-600">Kegiatan</a>
     <a href="{% url 'blog_kajian' %}" class="block py-2 pl-3 text-navy hover:text-navy-600">Kajian</a>
     <a href="{% url 'siwak:landing' %}" class="block py-2 text-navy hover:text-navy-600">SIWAK-NG</a>
-    {% if user.is_authenticated and user.mentor_profile %}
+    {% if user.is_authenticated and user.mahasiswa_profile.is_mentor %}
     <a href="{% url 'siwak:mentor_dashboard' %}" class="block py-2 text-navy hover:text-navy-600">Portal Mentor</a>
     {% endif %}
     <a href="{% url 'hubungi_kami' %}" class="block py-2 text-navy hover:text-navy-600">Hubungi Kami</a>

@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+
+{% block title %}Presensi Mentoring | Portal Mentor{% endblock %}
+
+{% block content %}
+{% include 'siwak/_messages.html' %}
+<div class="min-h-screen bg-[#F8F7F3] px-5 py-10 sm:px-8">
+  <div class="mx-auto max-w-6xl">
+    {% if not group %}
+    <a href="{% url 'siwak:mentor_dashboard' %}" class="text-sm font-semibold text-navy hover:underline">&larr; Portal Mentor</a>
+    <div class="mt-4 rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
+      <h2 class="text-xl font-bold text-navy">Kelompok belum ditetapkan</h2>
+      <p class="mx-auto mt-2 max-w-lg text-sm text-slate-500">Hubungi admin SIWAK untuk melakukan pembagian kelompok.</p>
+    </div>
+    {% else %}
+    {% include 'siwak/mentor/_group_nav.html' %}
+
+    <div class="mb-6">
+      <p class="text-sm font-semibold text-gold-dark">Rekap kelompok</p>
+      <h2 class="mt-1 text-2xl font-bold text-navy">Presensi Mentoring</h2>
+      <p class="mt-2 text-sm text-slate-500">Ubah status, catatan, dan feedback tiap mentee per sesi, lalu tekan Simpan. Hanya baris yang Anda ubah yang disimpan.</p>
+    </div>
+
+    <form method="get" class="mb-5 grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-[14rem_1fr_auto] sm:items-end">
+      <label class="block text-xs font-semibold text-slate-500">Sesi Mentoring
+        <select name="sesi" class="mt-1 w-full rounded-xl border-2 border-[#CBD5E1] bg-white px-3 py-2 text-sm text-slate-800 focus:border-navy focus:outline-none">
+          <option value="">Semua sesi</option>
+          {% for s in session_choices %}
+          <option value="{{ s.nomor }}" {% if sesi == s.nomor|stringformat:"s" %}selected{% endif %}>{{ s.judul }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="block text-xs font-semibold text-slate-500">Cari mentee
+        <input type="search" name="q" value="{{ q }}" placeholder="Nama atau NPM"
+               class="mt-1 w-full rounded-xl border-2 border-[#CBD5E1] bg-white px-3 py-2 text-sm text-slate-800 focus:border-navy focus:outline-none">
+      </label>
+      <div class="flex gap-2">
+        <button type="submit" class="rounded-xl bg-navy px-5 py-2 text-sm font-bold text-white hover:bg-navy-700">Cari</button>
+        {% if q or sesi %}<a href="{% url 'siwak:mentor_attendance' %}" class="rounded-xl border-2 border-navy px-4 py-2 text-sm font-bold text-navy hover:bg-cream-300">Reset</a>{% endif %}
+      </div>
+    </form>
+
+    {% if halaman.object_list %}
+    <form method="post" action="{{ request.get_full_path }}">
+      {% csrf_token %}
+      <div class="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <table class="w-full min-w-[56rem] text-left text-sm">
+          <thead class="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <tr>
+              <th class="px-4 py-3">Sesi Mentoring</th>
+              <th class="px-4 py-3">Nama Mentee</th>
+              <th class="px-4 py-3">Status Presensi</th>
+              <th class="px-4 py-3">Catatan Presensi</th>
+              <th class="px-4 py-3">Feedback Sesi</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 align-top">
+            {% for row in halaman.object_list %}
+            <tr>
+              <td class="whitespace-nowrap px-4 py-3 font-semibold text-slate-800">
+                {{ row.session.judul }}
+                {% if not row.session.is_active %}<span class="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-500">Belum aktif</span>{% endif %}
+              </td>
+              <td class="px-4 py-3">
+                <a href="{% url 'siwak:mentor_mentee_detail' participant_id=row.participant.pk %}" class="font-semibold text-navy hover:underline">{{ row.participant.nama_lengkap }}</a>
+                <p class="text-xs text-slate-500">{{ row.participant.npm }}</p>
+              </td>
+              {% if row.form %}
+              <td class="px-4 py-3">
+                <label class="sr-only" for="{{ row.form.status.id_for_label }}">Status presensi {{ row.participant.nama_lengkap }}</label>
+                {{ row.form.status }}
+                {% for error in row.form.status.errors %}<p class="mt-1 text-xs font-semibold text-red-600">{{ error }}</p>{% endfor %}
+              </td>
+              <td class="px-4 py-3">
+                <label class="sr-only" for="{{ row.form.catatan.id_for_label }}">Catatan presensi {{ row.participant.nama_lengkap }}</label>
+                {{ row.form.catatan }}
+                {% for error in row.form.catatan.errors %}<p class="mt-1 text-xs font-semibold text-red-600">{{ error }}</p>{% endfor %}
+              </td>
+              <td class="px-4 py-3">
+                <label class="sr-only" for="{{ row.form.feedback.id_for_label }}">Feedback sesi {{ row.participant.nama_lengkap }}</label>
+                {{ row.form.feedback }}
+                {% for error in row.form.feedback.errors %}<p class="mt-1 text-xs font-semibold text-red-600">{{ error }}</p>{% endfor %}
+              </td>
+              {% else %}
+              <td class="px-4 py-3 text-slate-600">{{ row.attendance.get_status_display|default:"&mdash;" }}</td>
+              <td class="px-4 py-3 text-slate-600">{{ row.attendance.catatan|default:"&mdash;" }}</td>
+              <td class="px-4 py-3 text-slate-600">{{ row.feedback_entry.isi|default:"&mdash;" }}</td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <p class="text-xs text-slate-500">{{ total_rows }} baris{% if not editable_count %} &middot; sesi pada halaman ini belum diaktifkan pengurus{% endif %}</p>
+        {% if editable_count %}
+        <button type="submit" class="rounded-xl bg-navy px-6 py-3 text-sm font-bold text-white hover:bg-navy-700">Simpan Perubahan</button>
+        {% endif %}
+      </div>
+    </form>
+    {% include 'siwak/panel/_paginasi.html' %}
+    {% else %}
+    <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500">
+      {% if q or sesi %}Tidak ada baris yang cocok dengan pencarian.{% else %}Belum ada mentee dalam kelompok ini.{% endif %}
+    </div>
+    {% endif %}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

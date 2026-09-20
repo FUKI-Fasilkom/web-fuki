@@ -9,7 +9,7 @@
     <div class="mb-8">
       <p class="text-sm font-semibold uppercase tracking-[0.2em] text-gold-dark">SIWAK-NG</p>
       <h1 class="mt-2 text-3xl font-bold text-navy sm:text-4xl">Portal Mentor</h1>
-      <p class="mt-2 text-slate-600">Assalamu&rsquo;alaikum, {{ mentor.nama }}.</p>
+      <p class="mt-2 text-slate-600">Assalamu&rsquo;alaikum, {{ mentor.nama_lengkap }}.</p>
     </div>
 
     {% if group %}
@@ -25,6 +25,15 @@
         </div>
       </div>
     </section>
+
+    <div class="mt-8 flex flex-col gap-3 sm:max-w-sm">
+      <a href="{% url 'siwak:mentor_attendance' %}"
+         class="rounded-xl bg-navy px-6 py-3 text-center text-sm font-bold text-white shadow-sm transition hover:bg-navy-700 focus:outline-none focus-visible:ring-4 focus-visible:ring-navy/30">Presensi Mentoring</a>
+      <a href="{% url 'siwak:mentor_assessments' %}"
+         class="rounded-xl bg-navy px-6 py-3 text-center text-sm font-bold text-white shadow-sm transition hover:bg-navy-700 focus:outline-none focus-visible:ring-4 focus-visible:ring-navy/30">Nilai Mentee</a>
+      <a href="{% url 'siwak:mentor_task_reviews' %}"
+         class="rounded-xl bg-navy px-6 py-3 text-center text-sm font-bold text-white shadow-sm transition hover:bg-navy-700 focus:outline-none focus-visible:ring-4 focus-visible:ring-navy/30">Penilaian Tugas</a>
+    </div>
 
     <div class="mb-5 mt-10 flex items-end justify-between gap-4">
       <div>
@@ -46,8 +55,8 @@
           <span class="rounded-full bg-badge px-3 py-1 text-xs font-bold text-navy">{{ card.participant.get_jurusan_display }}</span>
         </div>
 
-        {% if card.participant.maba.angkatan %}
-        <p class="mt-4 text-xs font-semibold uppercase tracking-wide text-slate-400">Angkatan {{ card.participant.maba.angkatan }}</p>
+        {% if card.participant.angkatan %}
+        <p class="mt-4 text-xs font-semibold uppercase tracking-wide text-slate-400">Angkatan {{ card.participant.angkatan }}</p>
         {% endif %}
 
         <div class="mt-5 grid grid-cols-3 gap-2">
