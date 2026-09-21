@@ -22,7 +22,7 @@
   </div>
 </header>
 
-<section class="mb-5 grid grid-cols-3 gap-3" aria-label="Ringkasan RSVP">
+<section class="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4" aria-label="Ringkasan RSVP">
   {% for label, angka in ringkasan_rsvp %}
   <div class="rounded-2xl border-2 border-gold-light bg-white px-4 py-4">
     <p class="text-2xl font-bold leading-none text-navy sm:text-3xl">{{ angka }}</p>
@@ -30,6 +30,14 @@
   </div>
   {% endfor %}
 </section>
+{% if rsvp_menunggu %}
+<p class="-mt-2 mb-5 text-xs leading-relaxed text-navy-400">
+  <strong class="text-navy">Menunggu login: {{ rsvp_menunggu }}.</strong>
+  RSVP yang sudah masuk lewat form lain tapi orangnya belum login SSO. Belum ada di daftar
+  di bawah dan belum dihitung di Total RSVP; masing-masing menjadi RSVP biasa (dengan QR yang
+  sama) begitu orangnya login.
+</p>
+{% endif %}
 
 {% comment %}
   Pencarian di sini memakai alamat halaman (bukan penyaring di sisi peramban)

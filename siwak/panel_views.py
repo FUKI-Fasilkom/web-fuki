@@ -793,6 +793,9 @@ def panel_rsvp(request, pk):
     # dari hasil pencarian: angka "Sudah check-in" yang ikut menyusut saat
     # panitia mengetik satu nama akan terbaca seperti data yang hilang.
     semua = _rsvp_queryset(event)
+    # RSVP dari form lain yang orangnya belum login SSO: belum jadi EventRSVP,
+    # jadi tidak ada di `semua` dan tidak ikut "Total RSVP".
+    menunggu = RSVPTertunda.objects.filter(event=event).count()
 
     bagian = PETA_BAGIAN["event"]
     return render(request, "siwak/panel/rsvp.html", _kerangka(
@@ -819,7 +822,9 @@ def panel_rsvp(request, pk):
             ("Total RSVP", semua.count()),
             ("Sudah check-in", semua.filter(status_kehadiran="hadir").count()),
             ("Kupon ditukar", semua.filter(status_kupon="redeemed").count()),
+            ("Menunggu login", menunggu),
         ],
+        rsvp_menunggu=menunggu,
     ))
 
 

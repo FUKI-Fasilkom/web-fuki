@@ -265,3 +265,72 @@ class PanelBuatRsvpTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Belum ada acara SIWAK")
+
+
+class PanelRsvpMenungguLoginTests(TestCase):
+    """Halaman RSVP acara menampilkan jumlah RSVP tertunda yang belum diklaim."""
+
+    def setUp(self):
+        self.client.force_login(User.objects.create_user(username="pengurus", is_staff=True))
+        self.event = SiwakEvent.objects.create(judul="Mentoring #1")
+        self.lain = SiwakEvent.objects.create(judul="Main Event")
+        self.url = reverse("siwak:panel_rsvp", args=[self.event.pk])
+
+    def tunggu(self, npm, event=None):
+        profil = Profile.objects.create(npm=npm, nama_lengkap=f"Orang {npm}", role=Profile.ROLE_MENTEE)
+        return RSVPTertunda.objects.create(event=event or self.event, profile=profil)
+
+    def angka(self, response):
+        return dict(response.context["ringkasan_rsvp"])["Menunggu login"]
+
+    def test_zero_when_nobody_is_waiting_and_no_explanation_is_shown(self):
+        response = self.client.get(self.url)
+
+        self.assertEqual(self.angka(response), 0)
+        self.assertNotContains(response, "belum login SSO")
+
+    def test_counts_only_this_events_pending_rsvps(self):
+        self.tunggu("2606000001")
+        self.tunggu("2606000002")
+        self.tunggu("2606000003", event=self.lain)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(self.angka(response), 2)
+        self.assertContains(response, "Menunggu login: 2.")
+        self.assertEqual(self.angka(self.client.get(reverse("siwak:panel_rsvp", args=[self.lain.pk]))), 1)
+
+    def test_pending_ones_are_not_in_the_total_or_the_list(self):
+        self.tunggu("2606000001")
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(dict(response.context["ringkasan_rsvp"])["Total RSVP"], 0)
+        self.assertEqual(list(response.context["halaman"].object_list), [])
+
+    def test_the_count_moves_to_the_total_once_the_person_logs_in(self):
+        self.tunggu("2606000001")
+        self.tunggu("2606000002")
+        user = User.objects.create_user(username="orang.satu")
+
+        handle_cas_login(
+            sender=self.__class__, user=user, username="orang.satu",
+            attributes={"npm": ["2606000001"], "nama": ["Orang Satu"], "kd_org": ["01.00.12.01"]},
+        )
+
+        ringkasan = dict(self.client.get(self.url).context["ringkasan_rsvp"])
+        self.assertEqual((ringkasan["Total RSVP"], ringkasan["Menunggu login"]), (1, 1))
+
+    def test_a_search_does_not_change_the_count(self):
+        self.tunggu("2606000001")
+
+        self.assertEqual(self.angka(self.client.get(self.url, {"q": "zzz"})), 1)
+
+    def test_the_count_also_counts_rsvps_made_with_the_profile_button(self):
+        profil = Profile.objects.create(npm="2606000009", nama_lengkap="Fulan", role="mentee")
+        self.client.post(
+            reverse("siwak:panel_profil_rsvp", args=[profil.pk]),
+            {"event": self.event.pk, "kehadiran": "hadir"},
+        )
+
+        self.assertEqual(self.angka(self.client.get(self.url)), 1)

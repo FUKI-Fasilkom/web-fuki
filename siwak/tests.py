@@ -1605,7 +1605,7 @@ class PanelRsvpPencarianTests(TestCase):
         self.assertEqual(self._nama(response), ["Citra Lestari"])
 
     def test_the_summary_still_counts_every_participant_of_the_event(self):
-        """The three tiles describe the event, so a search must not shrink them."""
+        """The tiles describe the event, so a search must not shrink them."""
         self.budi.status_kehadiran = "hadir"
         self.budi.save()
 
@@ -1613,7 +1613,7 @@ class PanelRsvpPencarianTests(TestCase):
 
         self.assertEqual(
             response.context["ringkasan_rsvp"],
-            [("Total RSVP", 2), ("Sudah check-in", 1), ("Kupon ditukar", 0)],
+            [("Total RSVP", 2), ("Sudah check-in", 1), ("Kupon ditukar", 0), ("Menunggu login", 0)],
         )
 
     def test_an_empty_search_shows_everyone_again(self):
