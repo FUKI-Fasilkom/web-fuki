@@ -25,6 +25,7 @@ from .models import (
     MentoringSession,
     MentoringTujuan,
     Question,
+    RSVPTertunda,
     SistemMentoring,
     SiwakEvent,
     SiwakInfo,
@@ -201,6 +202,15 @@ class ProfileAdmin(admin.ModelAdmin):
     list_filter = ["role", "jurusan", "angkatan", "kelompok"]
     autocomplete_fields = ["kelompok"]
     list_select_related = ["kelompok", "user"]
+
+
+@admin.register(RSVPTertunda)
+class RSVPTertundaAdmin(admin.ModelAdmin):
+    """RSVP dari form lain yang menunggu orangnya login SSO (lihat seed_rsvp)."""
+
+    list_display = ["profile", "event", "kehadiran", "dikirim_pada"]
+    list_filter = ["event", "kehadiran"]
+    search_fields = ["profile__nama_lengkap", "profile__npm"]
 
 
 @admin.register(EventRSVP)

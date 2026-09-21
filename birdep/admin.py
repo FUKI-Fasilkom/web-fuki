@@ -10,7 +10,7 @@ class ProgramInline(admin.TabularInline):
 class FungsionarisInline(admin.TabularInline):
     model = Fungsionaris
     extra = 1
-    fields = ['nama', 'jabatan', 'foto', 'urutan', 'is_active']
+    fields = ['nama', 'jabatan', 'foto_path', 'urutan', 'is_active']
 
 @admin.register(BirDep)
 class BirDepAdmin(admin.ModelAdmin):
@@ -57,7 +57,7 @@ class FungsionarisAdmin(admin.ModelAdmin):
     
     fieldsets = (
         ('Informasi Personal', {
-            'fields': ('birdep', 'nama', 'jabatan', 'foto')
+            'fields': ('birdep', 'nama', 'jabatan', 'foto_path')
         }),
         ('Pengaturan', {
             'fields': ('urutan', 'is_active')
@@ -74,7 +74,7 @@ class PengurusIntiAdmin(admin.ModelAdmin):
     
     fieldsets = (
         ('Informasi Personal', {
-            'fields': ('kategori', 'nama', 'jabatan', 'slug', 'foto')
+            'fields': ('kategori', 'nama', 'jabatan', 'slug', 'foto_path')
         }),
         ('Konten', {
             'fields': ('ikhtisar', 'deskripsi_kerja')

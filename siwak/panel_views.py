@@ -35,6 +35,7 @@ from .models import (
     EventRSVP,
     KelompokMentoring,
     Profile,
+    RSVPTertunda,
     MentoringSession,
     Question,
     SiwakEvent,
@@ -50,7 +51,8 @@ from .panel import (
     daftar_role,
     sumber_bagian,
 )
-from .panel_forms import InfoSiwakForm, PertanyaanForm, PilihanForm
+from .panel_forms import InfoSiwakForm, PertanyaanForm, PilihanForm, RsvpProfilForm
+from .services.rsvp import buat_rsvp, klaim_rsvp_tertunda
 
 PER_HALAMAN = 25
 
@@ -162,7 +164,11 @@ def _sel(obj, sumber, nomor):
 def _aksi(obj, sumber):
     """Tombol tambahan baris ini — labelnya boleh menghitung isi objeknya."""
     return [
-        {"label": a.label(obj), "url": reverse(a.nama_url, args=[obj.pk])}
+        {
+            "label": a.label(obj),
+            "url": reverse(a.nama_url, args=[obj.pk]),
+            "bawa_kembali": a.bawa_kembali,
+        }
         for a in sumber.aksi_baris
     ]
 
@@ -615,6 +621,111 @@ def panel_set_npm(request, pk):
     return _kembali(request, cadangan)
 
 
+@staf_required
+def panel_profil_rsvp(request, pk):
+    """Pengelola membuatkan RSVP untuk satu profil, dari daftar Profile/Mentee/Mentor.
+
+    Hasilnya sama dengan RSVP lewat web (token QR registrasi & kupon, status belum
+    check-in, kupon belum ditukar). Profil yang sudah punya akun login langsung
+    mendapat `EventRSVP`. Yang belum ditampung sebagai `RSVPTertunda` dan menjadi
+    `EventRSVP` (dengan token yang sama) saat orangnya login SSO — sama seperti
+    `seed_rsvp`. RSVP yang sudah ada tidak ditimpa: mengubah statusnya lewat
+    daftar RSVP acara, menghapusnya pun di sana.
+    """
+    profil = get_object_or_404(Profile.objects.select_related("user", "kelompok"), pk=pk)
+    cadangan = reverse("siwak:panel_daftar", args=["profil"])
+    kembali = request.POST.get("next") or request.GET.get("next") or ""
+    if not url_has_allowed_host_and_scheme(
+        kembali, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        kembali = ""
+
+    # Profil tanpa akun hanya bisa diklaim lewat NPM-nya saat login SSO. Tanpa NPM,
+    # RSVP tertunda tidak akan pernah menemukan pemiliknya.
+    if profil.user_id is None and not profil.npm:
+        messages.error(
+            request,
+            f"{profil.nama_lengkap} belum punya akun login maupun NPM, jadi RSVP-nya "
+            "tidak akan tersambung. Isi NPM-nya dulu.",
+        )
+        return redirect(kembali or cadangan)
+
+    if profil.user_id:
+        # Sisa RSVP tertunda (akun ditautkan tanpa lewat login SSO) dijadikan RSVP dulu.
+        klaim_rsvp_tertunda(profil)
+
+    form = RsvpProfilForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        event = form.cleaned_data["event"]
+        kehadiran = form.cleaned_data["kehadiran"]
+        alasan = form.cleaned_data["alasan_izin"]
+        tertunda = RSVPTertunda.objects.filter(event=event, profile=profil).first()
+
+        if profil.user_id and EventRSVP.objects.filter(event=event, user_id=profil.user_id).exists():
+            form.add_error(
+                "event",
+                f"{profil.nama_lengkap} sudah punya RSVP untuk {event.judul}. "
+                "Ubah atau hapus lewat daftar RSVP acara itu.",
+            )
+        elif profil.user_id:
+            buat_rsvp(event=event, user=profil.user, kehadiran=kehadiran, alasan_izin=alasan)
+            messages.success(request, f"RSVP {profil.nama_lengkap} untuk {event.judul} dibuat.")
+            return _kembali(request, cadangan)
+        elif tertunda is None:
+            RSVPTertunda.objects.create(
+                event=event, profile=profil, kehadiran=kehadiran, alasan_izin=alasan
+            )
+            messages.success(
+                request,
+                f"RSVP {profil.nama_lengkap} untuk {event.judul} dibuat. Belum punya akun login, "
+                "jadi RSVP-nya aktif otomatis begitu dia login SSO.",
+            )
+            return _kembali(request, cadangan)
+        else:
+            # Sudah pernah dibuatkan dan orangnya belum login: jawabannya boleh
+            # dikoreksi, token QR-nya tetap supaya tidak ada QR yang berubah.
+            tertunda.kehadiran, tertunda.alasan_izin = kehadiran, alasan
+            tertunda.save(update_fields=["kehadiran", "alasan_izin"])
+            messages.success(
+                request, f"RSVP {profil.nama_lengkap} untuk {event.judul} diperbarui."
+            )
+            return _kembali(request, cadangan)
+
+    # Keadaan RSVP orang ini di setiap acara, supaya pengelola tahu sebelum menyimpan.
+    sudah = {}
+    if profil.user_id:
+        sudah = {r.event_id: r for r in EventRSVP.objects.filter(user_id=profil.user_id)}
+    menunggu = {r.event_id: r for r in RSVPTertunda.objects.filter(profile=profil)}
+    acara = []
+    for event in form.fields["event"].queryset:
+        if event.pk in sudah:
+            keadaan = f"Sudah RSVP · {sudah[event.pk].get_kehadiran_display()}"
+        elif event.pk in menunggu:
+            keadaan = f"Menunggu login · {menunggu[event.pk].get_kehadiran_display()}"
+        else:
+            keadaan = "Belum RSVP"
+        acara.append({"event": event, "keadaan": keadaan})
+
+    sumber_asal = PETA_SUMBER["profil"]
+    bagian = PETA_BAGIAN[sumber_asal.bagian]
+    return render(request, "siwak/panel/profil_rsvp.html", _kerangka(
+        request,
+        judul=f"Buat RSVP · {profil.nama_lengkap}",
+        bagian=sumber_asal.bagian,
+        sumber="profil",
+        remah=[
+            (bagian.nama, reverse("siwak:panel_bagian", args=[bagian.slug])),
+            (sumber_asal.label_jamak, kembali or cadangan),
+            ("Buat RSVP", ""),
+        ],
+        profil=profil,
+        form=form,
+        acara=acara,
+        url_kembali=kembali,
+        url_batal=kembali or cadangan,
+    ))
+
+
 # ---------------------------------------------------------------------------
 # Halaman khusus 1 — konten halaman utama (satu baris tetap)
 # ---------------------------------------------------------------------------
@@ -682,6 +793,9 @@ def panel_rsvp(request, pk):
     # dari hasil pencarian: angka "Sudah check-in" yang ikut menyusut saat
     # panitia mengetik satu nama akan terbaca seperti data yang hilang.
     semua = _rsvp_queryset(event)
+    # RSVP dari form lain yang orangnya belum login SSO: belum jadi EventRSVP,
+    # jadi tidak ada di `semua` dan tidak ikut "Total RSVP".
+    menunggu = RSVPTertunda.objects.filter(event=event).count()
 
     bagian = PETA_BAGIAN["event"]
     return render(request, "siwak/panel/rsvp.html", _kerangka(
@@ -708,7 +822,9 @@ def panel_rsvp(request, pk):
             ("Total RSVP", semua.count()),
             ("Sudah check-in", semua.filter(status_kehadiran="hadir").count()),
             ("Kupon ditukar", semua.filter(status_kupon="redeemed").count()),
+            ("Menunggu login", menunggu),
         ],
+        rsvp_menunggu=menunggu,
     ))
 
 
