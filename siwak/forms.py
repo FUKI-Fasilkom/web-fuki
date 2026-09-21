@@ -72,10 +72,20 @@ class RSVPForm(forms.ModelForm):
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
 
+        # Diisi template supaya label "Otomatis dari SSO" tidak dipasang di akun
+        # yang memang tidak lewat SSO.
+        self.akun_lokal = False
+
         if user:
             profile = getattr(user, "profil", None)
             self.fields["name"].initial = profile.nama_lengkap if profile else ""
             self.fields["npm"].initial = profile.npm if profile else ""
+            # Mentor non-SSO tidak punya NPM (NULL, bukan salah data). Field ini
+            # disabled, jadi nilainya selalu `initial`; kalau tetap wajib, "" dari
+            # mentor lokal membuat form selalu tidak valid dan RSVP mustahil.
+            if profile and profile.is_akun_lokal:
+                self.akun_lokal = True
+                self.fields["npm"].required = False
 
         if not self.initial.get("kehadiran"):
             self.initial["kehadiran"] = "hadir"
