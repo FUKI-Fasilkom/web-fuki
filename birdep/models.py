@@ -65,9 +65,6 @@ class Fungsionaris(models.Model):
     birdep = models.ForeignKey(BirDep, on_delete=models.CASCADE, related_name='fungsionaris_set')
     nama = models.CharField(max_length=200, verbose_name="Nama Lengkap")
     jabatan = models.CharField(max_length=100, verbose_name="Jabatan")
-    # Deprecated: digantikan foto_path. Kolom dibiarkan dulu supaya perubahan ini
-    # tidak destruktif; hapus di deploy berikutnya setelah foto_path terisi di prod.
-    foto = models.ImageField(upload_to='fungsionaris_photos/', blank=True, null=True, verbose_name="Foto Fungsionaris")
     # Foto tidak lagi diunggah ke storage (S3). Yang disimpan hanya path ke aset
     # statis, relatif terhadap static/, persis seperti BirDep.logo_filename.
     foto_path = models.CharField(
@@ -112,9 +109,6 @@ class PengurusInti(models.Model):
     nama = models.CharField(max_length=200, verbose_name="Nama Lengkap")
     jabatan = models.CharField(max_length=100, verbose_name="Jabatan")
     slug = models.SlugField(unique=True, blank=True, max_length=220)
-    # Deprecated: digantikan foto_path. Kolom dibiarkan dulu supaya perubahan ini
-    # tidak destruktif; hapus di deploy berikutnya setelah foto_path terisi di prod.
-    foto = models.ImageField(upload_to='pengurus_inti_photos/', blank=True, null=True, verbose_name="Foto")
     # Foto tidak lagi diunggah ke storage (S3). Yang disimpan hanya path ke aset
     # statis, relatif terhadap static/, persis seperti BirDep.logo_filename.
     foto_path = models.CharField(
