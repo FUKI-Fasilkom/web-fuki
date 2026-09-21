@@ -1,0 +1,100 @@
+{% extends 'siwak/panel/base.html' %}
+
+{% block panel %}
+<header class="mb-5">
+  <h1 class="text-2xl font-bold text-navy sm:text-3xl">Buat RSVP</h1>
+  <p class="mt-1 text-sm font-semibold text-navy">
+    {{ profil.nama_lengkap }}{% if profil.npm %} · {{ profil.npm }}{% endif %}
+    {% if profil.role %}· {{ profil.get_role_display }}{% endif %}
+  </p>
+  <p class="mt-1 max-w-2xl text-sm leading-relaxed text-navy-400">
+    Membuatkan RSVP atas nama orang ini, hasilnya sama dengan kalau dia RSVP sendiri di web:
+    QR Kehadiran dan QR Kupon Makan langsung muncul di halaman RSVP-nya.
+  </p>
+</header>
+
+{% if not profil.user_id %}
+<div class="mb-5 rounded-xl border-2 border-gold bg-cream-300 px-4 py-3 text-sm leading-relaxed text-navy">
+  <strong>Belum punya akun login.</strong> RSVP-nya ditampung dulu dan aktif otomatis
+  (dengan QR yang sama) begitu dia login SSO UI pertama kali. Sampai saat itu RSVP ini
+  belum muncul di daftar RSVP acara.
+</div>
+{% endif %}
+
+<section class="mb-5 rounded-2xl border-2 border-gold-light bg-white p-5 sm:p-6" aria-label="Status RSVP saat ini">
+  <h2 class="mb-3 text-sm font-bold uppercase tracking-wide text-navy-400">Status RSVP saat ini</h2>
+  <ul class="space-y-1.5 text-sm text-navy">
+    {% for a in acara %}
+    <li class="flex flex-wrap items-baseline justify-between gap-x-3">
+      <span class="font-semibold">{{ a.event.judul }}</span>
+      <span class="text-navy-400">{{ a.keadaan }}</span>
+    </li>
+    {% empty %}
+    <li class="text-navy-400">Belum ada acara SIWAK. Buat acaranya dulu di menu SIWAK Events.</li>
+    {% endfor %}
+  </ul>
+</section>
+
+{% if acara %}
+<form method="post" novalidate class="rounded-2xl border-2 border-gold-light bg-white p-5 sm:p-7">
+  {% csrf_token %}
+  {% if url_kembali %}<input type="hidden" name="next" value="{{ url_kembali }}" />{% endif %}
+
+  <div class="space-y-5">
+    <div>
+      <label for="{{ form.event.id_for_label }}" class="mb-1.5 block text-sm font-semibold text-navy">
+        {{ form.event.label }} <span class="text-gold-dark" aria-hidden="true">*</span>
+      </label>
+      {{ form.event }}
+      {% for galat in form.event.errors %}
+      <p class="mt-1.5 text-xs font-semibold text-red-700">{{ galat }}</p>
+      {% endfor %}
+    </div>
+
+    <fieldset>
+      <legend class="mb-1.5 block text-sm font-semibold text-navy">
+        {{ form.kehadiran.label }} <span class="text-gold-dark" aria-hidden="true">*</span>
+      </legend>
+      <div class="grid gap-2 sm:grid-cols-3">
+        {% for radio in form.kehadiran %}
+        <label class="flex cursor-pointer items-center gap-2.5 rounded-xl border-2 border-gold-light bg-white px-3 py-2.5 transition hover:border-gold has-[:checked]:border-navy has-[:checked]:bg-cream-300">
+          {{ radio.tag }}
+          <span class="min-w-0 text-sm text-navy">{{ radio.choice_label }}</span>
+        </label>
+        {% endfor %}
+      </div>
+      {% for galat in form.kehadiran.errors %}
+      <p class="mt-1.5 text-xs font-semibold text-red-700">{{ galat }}</p>
+      {% endfor %}
+    </fieldset>
+
+    <div>
+      <label for="{{ form.alasan_izin.id_for_label }}" class="mb-1.5 block text-sm font-semibold text-navy">
+        {{ form.alasan_izin.label }}
+      </label>
+      {{ form.alasan_izin }}
+      <p class="mt-1.5 text-xs leading-relaxed text-navy-400">{{ form.alasan_izin.help_text }}</p>
+      {% for galat in form.alasan_izin.errors %}
+      <p class="mt-1.5 text-xs font-semibold text-red-700">{{ galat }}</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="mt-7 flex flex-col gap-2.5 border-t-2 border-gold-light pt-5 sm:flex-row sm:items-center">
+    <button type="submit"
+            class="inline-flex min-h-[48px] items-center justify-center rounded-xl bg-navy px-8 text-sm font-bold text-white transition hover:bg-navy-700 sm:min-w-[160px]">
+      Buat RSVP
+    </button>
+    <a href="{{ url_batal }}"
+       class="inline-flex min-h-[48px] items-center justify-center rounded-xl border-2 border-navy px-8 text-sm font-bold text-navy transition hover:bg-cream-300">
+      Batal
+    </a>
+  </div>
+</form>
+{% else %}
+<a href="{{ url_batal }}"
+   class="inline-flex min-h-[48px] items-center justify-center rounded-xl border-2 border-navy px-8 text-sm font-bold text-navy transition hover:bg-cream-300">
+  Kembali
+</a>
+{% endif %}
+{% endblock %}

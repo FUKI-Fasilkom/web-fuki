@@ -14,6 +14,7 @@ from django.db import transaction
 from .models import (
     AssessmentAspect,
     Choice,
+    EventRSVP,
     GaleriFoto,
     KelompokMentoring,
     KetuaSiwak,
@@ -501,3 +502,37 @@ class PilihanForm(PanelForm):
         model = Choice
         fields = ["teks"]
         labels = {"teks": "Pilihan jawaban"}
+
+
+class RsvpProfilForm(forms.Form):
+    """Pengelola membuatkan RSVP untuk satu profil (dari daftar Profile/Mentee/Mentor).
+
+    Isiannya sama dengan form RSVP di web (`RSVPForm`): kehadiran dan, khusus Izin,
+    alasannya. Acaranya dipilih di sini karena pengelola tidak sedang berada di
+    halaman acara mana pun.
+    """
+
+    event = forms.ModelChoiceField(
+        queryset=SiwakEvent.objects.all(), empty_label=None, label="Acara",
+        widget=forms.Select(attrs={"class": PILIHAN}),
+    )
+    kehadiran = forms.ChoiceField(
+        choices=EventRSVP.ATTENDANCE_CHOICES, initial="hadir", label="Kehadiran",
+        widget=forms.RadioSelect(attrs={"class": CENTANG}),
+    )
+    alasan_izin = forms.CharField(
+        required=False, label="Jika Izin, alasannya kenapa?",
+        max_length=EventRSVP._meta.get_field("alasan_izin").max_length,
+        widget=forms.Textarea(attrs={"rows": 3, "class": ISIAN, "placeholder": "Ex: acara keluarga"}),
+        help_text="Wajib diisi kalau kehadirannya Izin. Untuk pilihan lain isian ini diabaikan.",
+    )
+
+    def clean(self):
+        data = super().clean()
+        kehadiran = data.get("kehadiran")
+        alasan = (data.get("alasan_izin") or "").strip()
+        if kehadiran == "izin" and not alasan:
+            self.add_error("alasan_izin", "Alasan izin wajib diisi jika kehadiran memilih Izin.")
+        # Seperti form web dan seed_rsvp: alasan hanya disimpan untuk Izin.
+        data["alasan_izin"] = alasan if kehadiran == "izin" else ""
+        return data

@@ -83,5 +83,6 @@ urlpatterns = [
     path("admin/peserta/<int:pk>/kelompok/", panel_views.panel_set_kelompok, name="panel_set_kelompok"),
     path("admin/profil/<int:pk>/role/", panel_views.panel_set_role, name="panel_set_role"),
     path("admin/profil/<int:pk>/npm/", panel_views.panel_set_npm, name="panel_set_npm"),
+    path("admin/profil/<int:pk>/rsvp/", panel_views.panel_profil_rsvp, name="panel_profil_rsvp"),
     path("admin/kelompok/<int:pk>/link/", panel_views.panel_set_link, name="panel_set_link"),
 ]

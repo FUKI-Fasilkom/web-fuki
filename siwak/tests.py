@@ -960,9 +960,12 @@ class PanelProfilTests(TestCase):
             self.client.post(reverse("siwak:panel_hapus", args=["profil", self.profil.pk])).status_code, 404
         )
         response = self._daftar("profil")
-        self.assertFalse(response.context["sumber_data"].punya_aksi())
+        sumber = response.context["sumber_data"]
+        # Tidak ada Ubah/Hapus; satu-satunya tombol baris adalah "Buat RSVP".
+        self.assertFalse(sumber.boleh_ubah or sumber.boleh_hapus)
+        self.assertEqual([a.nama_url for a in sumber.aksi_baris], ["siwak:panel_profil_rsvp"])
         self.assertNotContains(response, "panel_ubah")
-        self.assertNotContains(response, ">Aksi<")
+        self.assertNotContains(response, ">Hapus<")
 
     def test_the_dropdown_offers_mentee_and_mentor(self):
         response = self._daftar("profil")

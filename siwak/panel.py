@@ -60,11 +60,14 @@ class AksiBaris:
     """Tombol tambahan di ujung satu baris daftar, mis. "Pertanyaan (3)".
 
     `label` menerima objek barisnya supaya tombolnya bisa menyebut jumlah, dan
-    `nama_url` dipanggil dengan pk objek itu.
+    `nama_url` dipanggil dengan pk objek itu. `bawa_kembali` menyisipkan alamat
+    daftar yang sedang dibuka (lengkap dengan pencarian dan urutannya) sebagai
+    `?next=`, supaya halaman tujuan bisa mengembalikan pengelola ke sana.
     """
 
     label: Callable
     nama_url: str
+    bawa_kembali: bool = False
 
 
 @dataclass(frozen=True)
@@ -114,6 +117,12 @@ class Bagian:
     deskripsi: str
     ikon: str
     menu: tuple = field(default_factory=tuple)
+
+
+# Tombol "Buat RSVP" di setiap daftar yang isinya Profile.
+AKSI_RSVP_PROFIL = (
+    AksiBaris(lambda o: "Buat RSVP", "siwak:panel_profil_rsvp", bawa_kembali=True),
+)
 
 
 def _potong(nilai, batas=90):
@@ -307,6 +316,7 @@ SUMBER = [
             "role": ("role", "nama_lengkap"),
         },
         urut_awal="nama",
+        aksi_baris=AKSI_RSVP_PROFIL,
     ),
     Sumber(
         slug="peserta",
@@ -337,6 +347,7 @@ SUMBER = [
             "kelompok": _urut_nama_kelompok("kelompok__") + ("nama_lengkap",),
         },
         urut_awal="nama",
+        aksi_baris=AKSI_RSVP_PROFIL,
     ),
     Sumber(
         slug="mentor",
@@ -367,6 +378,7 @@ SUMBER = [
             "kelompok": _urut_nama_kelompok("kelompok__") + ("nama_lengkap",),
         },
         urut_awal="nama",
+        aksi_baris=AKSI_RSVP_PROFIL,
     ),
     Sumber(
         slug="mentor_lokal",
@@ -397,6 +409,7 @@ SUMBER = [
             "kelompok": _urut_nama_kelompok("kelompok__") + ("nama_lengkap",),
         },
         urut_awal="nama",
+        aksi_baris=AKSI_RSVP_PROFIL,
     ),
     Sumber(
         slug="kelompok",
