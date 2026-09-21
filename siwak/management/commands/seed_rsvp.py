@@ -5,17 +5,24 @@ kupon dari default model, jadi halaman RSVP menampilkan QR yang ditandatangani
 (`siwak.qr`) seperti biasa. QR tidak disimpan; ia dihitung dari token saat halaman
 dibuka.
 
-Mentee dicocokkan lewat NPM ke `Profile` yang sudah ada. `EventRSVP.user` wajib
-terisi, jadi hanya profil yang sudah punya akun login (pernah login SSO) yang bisa
-di-seed; NPM tanpa Profile, atau Profile yang belum pernah login, dilaporkan dan
-dilewati. Aman dijalankan ulang setelah lebih banyak mentee login: yang sudah
-punya RSVP tidak disentuh.
+Orang dicocokkan lewat NPM ke `Profile` yang sudah ada (mentee dari CSV
+pengelompokan maupun mentor). Mentor dari CSV mentor belum ber-NPM, jadi NPM yang
+tidak ketemu dicari lagi lewat nama (harus sama persis dan tunggal); kalau ketemu,
+NPM dari form dituliskan ke profil mentor itu supaya login SSO-nya bisa
+mengklaim barisnya.
+
+`EventRSVP.user` wajib terisi. Profil yang sudah punya akun login langsung dapat
+`EventRSVP`; yang belum ditampung di `RSVPTertunda` (dengan token QR yang sudah
+jadi) dan otomatis dipindahkan saat login SSO pertamanya (`sync_profile`). NPM yang
+tetap tidak cocok dengan profil mana pun dilaporkan dan dilewati. Aman dijalankan
+ulang: RSVP yang sudah ada tidak disentuh dan token tidak berubah.
 """
 
 import csv
 import datetime
 import difflib
 import re
+from collections import defaultdict
 from pathlib import Path
 
 from django.conf import settings
@@ -23,7 +30,8 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
 
-from siwak.models import EventRSVP, Profile, SiwakEvent
+from siwak.models import EventRSVP, Profile, RSVPTertunda, SiwakEvent
+from siwak.services.rsvp import buat_rsvp, klaim_rsvp_tertunda
 
 RSVP_CSV_DEFAULT = "existing_rsvp.csv"
 KOLOM_WAJIB = ("Timestamp", "Nama Lengkap", "NPM", "Apakah kamu bisa hadir?")
@@ -175,8 +183,12 @@ class Command(BaseCommand):
             raise CommandError("Tidak ada baris valid di CSV, tidak ada yang diisi.")
 
         hasil = dict.fromkeys(
-            ("dibuat", "sudah_ada", "tanpa_profil", "belum_login", "beda_nama"), 0
+            ("dibuat", "tertunda", "diperbarui", "sudah_ada", "lewat_nama",
+             "tanpa_profil", "beda_nama"), 0
         )
+        self.indeks_nama = defaultdict(list)
+        for profil in Profile.objects.filter(auth_source=Profile.SOURCE_SSO):
+            self.indeks_nama[kunci_nama(profil.nama_lengkap)].append(profil)
         try:
             with transaction.atomic():
                 for entri in per_npm.values():
@@ -190,11 +202,13 @@ class Command(BaseCommand):
             f"Event: {event}. CSV: {jumlah_baris} baris, {len(per_npm)} NPM unik "
             f"({jumlah_baris - len(per_npm)} submit ulang/tak valid)."
         )
-        dilewati = hasil["tanpa_profil"] + hasil["belum_login"] + hasil["beda_nama"]
+        dilewati = hasil["tanpa_profil"] + hasil["beda_nama"]
         self.stdout.write(
-            f"RSVP dibuat: {hasil['dibuat']}. Sudah punya RSVP: {hasil['sudah_ada']}. "
+            f"RSVP dibuat (sudah punya akun): {hasil['dibuat']}. "
+            f"Ditampung sampai login SSO: {hasil['tertunda']} "
+            f"(diperbarui: {hasil['diperbarui']}). Sudah punya RSVP: {hasil['sudah_ada']}. "
+            f"Dicocokkan lewat nama: {hasil['lewat_nama']}. "
             f"Dilewati: {dilewati} (tanpa Profile: {hasil['tanpa_profil']}, "
-            f"Profile belum punya akun login: {hasil['belum_login']}, "
             f"nama beda: {hasil['beda_nama']})."
         )
         if catatan:
@@ -218,13 +232,51 @@ class Command(BaseCommand):
         daftar = ", ".join(f"{e.pk}={e.judul}" for e in events) or "(kosong)"
         raise CommandError(f"Ada {len(events)} event, pilih dengan --event ID. Tersedia: {daftar}")
 
+    def cari_lewat_nama(self, entri, catatan):
+        """Profile SSO dengan nama yang sama persis (setelah dinormalisasi), atau None.
+
+        Dipakai hanya kalau NPM dari form tidak cocok dengan profil mana pun. Harus
+        tunggal: dua orang sekelas bisa saja bernama sama.
+        """
+        kandidat = self.indeks_nama.get(kunci_nama(entri["nama"]), [])
+        if len(kandidat) == 1:
+            return kandidat[0]
+        if kandidat:
+            catatan.append(
+                f"{entri['label']}: NPM tidak ada di Profile, dan nama cocok dengan "
+                f"{len(kandidat)} profil, dilewati."
+            )
+        else:
+            catatan.append(f"{entri['label']}: tidak ada Profile dengan NPM atau nama ini, dilewati.")
+        return None
+
     def seed_satu(self, entri, event, options, hasil, catatan):
         label = entri["label"]
         profil = Profile.objects.filter(npm=entri["npm"]).first()
         if profil is None:
-            catatan.append(f"{label}: tidak ada Profile dengan NPM ini, dilewati.")
-            hasil["tanpa_profil"] += 1
-            return
+            profil = self.cari_lewat_nama(entri, catatan)
+            if profil is None:
+                hasil["tanpa_profil"] += 1
+                return
+            peran = profil.get_role_display() or "tanpa peran"
+            if profil.npm is None and profil.user_id is None:
+                # Mentor dari CSV mentor: NPM inilah yang dipakai sync_profile untuk mengklaim barisnya.
+                profil.npm = entri["npm"]
+                profil.save(update_fields=["npm"])
+                catatan.append(
+                    f"{label}: dicocokkan lewat nama dengan {peran} \"{profil.nama_lengkap}\"; "
+                    f"NPM {entri['npm']} dituliskan ke Profile."
+                )
+            elif profil.npm and profil.npm != entri["npm"]:
+                catatan.append(
+                    f"{label}: NPM di form beda dari Profile {peran} \"{profil.nama_lengkap}\" "
+                    f"({profil.npm}), dicocokkan lewat nama; NPM Profile tidak diubah."
+                )
+            else:
+                catatan.append(
+                    f"{label}: dicocokkan lewat nama dengan {peran} \"{profil.nama_lengkap}\"."
+                )
+            hasil["lewat_nama"] += 1
 
         cocok = bandingkan_nama(profil.nama_lengkap, entri["nama"])
         if cocok == "beda":
@@ -243,14 +295,6 @@ class Command(BaseCommand):
                 f"CSV \"{entri['nama']}\", tetap di-seed."
             )
 
-        if profil.user_id is None:
-            catatan.append(
-                f"{label}: Profile belum punya akun login (belum pernah login SSO), dilewati; "
-                "jalankan ulang setelah orangnya login."
-            )
-            hasil["belum_login"] += 1
-            return
-
         kehadiran, alasan_izin = kehadiran_dari_form(entri["jawaban"], entri["alasan"])
         if entri["jawaban"] == "ya" and alasan_bermakna(entri["alasan"]):
             catatan.append(
@@ -259,15 +303,32 @@ class Command(BaseCommand):
         if entri["jawaban"] == "tidak" and len(entri["alasan"]) > BATAS_ALASAN:
             catatan.append(f"{label}: alasan dipotong jadi {BATAS_ALASAN} karakter.")
 
-        if EventRSVP.objects.filter(event=event, user_id=profil.user_id).exists():
-            hasil["sudah_ada"] += 1
+        if profil.user_id:
+            # Sisa RSVP tertunda dari seed sebelumnya (akun ditautkan tanpa lewat sync_profile).
+            klaim_rsvp_tertunda(profil)
+            if EventRSVP.objects.filter(event=event, user_id=profil.user_id).exists():
+                hasil["sudah_ada"] += 1
+                return
+            buat_rsvp(
+                event=event, user=profil.user, kehadiran=kehadiran,
+                alasan_izin=alasan_izin, dikirim_pada=entri["waktu"],
+            )
+            hasil["dibuat"] += 1
             return
 
-        # Sama dengan rsvp_event: token QR registrasi & kupon, status_kehadiran
-        # (belum_hadir) dan status_kupon (unused) semuanya dari default model.
-        rsvp = EventRSVP.objects.create(
-            event=event, user=profil.user, kehadiran=kehadiran, alasan_izin=alasan_izin
-        )
-        # created_at auto_now_add: hanya bisa ditimpa lewat update().
-        EventRSVP.objects.filter(pk=rsvp.pk).update(created_at=entri["waktu"])
-        hasil["dibuat"] += 1
+        tertunda = RSVPTertunda.objects.filter(event=event, profile=profil).first()
+        if tertunda is None:
+            RSVPTertunda.objects.create(
+                event=event, profile=profil, kehadiran=kehadiran,
+                alasan_izin=alasan_izin, dikirim_pada=entri["waktu"],
+            )
+            hasil["tertunda"] += 1
+            return
+        # Seed ulang: token dibiarkan supaya QR tidak berubah, isi form disegarkan.
+        baru = (kehadiran, alasan_izin, entri["waktu"])
+        if baru == (tertunda.kehadiran, tertunda.alasan_izin, tertunda.dikirim_pada):
+            hasil["sudah_ada"] += 1
+            return
+        tertunda.kehadiran, tertunda.alasan_izin, tertunda.dikirim_pada = baru
+        tertunda.save(update_fields=["kehadiran", "alasan_izin", "dikirim_pada"])
+        hasil["diperbarui"] += 1
