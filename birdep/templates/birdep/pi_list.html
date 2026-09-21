@@ -20,7 +20,7 @@
      class="block w-[calc((100%_-_1rem)/2)] sm:w-[calc((100%_-_3rem)/3)] lg:w-[calc((100%_-_4.5rem)/4)]
             rounded-xl sm:rounded-2xl transition hover:-translate-y-1
             focus:outline-none focus-visible:ring-4 focus-visible:ring-gold">
-    {% include 'birdep/components/kartu_orang.html' with foto=pengurus.foto nama=pengurus.nama judul=pengurus.jabatan|upper keterangan=pengurus.nama only %}
+    {% include 'birdep/components/kartu_orang.html' with foto=pengurus.foto_url nama=pengurus.nama judul=pengurus.jabatan|upper keterangan=pengurus.nama only %}
   </a>
   {% endfor %}
 </div>

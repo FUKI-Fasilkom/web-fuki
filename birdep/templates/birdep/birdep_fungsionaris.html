@@ -5,7 +5,7 @@
 {% block isi_tab %}
 <div class="grid grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-7">
   {% for fungsionaris in fungsionaris_list %}
-    {% include 'birdep/components/kartu_orang.html' with foto=fungsionaris.foto nama=fungsionaris.nama judul=fungsionaris.nama keterangan=fungsionaris.jabatan only %}
+    {% include 'birdep/components/kartu_orang.html' with foto=fungsionaris.foto_url nama=fungsionaris.nama judul=fungsionaris.nama keterangan=fungsionaris.jabatan only %}
   {% empty %}
   <p class="col-span-full py-8 text-center text-sm sm:text-base italic text-navy-400">Belum ada fungsionaris yang ditambahkan.</p>
   {% endfor %}

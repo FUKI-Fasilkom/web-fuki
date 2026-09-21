@@ -48,7 +48,7 @@
       <div class="rounded-[12px] border border-[#D1D1D1] bg-white p-5 sm:p-6">
         <div class="flex items-center gap-4 mb-2">
           <label for="{{ form.name.id_for_label }}" class="block text-[24px] font-bold leading-[150%] text-black">{{ form.name.label }}</label>
-          <span class="inline-block rounded-full bg-navy/10 px-2.5 py-0.5 text-[11px] font-medium text-navy">Otomatis dari SSO</span>
+          <span class="inline-block rounded-full bg-navy/10 px-2.5 py-0.5 text-[11px] font-medium text-navy">{% if form.akun_lokal %}Dari akun mentor{% else %}Otomatis dari SSO{% endif %}</span>
         </div>
         <input type="text" id="{{ form.name.id_for_label }}" name="{{ form.name.html_name }}"
                value="{{ form.name.value|default:'' }}" disabled readonly
@@ -60,10 +60,10 @@
       <div class="rounded-[12px] border border-[#D1D1D1] bg-white p-5 sm:p-6">
         <div class="flex items-center gap-4 mb-2">
           <label for="{{ form.npm.id_for_label }}" class="block text-[24px] font-bold leading-[150%] text-black">{{ form.npm.label }}</label>
-          <span class="inline-block rounded-full bg-navy/10 px-2.5 py-0.5 text-[11px] font-medium text-navy">Otomatis dari SSO</span>
+          {% if not form.akun_lokal %}<span class="inline-block rounded-full bg-navy/10 px-2.5 py-0.5 text-[11px] font-medium text-navy">Otomatis dari SSO</span>{% endif %}
         </div>
         <input type="text" id="{{ form.npm.id_for_label }}" name="{{ form.npm.html_name }}"
-               value="{{ form.npm.value|default:'' }}" disabled readonly
+               value="{{ form.npm.value|default:'' }}" {% if form.akun_lokal %}placeholder="Tidak ada NPM (akun mentor non-SSO)"{% endif %} disabled readonly
                class="w-full border-0 border-b-2 border-[#D1D1D1] bg-transparent p-0 pb-2 text-[20px] leading-[150%] text-gray-500 placeholder-gray-400
                       focus:outline-none focus:ring-0 focus:border-black disabled:opacity-100">
       </div>

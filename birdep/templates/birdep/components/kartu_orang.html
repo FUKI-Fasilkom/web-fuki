@@ -1,12 +1,13 @@
+{% load static %}
 {% comment %}
 Kartu satu orang: fungsionaris BirDep maupun pengurus PI/KI/MDC.
 
 Cara pakai (selalu tambahkan `only`):
 
-    {% templatetag openblock %} include 'birdep/components/kartu_orang.html' with foto=f.foto nama=f.nama judul=f.nama keterangan=f.jabatan only {% templatetag closeblock %}
+    {% templatetag openblock %} include 'birdep/components/kartu_orang.html' with foto=f.foto_url nama=f.nama judul=f.nama keterangan=f.jabatan only {% templatetag closeblock %}
 
 Parameter:
-  foto       -- ImageField; kosong = kotak abu-abu polos, sama seperti polaroid profil
+  foto       -- path static (model.foto_url, mis. images/fungsionaris/x.jpg); kosong = kotak abu-abu polos, sama seperti polaroid profil
   nama       -- nama orangnya, untuk alt foto
   judul      -- baris tebal di bawah foto
   keterangan -- baris kedua
@@ -14,7 +15,7 @@ Parameter:
 <div class="h-full rounded-xl sm:rounded-2xl bg-gradient-to-br from-navy-600 to-navy-900 p-3 sm:p-5 lg:p-6 text-center shadow-lg">
   <div class="aspect-[3/4] overflow-hidden rounded-lg sm:rounded-xl bg-gray-300">
     {% if foto %}
-    <img src="{{ foto.url }}" alt="{{ nama }}" loading="lazy" class="h-full w-full object-cover" />
+    <img src="{% static foto %}" alt="{{ nama }}" loading="lazy" class="h-full w-full object-cover" />
     {% endif %}
   </div>
   {# break-words: jabatan seperti "PERMUSYAWARATAN" lebih lebar dari kartu di layar tablet. #}

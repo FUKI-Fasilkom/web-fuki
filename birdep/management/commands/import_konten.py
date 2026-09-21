@@ -5,20 +5,20 @@ Contoh pemakaian:
     # cek dulu tanpa menulis apa pun ke database
     python manage.py import_konten data/template-konten-fuki-2026.xlsx --dry-run
 
-    # jalankan sungguhan, sekaligus memasang foto
-    python manage.py import_konten data/template-konten-fuki-2026.xlsx --foto data/foto
+    # jalankan sungguhan (foto_path diisi dari birdep/seed/fungsionaris_foto.csv)
+    python manage.py import_konten data/template-konten-fuki-2026.xlsx
 
 Perintah ini aman dijalankan berulang kali. Baris yang sudah ada akan
-diperbarui, bukan diduplikasi, sehingga foto susulan bisa dimasukkan kapan saja
+diperbarui, bukan diduplikasi, sehingga foto_path susulan bisa dimasukkan kapan saja
 tanpa mengacaukan data yang sudah masuk.
 """
 
 from pathlib import Path
 
-from django.core.files import File
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
+from birdep.management.commands.seed_fungsionaris_foto import CSV_DEFAULT, _kunci, baca_csv
 from birdep.models import BirDep, Fungsionaris, PengurusInti, Program
 
 SHEET_WAJIB = ["birdep", "program", "fungsionaris", "pengurus_inti"]
@@ -66,11 +66,6 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("berkas", help="Path ke file .xlsx")
         parser.add_argument(
-            "--foto",
-            dest="folder_foto",
-            help="Folder berisi foto, dinamai sesuai kolom nama_file_foto",
-        )
-        parser.add_argument(
             "--dry-run",
             action="store_true",
             help="Hanya memeriksa, tidak menulis apa pun ke database",
@@ -87,41 +82,24 @@ class Command(BaseCommand):
     def warn(self, teks):
         self.stdout.write(self.style.WARNING(teks))
 
-    def _indeks_foto(self):
-        """Indeks isi folder foto, dikunci nama tanpa ekstensi dan huruf kecil.
-
-        Dibuat sekali lalu dipakai ulang. Pencocokan sengaja mengabaikan beda
-        huruf besar-kecil dan beda ekstensi, karena berkas seperti `123.JPG`
-        lolos di Windows tapi tidak di server Linux.
-        """
-        if self._peta_foto is not None:
-            return self._peta_foto
-        self._peta_foto = {}
-        if self.folder_foto:
-            for berkas in sorted(self.folder_foto.iterdir()):
-                if berkas.is_file():
-                    self._peta_foto.setdefault(berkas.stem.lower(), berkas)
-        return self._peta_foto
-
-    def cari_foto(self, nama_berkas):
-        """Kembalikan Path foto bila ada, jika tidak None."""
-        if not (self.folder_foto and nama_berkas):
-            return None
-        return self._indeks_foto().get(Path(nama_berkas).stem.lower())
-
     def pasang_foto(self, obyek, nama_berkas):
-        """Pasang foto ke obyek bila berkasnya ada dan belum terpasang."""
+        """Isi foto_path obyek dari CSV seed (nama -> path), bila ada.
+
+        Foto tidak lagi diunggah: cukup path ke aset di static/images/fungsionaris.
+        Kolom nama_file_foto di Excel hanya jadi penanda "orang ini punya foto";
+        path sebenarnya diambil dari birdep/seed/fungsionaris_foto.csv.
+        """
         if not nama_berkas:
             return "kosong"
-        sumber = self.cari_foto(nama_berkas)
-        if sumber is None:
-            self.peringatan.append(f"foto tidak ditemukan: {nama_berkas} ({obyek.nama})")
+        foto_path = self._peta_foto.get(_kunci(obyek.nama))
+        if foto_path is None:
+            self.peringatan.append(f"foto tidak ada di CSV seed: {nama_berkas} ({obyek.nama})")
             return "hilang"
-        if obyek.foto and Path(obyek.foto.name).name == sumber.name:
+        if obyek.foto_path == foto_path:
             return "sudah ada"
         if not self.dry_run:
-            with sumber.open("rb") as f:
-                obyek.foto.save(sumber.name, File(f), save=True)
+            obyek.foto_path = foto_path
+            obyek.save(update_fields=["foto_path", "updated_at"])
         return "dipasang"
 
     # ------------------------------------------------------------------ main
@@ -137,12 +115,8 @@ class Command(BaseCommand):
             raise CommandError(f"Berkas tidak ditemukan: {berkas}")
 
         self.dry_run = opts["dry_run"]
-        self.folder_foto = Path(opts["folder_foto"]) if opts.get("folder_foto") else None
-        if self.folder_foto and not self.folder_foto.is_dir():
-            raise CommandError(f"Folder foto tidak ditemukan: {self.folder_foto}")
-
         self.peringatan = []
-        self._peta_foto = None
+        self._peta_foto = {_kunci(nama): path for _, nama, path in baca_csv(CSV_DEFAULT)}
 
         wb = openpyxl.load_workbook(berkas, data_only=True)
         kurang = [s for s in SHEET_WAJIB if s not in wb.sheetnames]
