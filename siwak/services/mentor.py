@@ -27,28 +27,6 @@ def require_mentor(user):
 
 
 @transaction.atomic
-def save_session_record(*, form, participant, session, mentor):
-    attendance, _ = MentoringAttendance.objects.update_or_create(
-        session=session,
-        peserta=participant,
-        defaults={
-            "status": form.cleaned_data["status"],
-            "catatan": form.cleaned_data["catatan"].strip(),
-            "recorded_by": mentor,
-        },
-    )
-    feedback_text = form.cleaned_data["feedback"].strip()
-    if feedback_text:
-        MentorFeedback.objects.create(
-            session=session,
-            peserta=participant,
-            mentor=mentor,
-            isi=feedback_text,
-        )
-    return attendance
-
-
-@transaction.atomic
 def save_assessments(*, form, participant, mentor):
     for aspect in form.aspects:
         score = form.cleaned_data.get(f"score_{aspect.pk}")
@@ -67,11 +45,11 @@ def save_assessments(*, form, participant, mentor):
 
 @transaction.atomic
 def save_attendance_row(*, form, participant, session, mentor, feedback_entry=None):
-    """Simpan satu baris halaman Presensi Mentoring: presensi + feedback sesi.
+    """Simpan satu baris presensi + feedback sesi.
 
-    Berbeda dari `save_session_record` (yang selalu menambah feedback baru),
-    di sini feedback disunting: `feedback_entry` adalah feedback milik mentor
-    ini yang sudah ada untuk sesi & mentee tersebut. Teks dikosongkan = dihapus.
+    Feedback disunting, bukan ditumpuk: `feedback_entry` adalah feedback milik
+    mentor ini yang sudah ada untuk sesi & mentee tersebut, kalau ada. Teks
+    dikosongkan = dihapus.
     """
     attendance, _ = MentoringAttendance.objects.update_or_create(
         session=session,
