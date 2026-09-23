@@ -33,7 +33,6 @@ from .services.mentor import (
     save_assessments,
     save_assignment_review,
     save_attendance_row,
-    save_session_record,
 )
 
 PER_HALAMAN = 20
@@ -236,18 +235,23 @@ def mentee_detail(request, participant_id):
             }
         )
 
-    sessions = group.mentoring_sessions.prefetch_related(
-        Prefetch(
-            "attendance_records",
-            queryset=MentoringAttendance.objects.filter(peserta=participant),
-            to_attr="participant_attendance",
-        ),
-        Prefetch(
-            "mentee_feedback",
-            queryset=MentorFeedback.objects.filter(peserta=participant).select_related("mentor"),
-            to_attr="participant_feedback",
-        ),
+    sessions = list(
+        group.mentoring_sessions.prefetch_related(
+            Prefetch(
+                "attendance_records",
+                queryset=MentoringAttendance.objects.filter(peserta=participant),
+                to_attr="participant_attendance",
+            ),
+        )
     )
+    # Feedback terbaru milik mentor ini per sesi; itulah yang disunting (satu
+    # feedback per sesi, bukan log), sama seperti halaman rekap presensi.
+    feedback_by_session = {}
+    for entry in MentorFeedback.objects.filter(
+        session__in=sessions, peserta=participant, mentor=mentor
+    ).order_by("-created_at"):
+        feedback_by_session.setdefault(entry.session_id, entry)
+
     session_target = None
     session_target_form = None
     if action == "session_record":
@@ -260,17 +264,20 @@ def mentee_detail(request, participant_id):
             session=session_target,
             peserta=participant,
         ).first()
+        existing_feedback = feedback_by_session.get(session_target.pk)
         session_target_form = MenteeSessionForm(
             request.POST,
             existing_attendance=existing_attendance,
+            existing_feedback=existing_feedback,
             prefix=f"session_{session_target.pk}",
         )
         if session_target_form.is_valid():
-            save_session_record(
+            save_attendance_row(
                 form=session_target_form,
                 participant=participant,
                 session=session_target,
                 mentor=mentor,
+                feedback_entry=existing_feedback,
             )
             messages.success(request, f"Presensi dan feedback {session_target.judul} tersimpan.")
             return redirect(
@@ -292,6 +299,7 @@ def mentee_detail(request, participant_id):
                 if session_target and session.pk == session_target.pk
                 else MenteeSessionForm(
                     existing_attendance=existing_attendance,
+                    existing_feedback=feedback_by_session.get(session.pk),
                     prefix=f"session_{session.pk}",
                 )
             )
@@ -300,7 +308,6 @@ def mentee_detail(request, participant_id):
                 "session": session,
                 "attendance": existing_attendance,
                 "form": form,
-                "feedback_entries": session.participant_feedback,
             }
         )
 
@@ -379,8 +386,17 @@ def assignments(request, group_id):
 
 @login_required
 def mentee_feedback_history(request):
-    feedback_entries = MentorFeedback.objects.filter(peserta__user=request.user).select_related(
-        "session", "mentor", "peserta"
+    # Satu feedback per (sesi, mentor): kalau ada baris lama sisa sistem log,
+    # cuma yang terbaru yang ditampilkan.
+    feedback_by_session_mentor = {}
+    for entry in MentorFeedback.objects.filter(
+        peserta__user=request.user
+    ).select_related("session", "mentor", "peserta").order_by("-created_at"):
+        feedback_by_session_mentor.setdefault((entry.session_id, entry.mentor_id), entry)
+    feedback_entries = sorted(
+        feedback_by_session_mentor.values(),
+        key=lambda entry: entry.created_at,
+        reverse=True,
     )
     assignment_review_history = AssignmentReviewHistory.objects.filter(
         submission__user=request.user

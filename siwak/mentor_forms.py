@@ -15,7 +15,7 @@ FIELD_CLASSES = (
 
 
 class MenteeSessionForm(forms.Form):
-    """Attendance and optional new feedback for one mentee in one session."""
+    """Attendance and the single editable feedback for one mentee in one session."""
 
     status = forms.ChoiceField(
         choices=[("", "Pilih status")] + MentoringAttendance.STATUS_CHOICES,
