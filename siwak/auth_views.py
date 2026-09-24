@@ -1,15 +1,20 @@
-"""Jalur login non-SSO untuk mentor (PRD 7 - Authentication).
+"""Jalur login non-SSO "Akun Khusus" (PRD 7 - Authentication).
 
-SIWAK punya dua pintu masuk sekarang:
+SIWAK punya dua pintu masuk:
 
   * SSO UI CAS — untuk mentee dan mentor yang punya akun SSO aktif. Seluruh
     alurnya ada di `siwak/sso.py` dan tidak disentuh dari sini.
-  * Akun lokal — untuk mentor yang tidak punya SSO UI aktif. Akunnya dibuat
-    pengelola di panel (`MentorLokalForm`), dan hanya profil ber-role mentor
-    dengan `auth_source="lokal"` yang boleh lewat sini.
+  * Akun Khusus — username dan password, untuk tiga jenis akun yang tidak
+    lewat SSO UI:
+      - mentor non-SSO, dibuat pengelola di panel (`MentorLokalForm`);
+      - pengurus SIWAK (`is_staff`) dan superuser;
+      - akun pemindai QR (gatekeeper, divisi konsumsi), dibuat pengelola di
+        panel (`AkunPemindaiForm`). Akun ini bukan staf, jadi login admin
+        Django menolaknya — pintu inilah jalan masuknya.
 
 `login_pilihan` adalah halaman yang mempertemukan keduanya, dan itulah yang
-dipakai `LOGIN_URL` supaya mentor anonim tidak lagi langsung dilempar ke CAS.
+dipakai `LOGIN_URL` supaya akun non-SSO tidak langsung dilempar ke CAS.
+Setelah masuk, tujuannya ditentukan `role_landing_url` untuk kedua pintu.
 """
 
 from django.conf import settings
@@ -21,6 +26,7 @@ from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 
 from .models import Profile, SiwakInfo
+from .services.pemindai import boleh_memindai
 from .sso import role_landing_url
 
 
@@ -35,7 +41,7 @@ def _next_yang_aman(request):
 
 
 def login_pilihan(request):
-    """Halaman pemilih metode login: SSO UI atau akun mentor lokal.
+    """Halaman pemilih metode login: SSO UI atau Akun Khusus.
 
     `next` diteruskan ke kedua tautan — tanpa itu deep link yang membawa orang
     ke sini lewat @login_required hilang begitu dia memilih metodenya.
@@ -46,45 +52,59 @@ def login_pilihan(request):
     return render(request, "siwak/auth/login_pilihan.html", {
         "next": _next_yang_aman(request),
         "url_sso": reverse("siwak:cas_ng_login"),
-        "url_mentor": reverse("siwak:mentor_login"),
+        "url_khusus": reverse("siwak:login_khusus"),
         # Link CP-nya diatur pengelola lewat panel (SiwakInfo.kontak_cp), sama
         # dengan yang dipakai halaman "Cari Kelompok".
         "info": SiwakInfo.get_solo(),
     })
 
 
-class MentorLoginForm(AuthenticationForm):
-    """Form login lokal, dibatasi hanya untuk mentor non-SSO.
+def boleh_masuk_akun_khusus(user):
+    """Apakah `user` termasuk akun yang memang masuk lewat pintu Akun Khusus.
 
-    Tanpa pembatasan ini setiap `User` berpassword valid — termasuk akun staf —
-    bisa memakai halaman ini. `ModelBackend` yang mengautentikasi (CASBackend
-    bersignature `(request, ticket, service)` sehingga `authenticate()`
-    melewatinya untuk kredensial username/password), jadi penyaringnya harus di
-    lapisan form.
+    Yang tidak termasuk justru yang punya pintunya sendiri: mentee dan mentor
+    ber-SSO masuk lewat SSO UI. Superuser lolos lewat `boleh_memindai()` walau
+    `is_staff`-nya mati.
     """
-
-    def confirm_login_allowed(self, user):
-        super().confirm_login_allowed(user)
-
-        boleh = Profile.objects.filter(
+    return (
+        user.is_staff
+        or boleh_memindai(user)
+        or Profile.objects.filter(
             user=user,
             role=Profile.ROLE_MENTOR,
             auth_source=Profile.SOURCE_LOKAL,
         ).exists()
-        if not boleh:
+    )
+
+
+class AkunKhususLoginForm(AuthenticationForm):
+    """Form login lokal, dibatasi untuk mentor non-SSO, pengurus, dan pemindai QR.
+
+    Tanpa pembatasan ini setiap `User` berpassword valid bisa memakai halaman
+    ini. `ModelBackend` yang mengautentikasi (CASBackend bersignature
+    `(request, ticket, service)` sehingga `authenticate()` melewatinya untuk
+    kredensial username/password), jadi penyaringnya harus di lapisan form.
+    Penolakannya memakai galat "username/password salah" yang sama, supaya
+    halaman ini tidak bisa dipakai menebak akun mana yang ada.
+    """
+
+    def confirm_login_allowed(self, user):
+        super().confirm_login_allowed(user)
+        if not boleh_masuk_akun_khusus(user):
             raise self.get_invalid_login_error()
 
 
-class MentorLoginView(LoginView):
+class AkunKhususLoginView(LoginView):
     """LoginView biasa dengan form terbatas dan tujuan yang sadar role."""
 
-    template_name = "siwak/auth/login_mentor.html"
-    authentication_form = MentorLoginForm
+    template_name = "siwak/auth/login_khusus.html"
+    authentication_form = AkunKhususLoginForm
     redirect_authenticated_user = True
 
     def get_success_url(self):
         # `role_landing_url` sudah dipakai jalur SSO; jangan tulis ulang aturan
-        # tujuan per role di dua tempat.
+        # tujuan per role di dua tempat. `next` eksplisit tetap menang, supaya
+        # pemindai yang login karena memindai QR kembali ke QR itu.
         return _next_yang_aman(self.request) or role_landing_url(self.request.user)
 
 

@@ -731,6 +731,22 @@ class EventRSVP(models.Model):
         ("belum_hadir", "Belum Hadir"),
     ]
 
+    # Izin memindai QR, dipisah per jenis QR-nya: gatekeeper cukup registrasi
+    # ulang, divisi konsumsi cukup kupon makan. Superuser otomatis lolos
+    # `has_perm()`, jadi perilaku lamanya (hanya superuser) tetap berlaku.
+    IZIN_PINDAI = {
+        "registrasi": "siwak.pindai_registrasi",
+        "kupon": "siwak.pindai_kupon",
+    }
+    LABEL_PINDAI = {
+        "registrasi": "QR registrasi ulang",
+        "kupon": "QR kupon makan",
+    }
+    # Awalan username akun pemindai buatan panel. Fungsinya sama dengan
+    # Profile.USERNAME_LOKAL_PREFIX: CAS mencocokkan User lewat username, jadi
+    # awalan ini yang menjauhkan akun pemindai dari login SSO orang lain.
+    USERNAME_PEMINDAI_PREFIX = "pindai-"
+
     event = models.ForeignKey(SiwakEvent, on_delete=models.CASCADE, related_name="rsvp_list")
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="event_rsvps")
     kehadiran = models.CharField(max_length=12, choices=ATTENDANCE_CHOICES, default="hadir")
@@ -750,6 +766,10 @@ class EventRSVP(models.Model):
     class Meta:
         verbose_name = "RSVP Event"
         unique_together = [("event", "user")]
+        permissions = [
+            ("pindai_registrasi", "Bisa memindai QR registrasi ulang (gatekeeper)"),
+            ("pindai_kupon", "Bisa memindai QR kupon makan (konsumsi)"),
+        ]
 
     def __str__(self):
         return f"{self.user} - {self.event}"

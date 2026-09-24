@@ -32,6 +32,7 @@ from .models import (
     Tugas,
     TugasSubmission,
 )
+from .services.pemindai import boleh_memindai, jenis_pindai
 from .services.qrcode_service import (
     kupon_qr_data_uri,
     registrasi_qr_data_uri,
@@ -39,22 +40,25 @@ from .services.qrcode_service import (
 )
 
 
-def superuser_required(view_func):
-    """Admin-only decorator for qr_verify.
+def pemindai_required(view_func):
+    """Scanner-only decorator: superusers and scanner accounts (qr_verify, /pindai/).
 
     django.contrib.auth's `user_passes_test` (Django 6) redirects *every* user
-    who fails the test to the login URL — even already-logged-in non-admins —
-    which produces a redirect loop on `/admin/login/?next=...`. This mirrors
-    Django's own `staff_member_required` instead: anonymous users are sent to
-    the admin login, logged-in non-superusers get a clean 403.
+    who fails the test to the login URL — even already-logged-in non-scanners —
+    which produces a redirect loop on the login page. This mirrors Django's own
+    `staff_member_required` instead: anonymous users are sent straight to the
+    "Login Akun Khusus" form (the admin login would refuse a non-staff scanner
+    account), logged-in users without any scan permission get a clean 403.
+    Which QR kind a user may scan is checked inside qr_verify, once the signed
+    payload says the kind.
     """
     @wraps(view_func)
     def _wrapped(request, *args, **kwargs):
         if request.user.is_authenticated:
-            if not request.user.is_superuser:
+            if not boleh_memindai(request.user):
                 return HttpResponseForbidden()
             return view_func(request, *args, **kwargs)
-        return redirect_to_login(request.get_full_path(), reverse("admin:login"))
+        return redirect_to_login(request.get_full_path(), reverse("siwak:login_khusus"))
 
     return _wrapped
 
@@ -434,10 +438,14 @@ def _find_rsvp(kind: str, token: str, lock: bool = False):
     return qs.first()
 
 
-@superuser_required
+@pemindai_required
 @require_http_methods(["GET", "POST"])
 def qr_verify(request, signed):
-    """Scanned-QR landing page (PRD 6.1/6.2). Superuser-only.
+    """Scanned-QR landing page (PRD 6.1/6.2). Superusers and scanner accounts.
+
+    A scanner account only passes for the QR kind it holds a permission for:
+    the gatekeeper can't redeem a kupon, the konsumsi desk can't check anyone
+    in. That check runs before the RSVP row is even looked up.
 
     GET is read-only: it only renders a *confirmation* page. The actual
     check-in / kupon redemption happens on a CSRF-protected POST, so a passive
@@ -461,6 +469,20 @@ def qr_verify(request, signed):
 
     except signing.BadSignature:
         error = "QR tidak valid atau rusak."
+
+    if not error and not boleh_memindai(request.user, kind):
+        # Halaman galat yang sama dengan QR rusak, bukan 403 polos: panitia di
+        # meja registrasi yang salah menerima QR kupon perlu tahu apa yang
+        # terjadi, bukan hanya melihat "Forbidden".
+        bisa = " dan ".join(EventRSVP.LABEL_PINDAI[k] for k in jenis_pindai(request.user))
+        return render(request, "siwak/qr_verify.html", {
+            "error_judul": "Akses Ditolak",
+            "error": (
+                f"Ini {EventRSVP.LABEL_PINDAI.get(kind, 'QR jenis lain')}. "
+                f"Akun ini hanya bisa memindai {bisa}."
+            ),
+            "back_url": reverse("siwak:pindai_beranda"),
+        }, status=403)
 
     if not error and request.method == "POST":
         # Mutation path: lock the row so concurrent scans serialize.
@@ -526,7 +548,25 @@ def qr_verify(request, signed):
             and not error
             and not already
         ),
-        "back_url": reverse("siwak:landing"),
+        # Yang sampai di sini selalu boleh memindai, jadi "kembali" berarti
+        # kembali ke halaman pemindai, siap untuk QR berikutnya.
+        "back_url": reverse("siwak:pindai_beranda"),
     }
 
     return render(request, "siwak/qr_verify.html", context)
+
+
+@pemindai_required
+def pindai_beranda(request):
+    """Halaman awal akun pemindai QR, tujuannya setelah Login Akun Khusus.
+
+    Tidak ada pemindai di dalam halaman ini: produksi masih HTTP, dan peramban
+    hanya mengizinkan kamera di HTTPS. Pemindaiannya dilakukan kamera HP, yang
+    membuka tautan QR peserta di peramban bawaan — halaman ini menjelaskan itu,
+    dan menyebut jenis QR yang boleh dipindai akun ini.
+    """
+    return render(request, "siwak/pindai.html", {
+        "jenis": [EventRSVP.LABEL_PINDAI[k] for k in jenis_pindai(request.user)],
+        "events": SiwakEvent.objects.all(),
+        "back_url": reverse("siwak:landing"),
+    })

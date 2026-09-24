@@ -62,9 +62,12 @@ TIPE_BUTUH_ROLE = {"pilih_role"}
 
 
 def staf_required(view_func):
-    """Hanya untuk pengurus. Mengikuti pola `superuser_required` di views.py:
+    """Hanya untuk pengurus. Mengikuti pola `pemindai_required` di views.py:
     yang belum login diarahkan ke login admin, yang sudah login tapi bukan staf
-    mendapat 403 — bukan dilempar balik ke halaman login berulang-ulang."""
+    mendapat 403 — bukan dilempar balik ke halaman login berulang-ulang.
+
+    Akun pemindai QR sengaja selalu `is_staff=False` (lihat AkunPemindaiForm),
+    jadi decorator inilah yang menutup seluruh panel untuknya."""
 
     @wraps(view_func)
     def _wrapped(request, *args, **kwargs):

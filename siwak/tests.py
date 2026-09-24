@@ -25,6 +25,7 @@ from unittest.mock import patch
 from urllib.parse import unquote
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Permission
 from django.conf import settings
 from django.core import signing
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -64,6 +65,7 @@ from .sso import (
     KD_ORG_PROGRAM_MAP,
     get_attribute,
     handle_cas_login,
+    role_landing_url,
     sync_profile,
 )
 
@@ -514,25 +516,26 @@ class MentorLokalTests(TestCase):
         self._tambah()
         self.client.logout()
 
-        response = self.client.post(reverse("siwak:mentor_login"), {
+        response = self.client.post(reverse("siwak:login_khusus"), {
             "username": "mentor-rahma", "password": "RahasiaKuat123",
         })
 
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, reverse("siwak:mentor_dashboard"))
 
-    def test_the_local_login_refuses_everyone_who_is_not_a_local_mentor(self):
-        """Tanpa penyaring ini, setiap User berpassword valid bisa lewat sini."""
+    def test_the_local_login_refuses_accounts_that_belong_to_the_sso_door(self):
+        """Tanpa penyaring ini, setiap User berpassword valid bisa lewat sini.
+        Pengurus dan pemindai QR memang boleh — lihat AkunKhususLoginTests."""
         mentee = User.objects.create_user(username="mentee", password="RahasiaKuat123")
         Profile.objects.create(user=mentee, npm="2500000100", role=Profile.ROLE_MENTEE)
-        staf = User.objects.create_user(username="staf", password="RahasiaKuat123", is_staff=True)
+        User.objects.create_user(username="tanpa-role", password="RahasiaKuat123")
         mentor_sso = User.objects.create_user(username="mentor-sso", password="RahasiaKuat123")
         Profile.objects.create(user=mentor_sso, npm="2100000100", role=Profile.ROLE_MENTOR)
         self.client.logout()
 
-        for username in ("mentee", "staf", "mentor-sso"):
+        for username in ("mentee", "tanpa-role", "mentor-sso"):
             with self.subTest(username=username):
-                response = self.client.post(reverse("siwak:mentor_login"), {
+                response = self.client.post(reverse("siwak:login_khusus"), {
                     "username": username, "password": "RahasiaKuat123",
                 })
                 self.assertEqual(response.status_code, 200)
@@ -543,7 +546,7 @@ class MentorLokalTests(TestCase):
         User.objects.filter(username="mentor-rahma").update(is_active=False)
         self.client.logout()
 
-        response = self.client.post(reverse("siwak:mentor_login"), {
+        response = self.client.post(reverse("siwak:login_khusus"), {
             "username": "mentor-rahma", "password": "RahasiaKuat123",
         })
 
@@ -657,7 +660,7 @@ class MentorLokalTests(TestCase):
         """Akun lokal tidak punya sesi di sso.ui.ac.id, jadi tidak lewat CAS."""
         self._tambah()
         self.client.logout()
-        self.client.post(reverse("siwak:mentor_login"), {
+        self.client.post(reverse("siwak:login_khusus"), {
             "username": "mentor-rahma", "password": "RahasiaKuat123",
         })
 
@@ -685,7 +688,7 @@ class MentorLokalTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, f'{reverse("siwak:cas_ng_login")}?next=')
-        self.assertContains(response, f'{reverse("siwak:mentor_login")}?next=')
+        self.assertContains(response, f'{reverse("siwak:login_khusus")}?next=')
 
     def test_the_login_chooser_ignores_an_offsite_next(self):
         self.client.logout()
@@ -2075,7 +2078,11 @@ class RSVPViewTests(TestCase):
 
 
 class QRVerifyAccessControlTests(TestCase):
-    """PRD 6.x — qr_verify must be strictly admin-only."""
+    """PRD 6.x — qr_verify is only for superusers and scanner accounts.
+
+    Plain staff and regular users stay forbidden; scanner accounts are covered
+    by QRVerifyPemindaiTests.
+    """
 
     def setUp(self):
         self.admin = User.objects.create_superuser(username="admin", password="x")
@@ -2086,10 +2093,11 @@ class QRVerifyAccessControlTests(TestCase):
         self.signed = sign_payload("registrasi", self.rsvp.qr_registrasi_token)
         self.url = reverse("siwak:qr_verify", args=[self.signed])
 
-    def test_anonymous_redirects_to_admin_login(self):
+    def test_anonymous_redirects_to_the_akun_khusus_login(self):
+        """Not the admin login: that one refuses non-staff scanner accounts."""
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin/login/", response.url)
+        self.assertIn(reverse("siwak:login_khusus"), response.url)
         self.assertIn(self.url, unquote(response.url))
 
     def test_staff_but_not_superuser_is_forbidden(self):
@@ -2266,6 +2274,386 @@ class QRVerifyScanTests(TestCase):
         self.rsvp_tidak.refresh_from_db()
         self.assertEqual(self.rsvp_tidak.kehadiran, "tidak_hadir")
         self.assertEqual(self.rsvp_tidak.status_kehadiran, "belum_hadir")
+
+
+PASSWORD_PEMINDAI = "RahasiaKuat123"
+
+
+def _akun_pemindai(username, *jenis):
+    """Akun pemindai QR non-staf dengan izin pindai untuk `jenis` QR tertentu."""
+    akun = User.objects.create_user(username=username, password=PASSWORD_PEMINDAI)
+    for kind in jenis:
+        app_label, codename = EventRSVP.IZIN_PINDAI[kind].split(".")
+        akun.user_permissions.add(
+            Permission.objects.get(content_type__app_label=app_label, codename=codename)
+        )
+    return akun
+
+
+class QRVerifyPemindaiTests(TestCase):
+    """Scanner accounts (gatekeeper, konsumsi): neither superuser nor staff.
+
+    Regression guards:
+      * Scan permissions are per QR kind — the gatekeeper can't redeem a kupon
+        and the konsumsi desk can't check anyone in, over GET or POST.
+      * Scanner accounts stay locked out of the SIWAK panel (403) and /admin/.
+    """
+
+    def setUp(self):
+        self.gatekeeper = _akun_pemindai("pindai-gate", "registrasi")
+        self.konsumsi = _akun_pemindai("pindai-makan", "kupon")
+        self.event = SiwakEvent.objects.create(judul="Main Event")
+        self.rsvp = EventRSVP.objects.create(
+            event=self.event, user=User.objects.create_user(username="maba"), kehadiran="hadir",
+        )
+        self.url_registrasi = reverse(
+            "siwak:qr_verify", args=[sign_payload("registrasi", self.rsvp.qr_registrasi_token)]
+        )
+        self.url_kupon = reverse(
+            "siwak:qr_verify", args=[sign_payload("kupon", self.rsvp.qr_kupon_token)]
+        )
+
+    def test_the_gatekeeper_can_check_a_participant_in(self):
+        self.client.force_login(self.gatekeeper)
+
+        self.assertContains(self.client.get(self.url_registrasi), "Konfirmasi Check-in")
+        self.assertContains(self.client.post(self.url_registrasi), "Check-in Berhasil")
+        self.rsvp.refresh_from_db()
+        self.assertEqual(self.rsvp.status_kehadiran, "hadir")
+
+    def test_the_gatekeeper_cannot_redeem_a_kupon(self):
+        self.client.force_login(self.gatekeeper)
+
+        for response in (self.client.get(self.url_kupon), self.client.post(self.url_kupon)):
+            # Halaman galat yang menjelaskan, bukan 403 polos.
+            self.assertContains(response, "Akses Ditolak", status_code=403)
+            self.assertContains(
+                response,
+                "Ini QR kupon makan. Akun ini hanya bisa memindai QR registrasi ulang.",
+                status_code=403,
+            )
+            self.assertNotContains(response, "Konfirmasi Tukar Kupon", status_code=403)
+        self.rsvp.refresh_from_db()
+        self.assertEqual(self.rsvp.status_kupon, "unused")
+
+    def test_the_konsumsi_desk_can_redeem_a_kupon(self):
+        self.client.force_login(self.konsumsi)
+
+        self.assertContains(self.client.get(self.url_kupon), "Konfirmasi Tukar Kupon")
+        self.assertContains(self.client.post(self.url_kupon), "Kupon Berhasil Ditukar")
+        self.rsvp.refresh_from_db()
+        self.assertEqual(self.rsvp.status_kupon, "redeemed")
+
+    def test_the_konsumsi_desk_cannot_check_anyone_in(self):
+        self.client.force_login(self.konsumsi)
+
+        for response in (self.client.get(self.url_registrasi), self.client.post(self.url_registrasi)):
+            self.assertContains(
+                response,
+                "Ini QR registrasi ulang. Akun ini hanya bisa memindai QR kupon makan.",
+                status_code=403,
+            )
+        self.rsvp.refresh_from_db()
+        self.assertEqual(self.rsvp.status_kehadiran, "belum_hadir")
+
+    def test_every_scan_page_leads_back_to_the_scanner_page(self):
+        self.client.force_login(self.gatekeeper)
+        kembali = f'href="{reverse("siwak:pindai_beranda")}"'
+
+        self.assertContains(self.client.get(self.url_registrasi), kembali)
+        self.assertContains(self.client.post(self.url_registrasi), kembali)
+        self.assertContains(self.client.get(self.url_kupon), kembali, status_code=403)
+
+    def test_one_account_may_hold_both_permissions(self):
+        self.client.force_login(_akun_pemindai("pindai-dua", "registrasi", "kupon"))
+
+        self.assertEqual(self.client.get(self.url_registrasi).status_code, 200)
+        self.assertEqual(self.client.get(self.url_kupon).status_code, 200)
+
+    def test_a_broken_qr_still_shows_the_error_page_to_a_scanner(self):
+        self.client.force_login(self.gatekeeper)
+
+        response = self.client.get(reverse("siwak:qr_verify", args=["rusak"]))
+
+        self.assertContains(response, "QR tidak valid atau rusak.")
+
+    def test_scanners_are_locked_out_of_the_panel(self):
+        kelompok = KelompokMentoring.objects.create(nama_kelompok="Kelompok 1")
+        for akun in (self.gatekeeper, self.konsumsi):
+            self.client.force_login(akun)
+            for url in (
+                reverse("siwak:panel_beranda"),
+                reverse("siwak:panel_rsvp", args=[self.event.pk]),
+                reverse("siwak:panel_rsvp_csv", args=[self.event.pk]),
+                reverse("siwak:panel_daftar", args=["peserta"]),
+                reverse("siwak:panel_daftar", args=["pemindai"]),
+                reverse("siwak:panel_ubah", args=["kelompok", kelompok.pk]),
+                reverse("siwak:panel_kelompok_detail", args=[kelompok.pk]),
+            ):
+                with self.subTest(akun=akun.username, url=url):
+                    self.assertEqual(self.client.get(url).status_code, 403)
+
+    def test_scanners_cannot_change_anything_through_the_panel(self):
+        kelompok = KelompokMentoring.objects.create(nama_kelompok="Kelompok 1")
+        self.client.force_login(self.gatekeeper)
+
+        for url, data in (
+            (reverse("siwak:panel_hapus", args=["event", self.event.pk]), {}),
+            (reverse("siwak:panel_hapus", args=["kelompok", kelompok.pk]), {}),
+            (reverse("siwak:panel_rsvp_toggle", args=[self.event.pk]), {}),
+            (reverse("siwak:panel_rsvp_status", args=[self.rsvp.pk]), {"medan": "kupon", "nilai": "redeemed"}),
+            (reverse("siwak:panel_rsvp_hapus", args=[self.rsvp.pk]), {}),
+        ):
+            with self.subTest(url=url):
+                self.assertEqual(self.client.post(url, data).status_code, 403)
+
+        self.assertTrue(SiwakEvent.objects.filter(pk=self.event.pk, rsvp_dibuka=True).exists())
+        self.assertTrue(KelompokMentoring.objects.filter(pk=kelompok.pk).exists())
+        self.rsvp.refresh_from_db()
+        self.assertEqual(self.rsvp.status_kupon, "unused")
+
+    def test_scanners_cannot_open_the_django_admin(self):
+        self.client.force_login(self.gatekeeper)
+
+        response = self.client.get(reverse("admin:index"))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse("admin:login"), response.url)
+
+
+class AkunKhususLoginTests(TestCase):
+    """"Login Akun Khusus": one non-SSO door for local mentors, staff, and scanners.
+
+    Where each account lands afterwards comes from `role_landing_url`, shared
+    with the SSO door; an explicit safe `?next=` still wins.
+    """
+
+    def setUp(self):
+        self.url = reverse("siwak:login_khusus")
+        _akun_pemindai("pindai-gate", "registrasi")
+        User.objects.create_user(username="pengurus", password=PASSWORD_PEMINDAI, is_staff=True)
+        User.objects.create_superuser(username="admin", password=PASSWORD_PEMINDAI)
+        mentor = User.objects.create_user(username="mentor-rahma", password=PASSWORD_PEMINDAI)
+        Profile.objects.create(
+            user=mentor, nama_lengkap="Kak Rahma",
+            role=Profile.ROLE_MENTOR, auth_source=Profile.SOURCE_LOKAL,
+        )
+
+    def _masuk(self, username, **extra):
+        return self.client.post(self.url, {"username": username, "password": PASSWORD_PEMINDAI, **extra})
+
+    def test_each_kind_of_account_lands_on_its_own_page(self):
+        for username, tujuan in (
+            ("pengurus", reverse("siwak:panel_beranda")),
+            ("admin", reverse("siwak:panel_beranda")),
+            ("pindai-gate", reverse("siwak:pindai_beranda")),
+            ("mentor-rahma", reverse("siwak:mentor_dashboard")),
+        ):
+            with self.subTest(username=username):
+                self.client.logout()
+                response = self._masuk(username)
+                self.assertRedirects(response, tujuan, fetch_redirect_response=False)
+
+    def test_a_scanner_returns_to_the_qr_that_sent_them_here(self):
+        """Scanning while logged out goes through here; the QR must reopen after."""
+        qr = reverse("siwak:qr_verify", args=["apa-saja"])
+
+        response = self._masuk("pindai-gate", next=qr)
+
+        self.assertRedirects(response, qr, fetch_redirect_response=False)
+
+    def test_an_offsite_next_is_ignored(self):
+        response = self._masuk("pindai-gate", next="https://jahat.example.com/")
+
+        self.assertRedirects(response, reverse("siwak:pindai_beranda"), fetch_redirect_response=False)
+
+    def test_a_logged_in_account_skips_the_chooser(self):
+        self.client.force_login(User.objects.get(username="pindai-gate"))
+
+        response = self.client.get(reverse("siwak:login"))
+
+        self.assertRedirects(response, reverse("siwak:pindai_beranda"), fetch_redirect_response=False)
+
+    def test_the_chooser_offers_sso_and_akun_khusus(self):
+        response = self.client.get(reverse("siwak:login"))
+
+        self.assertContains(response, "Login dengan SSO UI")
+        self.assertContains(response, "Login Akun Khusus")
+        self.assertContains(response, f'href="{self.url}"')
+        self.assertNotContains(response, "Login akun mentor")
+
+    def test_the_old_mentor_address_forwards_here_with_next(self):
+        response = self.client.get("/siwak/login/mentor/", {"next": "/siwak/mentor/"})
+
+        self.assertRedirects(
+            response, f"{self.url}?next=%2Fsiwak%2Fmentor%2F", fetch_redirect_response=False
+        )
+
+    def test_cas_login_never_lands_on_a_scanner_account(self):
+        akun = User.objects.get(username="pindai-gate")
+
+        with self.assertRaisesRegex(ValueError, "pemindai"):
+            handle_cas_login(
+                sender=self.__class__,
+                user=akun,
+                username=akun.username,
+                attributes={"npm": "2506534245", "nama": "Orang Lain", "kd_org": "01.00.12.01"},
+            )
+        self.assertFalse(Profile.objects.filter(user=akun).exists())
+
+
+class RoleLandingUrlTests(TestCase):
+    """`role_landing_url` is the one place deciding where any login lands."""
+
+    def test_the_order_puts_the_widest_access_first(self):
+        staf_mentor = User.objects.create_user(username="staf-mentor", is_staff=True)
+        Profile.objects.create(user=staf_mentor, npm="2100000900", role=Profile.ROLE_MENTOR)
+        superuser_tanpa_staf = User.objects.create_user(username="su", is_superuser=True)
+        mentee = User.objects.create_user(username="mentee-biasa")
+        Profile.objects.create(user=mentee, npm="2500000900", role=Profile.ROLE_MENTEE)
+
+        for user, tujuan in (
+            (staf_mentor, reverse("siwak:panel_beranda")),
+            # Superuser tanpa is_staff tidak bisa membuka panel, tapi boleh memindai.
+            (superuser_tanpa_staf, reverse("siwak:pindai_beranda")),
+            (_akun_pemindai("pindai-makan", "kupon"), reverse("siwak:pindai_beranda")),
+            (mentee, reverse("siwak:tugas_list")),
+            (User.objects.create_user(username="tanpa-role"), "/"),
+        ):
+            with self.subTest(username=user.username):
+                self.assertEqual(role_landing_url(user), tujuan)
+
+
+class PindaiBerandaTests(TestCase):
+    """The scanner landing page at /siwak/pindai/."""
+
+    def setUp(self):
+        self.url = reverse("siwak:pindai_beranda")
+        self.gatekeeper = _akun_pemindai("pindai-gate", "registrasi")
+        SiwakEvent.objects.create(judul="Main Event", lokasi="Balairung")
+
+    def test_a_scanner_sees_who_they_are_and_what_they_may_scan(self):
+        self.client.force_login(self.gatekeeper)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "pindai-gate")
+        self.assertEqual(response.context["jenis"], ["QR registrasi ulang"])
+        self.assertNotContains(response, "QR kupon makan</li>")
+        self.assertContains(response, f'href="{reverse("siwak:logout")}"')
+        self.assertContains(response, "Cara memindai")
+
+    def test_it_lists_the_events(self):
+        self.client.force_login(self.gatekeeper)
+
+        response = self.client.get(self.url)
+
+        self.assertContains(response, "Main Event")
+        self.assertContains(response, "Balairung")
+
+    def test_the_navbar_links_scanners_back_here(self):
+        link = f'href="{self.url}"'
+        self.assertNotContains(self.client.get(reverse("siwak:landing")), link)
+
+        self.client.force_login(self.gatekeeper)
+        self.assertContains(self.client.get(reverse("siwak:landing")), link)
+
+    def test_only_accounts_that_may_scan_get_in(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse("siwak:login_khusus"), response.url)
+
+        mentor = User.objects.create_user(username="mentor")
+        Profile.objects.create(user=mentor, npm="2100000901", role=Profile.ROLE_MENTOR)
+        for akun in (mentor, User.objects.create_user(username="staf", is_staff=True)):
+            with self.subTest(username=akun.username):
+                self.client.force_login(akun)
+                self.assertEqual(self.client.get(self.url).status_code, 403)
+
+        self.client.force_login(User.objects.create_superuser(username="admin", password="x"))
+        self.assertEqual(self.client.get(self.url).status_code, 200)
+
+
+class PanelAkunPemindaiTests(TestCase):
+    """Staff create and manage scanner accounts from the panel."""
+
+    def setUp(self):
+        self.client.force_login(User.objects.create_user(username="pengurus", is_staff=True))
+
+    def _tambah(self, username="gate", akses=("registrasi",), password=PASSWORD_PEMINDAI):
+        return self.client.post(reverse("siwak:panel_tambah", args=["pemindai"]), {
+            "username": username,
+            "akses": list(akses),
+            "password1": password,
+            "password2": password,
+            "is_active": "on",
+        })
+
+    def test_the_panel_creates_a_scanner_that_is_not_staff(self):
+        response = self._tambah()
+
+        self.assertEqual(response.status_code, 302)
+        akun = User.objects.get(username="pindai-gate")
+        self.assertTrue(akun.check_password(PASSWORD_PEMINDAI))
+        self.assertFalse(akun.is_staff)
+        self.assertFalse(akun.is_superuser)
+        self.assertTrue(akun.has_perm("siwak.pindai_registrasi"))
+        self.assertFalse(akun.has_perm("siwak.pindai_kupon"))
+
+    def test_at_least_one_kind_of_qr_is_required(self):
+        response = self._tambah(akses=())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Pilih minimal satu jenis QR.")
+        self.assertFalse(User.objects.filter(username="pindai-gate").exists())
+
+    def test_the_username_gets_the_reserved_prefix_and_must_be_unique(self):
+        self._tambah(username="pindai-gate")  # sudah berawalan, tidak digandakan
+        self.assertTrue(User.objects.filter(username="pindai-gate").exists())
+
+        response = self._tambah(username="gate", akses=("kupon",))
+
+        self.assertContains(response, "Username ini sudah dipakai akun lain.")
+        self.assertEqual(User.objects.filter(username="pindai-gate").count(), 1)
+
+    def test_editing_swaps_the_permission_and_keeps_the_old_password(self):
+        self._tambah()
+        akun = User.objects.get(username="pindai-gate")
+
+        response = self.client.post(reverse("siwak:panel_ubah", args=["pemindai", akun.pk]), {
+            "username": "pindai-gate", "akses": ["kupon"],
+            "password1": "", "password2": "", "is_active": "on",
+        })
+
+        self.assertEqual(response.status_code, 302)
+        akun = User.objects.get(pk=akun.pk)  # baris baru: cache izin milik objek lama
+        self.assertFalse(akun.has_perm("siwak.pindai_registrasi"))
+        self.assertTrue(akun.has_perm("siwak.pindai_kupon"))
+        self.assertTrue(akun.check_password(PASSWORD_PEMINDAI))
+
+    def test_other_accounts_cannot_be_edited_or_deleted_from_this_list(self):
+        """The list's queryset is the guard: a swapped pk must not reach a superuser."""
+        admin_ = User.objects.create_superuser(username="admin", password="x")
+
+        self.assertEqual(
+            self.client.get(reverse("siwak:panel_ubah", args=["pemindai", admin_.pk])).status_code, 404
+        )
+        self.assertEqual(
+            self.client.post(reverse("siwak:panel_hapus", args=["pemindai", admin_.pk])).status_code, 404
+        )
+        self.assertTrue(User.objects.filter(pk=admin_.pk).exists())
+
+    def test_the_list_shows_what_each_account_may_scan(self):
+        self._tambah(username="gate", akses=("registrasi",))
+        self._tambah(username="makan", akses=("kupon",))
+
+        response = self.client.get(reverse("siwak:panel_daftar", args=["pemindai"]))
+
+        self.assertContains(response, "pindai-gate")
+        self.assertContains(response, "pindai-makan")
+        self.assertContains(response, "QR registrasi ulang (gatekeeper)")
+        self.assertContains(response, "QR kupon makan (konsumsi)")
 
 
 class EventRSVPModelTests(TestCase):

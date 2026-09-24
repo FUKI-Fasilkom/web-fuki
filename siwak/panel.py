@@ -10,6 +10,7 @@ hapus langsung ada tanpa menulis view atau template baru.
 from dataclasses import dataclass, field
 from typing import Callable
 
+from django.contrib.auth import get_user_model
 from django.db.models import Count, Q
 from django.db.models.functions import Length
 from django.utils import formats
@@ -17,6 +18,7 @@ from django.utils import formats
 from . import panel_forms as f
 from .models import (
     AssessmentAspect,
+    EventRSVP,
     GaleriFoto,
     KelompokMentoring,
     KetuaSiwak,
@@ -29,6 +31,8 @@ from .models import (
     TimelineEvent,
     Tugas,
 )
+
+User = get_user_model()
 
 
 @dataclass(frozen=True)
@@ -144,6 +148,17 @@ def _nama_mentor(kelompok):
 
 def _jumlah_mentee(kelompok):
     return sum(a.role == Profile.ROLE_MENTEE for a in kelompok.anggota.all())
+
+
+def _akses_pemindai(akun):
+    """Jenis QR yang boleh dipindai akun ini. Dibaca dari `user_permissions`
+    yang sudah di-prefetch, bukan `has_perm()` yang menembak query per baris."""
+    dimiliki = {izin.codename for izin in akun.user_permissions.all()}
+    label = [
+        label for kind, label in f.AkunPemindaiForm.AKSES
+        if f.AkunPemindaiForm.KODE_IZIN[kind] in dimiliki
+    ]
+    return ", ".join(label) or "—"
 
 
 def _saklar_rsvp(acara):
@@ -454,6 +469,36 @@ SUMBER = [
         kosong="Belum ada acara SIWAK.",
         queryset=lambda: SiwakEvent.objects.prefetch_related("rsvp_list"),
     ),
+    Sumber(
+        slug="pemindai",
+        bagian="event",
+        label="Akun Pemindai QR",
+        label_jamak="Akun Pemindai QR",
+        deskripsi=(
+            "Akun panitia untuk memindai QR peserta di hari acara — gatekeeper untuk "
+            "registrasi ulang, divisi konsumsi untuk kupon makan. Masuk lewat "
+            "“Login Akun Khusus” dan langsung mendarat di halaman pemindai "
+            "(/siwak/pindai/). Akun ini hanya bisa memindai: panel SIWAK dan "
+            "/admin/ tetap tertutup untuknya."
+        ),
+        model=User,
+        form=f.AkunPemindaiForm,
+        kolom=(
+            Kolom("Username", lambda o: o.username, utama=True, urut="username"),
+            Kolom("Boleh memindai", _akses_pemindai, "tag"),
+            Kolom("Akun aktif", lambda o: o.is_active, "bool"),
+        ),
+        pencarian=("username",),
+        kosong="Belum ada akun pemindai QR.",
+        # Hanya akun berawalan pemindai. Itu juga yang menjaga halaman ubah dan
+        # hapus di sini tidak bisa dipakai menyunting akun lain — superuser,
+        # misalnya — cukup dengan mengganti pk di alamatnya.
+        queryset=lambda: User.objects.filter(
+            username__startswith=EventRSVP.USERNAME_PEMINDAI_PREFIX
+        ).prefetch_related("user_permissions"),
+        pengurutan={"username": ("username",)},
+        urut_awal="username",
+    ),
 
     # --- Bagian 5: Mentoring ---------------------------------------------------
     Sumber(
@@ -599,7 +644,7 @@ BAGIAN = [
     Bagian(
         slug="event",
         nama="SIWAK Events",
-        deskripsi="Acara SIWAK-NG dan pengaturan buka-tutup RSVP-nya.",
+        deskripsi="Acara SIWAK-NG, pengaturan buka-tutup RSVP-nya, dan akun pemindai QR panitia.",
         ikon="tiket",
     ),
     Bagian(

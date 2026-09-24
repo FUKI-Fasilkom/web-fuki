@@ -1,13 +1,14 @@
 {% extends 'base.html' %}
 
 {% comment %}
-  Login lokal khusus mentor non-SSO. Pesan galat sengaja tidak membedakan
-  "username salah", "password salah", dan "akun ini bukan mentor non-SSO" —
-  MentorLoginForm memakai satu error yang sama untuk ketiganya supaya halaman
-  ini tidak bisa dipakai menebak akun mana yang ada.
+  Login Akun Khusus: mentor non-SSO, pengurus SIWAK, dan akun pemindai QR.
+  Pesan galat sengaja tidak membedakan "username salah", "password salah", dan
+  "akun ini tidak boleh lewat sini" — AkunKhususLoginForm memakai satu error
+  yang sama untuk ketiganya supaya halaman ini tidak bisa dipakai menebak akun
+  mana yang ada.
 {% endcomment %}
 
-{% block title %}Login Mentor{% endblock %}
+{% block title %}Login Akun Khusus{% endblock %}
 {% block meta_robots %}noindex, nofollow{% endblock %}
 
 {% block content %}
@@ -19,13 +20,14 @@
     <p class="mb-10 text-xs sm:text-sm text-navy-400">
       <a href="{% url 'siwak:login' %}" class="hover:text-navy transition">Masuk</a>
       <span class="mx-2" aria-hidden="true">/</span>
-      <span class="text-navy">Akun mentor</span>
+      <span class="text-navy">Akun khusus</span>
     </p>
 
-    <h1 class="text-2xl sm:text-3xl font-bold text-navy">Login akun mentor</h1>
+    <h1 class="text-2xl sm:text-3xl font-bold text-navy">Login Akun Khusus</h1>
     <p class="mt-3 text-sm text-navy-400">
-      Untuk mentor yang akunnya dibuatkan pengurus SIWAK. Mahasiswa UI dengan akun
-      SSO aktif silakan <a href="{% url 'siwak:cas_ng_login' %}" class="font-semibold text-navy underline">masuk lewat SSO UI</a>.
+      Untuk mentor non-SSO, pengurus SIWAK, dan panitia pemindai QR yang memakai username dan
+      password. Mahasiswa UI dengan akun SSO aktif silakan
+      <a href="{% url 'siwak:cas_ng_login' %}{% if next %}?next={{ next|urlencode }}{% endif %}" class="font-semibold text-navy underline">masuk lewat SSO UI</a>.
     </p>
 
     <form method="post" class="mt-8 space-y-5">
@@ -43,7 +45,7 @@
           Username
         </label>
         <input type="text" name="{{ form.username.html_name }}" id="{{ form.username.id_for_label }}"
-               value="{{ form.username.value|default:'' }}" autocomplete="username" autofocus required
+               value="{{ form.username.value|default:'' }}" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" autofocus required
                class="w-full rounded-xl border-2 border-gold-light bg-white px-4 py-3 text-[15px] text-navy transition focus:border-gold focus:outline-none focus:ring-4 focus:ring-gold/25">
         {% for error in form.username.errors %}
           <p class="mt-1.5 text-sm text-red-700">{{ error }}</p>

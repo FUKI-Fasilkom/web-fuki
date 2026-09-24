@@ -1,5 +1,6 @@
 from django_cas_ng import views as cas_views
 from django.urls import path
+from django.views.generic import RedirectView
 
 from . import auth_views, mentor_views, panel_views, sso, views
 
@@ -13,9 +14,13 @@ urlpatterns = [
     path("event/<int:pk>/", views.event_detail, name="event_detail"),
     path("kelompok/", views.kelompok_search, name="kelompok_search"),
 
-    # 7 — Authentication (sso ui cas2 + akun lokal khusus mentor non-SSO)
+    # 7 — Authentication (sso ui cas2 + Akun Khusus: mentor non-SSO, pengurus,
+    # pemindai QR)
     path("login/", auth_views.login_pilihan, name="login"),
-    path("login/mentor/", auth_views.MentorLoginView.as_view(), name="mentor_login"),
+    path("login/khusus/", auth_views.AkunKhususLoginView.as_view(), name="login_khusus"),
+    # Alamat lama pintu yang dulu khusus mentor; mentor mungkin masih
+    # menyimpannya. `next` ikut dibawa.
+    path("login/mentor/", RedirectView.as_view(pattern_name="siwak:login_khusus", query_string=True)),
     path("logout/", auth_views.logout_cerdas, name="logout"),
     path("sso-login/", sso.RoleRedirectLoginView.as_view(), name="cas_ng_login"),
     path("sso-logout/", cas_views.LogoutView.as_view(), name="cas_ng_logout"),
@@ -49,6 +54,7 @@ urlpatterns = [
     # 5.2 / 6 — RSVP & QR
     path("rsvp/<int:id>/", views.rsvp_event, name="rsvp"),
     path("qr/<str:signed>/", views.qr_verify, name="qr_verify"),
+    path("pindai/", views.pindai_beranda, name="pindai_beranda"),
 
     # 8 — Panel pengelola SIWAK (khusus pengurus)
     path("admin/", panel_views.panel_beranda, name="panel_beranda"),

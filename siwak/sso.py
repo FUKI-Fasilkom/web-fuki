@@ -23,7 +23,8 @@ from django.db import transaction
 from django.shortcuts import resolve_url
 from django_cas_ng.views import LoginView
 
-from .models import Profile
+from .models import EventRSVP, Profile
+from .services.pemindai import boleh_memindai
 
 
 from django.dispatch import receiver
@@ -124,8 +125,15 @@ def handle_cas_login(sender, user, username, attributes, **kwargs):
     # mustahil; ini penjaga terakhirnya.
     if Profile.objects.filter(user=user, auth_source=Profile.SOURCE_LOKAL).exists():
         raise ValueError(
-            "Akun ini terdaftar sebagai mentor non-SSO. Masuk lewat halaman "
-            "login mentor, bukan SSO UI."
+            "Akun ini terdaftar sebagai mentor non-SSO. Masuk lewat Login Akun "
+            "Khusus, bukan SSO UI."
+        )
+    # Penjaga yang sama untuk akun pemindai QR buatan panel: tanpa profil sama
+    # sekali, jadi yang bisa dikenali hanya awalan username-nya.
+    if user.username.startswith(EventRSVP.USERNAME_PEMINDAI_PREFIX):
+        raise ValueError(
+            "Akun ini terdaftar sebagai akun pemindai QR. Masuk lewat Login Akun "
+            "Khusus, bukan SSO UI."
         )
 
     npm = get_attribute(attributes, "npm")
@@ -201,11 +209,20 @@ def sync_profile(
     return profile
 
 def role_landing_url(user):
-    """Tujuan default setelah login, ditentukan role di Profile.
+    """Tujuan default setelah login, untuk pintu SSO maupun Akun Khusus.
 
-    mentee -> daftar tugas, mentor -> dashboard mentor, selain itu (role NULL,
-    belum punya profil, dst.) -> beranda FUKI.
+    Urutannya menentukan: pengurus (`is_staff`) -> panel SIWAK, akun yang boleh
+    memindai QR -> halaman pemindai, mentee -> daftar tugas, mentor -> dashboard
+    mentor, selain itu (role NULL, belum punya profil, dst.) -> beranda FUKI.
+
+    Pengurus didahulukan karena superuser juga lolos `boleh_memindai()`; tanpa
+    urutan ini dia mendarat di halaman pemindai, bukan di panelnya. Yang
+    diperiksa `is_staff`, bukan `is_superuser`, karena itulah syarat panelnya.
     """
+    if user.is_staff:
+        return resolve_url("siwak:panel_beranda")
+    if boleh_memindai(user):
+        return resolve_url("siwak:pindai_beranda")
     profile = Profile.objects.filter(user=user).only("role").first()
     role = profile.role if profile else None
     if role == Profile.ROLE_MENTEE:
