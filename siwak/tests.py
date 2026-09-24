@@ -1635,6 +1635,133 @@ class PanelRsvpPencarianTests(TestCase):
 
         self.assertRedirects(response, halaman)
 
+
+class PanelRsvpPeranTests(TestCase):
+    """Verify the Semua / Mentor / Mentee tabs and their counts on the RSVP list."""
+
+    def setUp(self):
+        self.client.force_login(User.objects.create_user(username="pengurus", is_staff=True))
+        self.event = SiwakEvent.objects.create(judul="Main Event", rsvp_dibuka=True)
+        self.url = reverse("siwak:panel_rsvp", args=[self.event.pk])
+        self._rsvp("2106000001", "Kak Andi", Profile.ROLE_MENTOR, hadir=True)
+        self._rsvp("2106000002", "Kak Bela", Profile.ROLE_MENTOR)
+        self._rsvp("2506000001", "Andi Maba", Profile.ROLE_MENTEE, hadir=True)
+        self._rsvp("2506000002", "Citra Maba", Profile.ROLE_MENTEE, hadir=True)
+        self._rsvp("2506000003", "Dodi Maba", Profile.ROLE_MENTEE)
+        # Login SSO tanpa role: ikut "Semua", bukan mentor maupun mentee.
+        self._rsvp("2506000004", "Eka Tanpa Role", None, hadir=True)
+
+    def _rsvp(self, npm, nama, role, hadir=False, event=None):
+        user = User.objects.create_user(username=npm)
+        Profile.objects.create(user=user, npm=npm, nama_lengkap=nama, jurusan="IK", role=role)
+        return EventRSVP.objects.create(
+            event=event or self.event,
+            user=user,
+            status_kehadiran="hadir" if hadir else "belum_hadir",
+        )
+
+    def _nama(self, response):
+        return [r.user.profil.nama_lengkap for r in response.context["halaman"].object_list]
+
+    def _tab(self, response):
+        return [(t["label"], t["hadir"], t["terdaftar"]) for t in response.context["tab_peran"]]
+
+    def test_the_mentor_tab_keeps_only_mentors(self):
+        response = self.client.get(self.url, {"role": "mentor"})
+
+        self.assertEqual(self._nama(response), ["Kak Andi", "Kak Bela"])
+
+    def test_the_mentee_tab_keeps_only_mentees(self):
+        response = self.client.get(self.url, {"role": "mentee"})
+
+        self.assertEqual(self._nama(response), ["Andi Maba", "Citra Maba", "Dodi Maba"])
+
+    def test_the_role_is_read_case_insensitively(self):
+        """Panitia share these links by hand; ?role=MENTOR must work too."""
+        response = self.client.get(self.url, {"role": "MENTOR"})
+
+        self.assertEqual(response.context["peran"], Profile.ROLE_MENTOR)
+        self.assertEqual(self._nama(response), ["Kak Andi", "Kak Bela"])
+
+    def test_an_unknown_role_falls_back_to_everyone(self):
+        response = self.client.get(self.url, {"role": "panitia"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["peran"], "")
+        self.assertEqual(len(self._nama(response)), 6)
+
+    def test_each_tab_counts_attended_over_registered(self):
+        response = self.client.get(self.url)
+
+        self.assertEqual(
+            self._tab(response),
+            [("Semua", 4, 6), ("Mentor", 1, 2), ("Mentee", 2, 3)],
+        )
+        # Semua ≠ mentor + mentee: sisanya disebut, bukan dibiarkan jadi teka-teki.
+        self.assertEqual(response.context["tanpa_peran"], 1)
+        self.assertContains(response, "1 peserta belum punya role")
+
+    def test_the_counts_describe_the_whole_event_whatever_the_filter(self):
+        """Like the summary tiles, the tab counts must not shrink with a filter."""
+        response = self.client.get(self.url, {"role": "mentee", "q": "citra"})
+
+        self.assertEqual(self._nama(response), ["Citra Maba"])
+        self.assertEqual(
+            self._tab(response),
+            [("Semua", 4, 6), ("Mentor", 1, 2), ("Mentee", 2, 3)],
+        )
+        self.assertEqual(
+            response.context["ringkasan_rsvp"],
+            [("Total RSVP", 6), ("Sudah check-in", 4), ("Kupon ditukar", 0)],
+        )
+
+    def test_the_search_stays_inside_the_active_tab(self):
+        response = self.client.get(self.url, {"role": "mentee", "q": "andi"})
+
+        # "Kak Andi" cocok dengan kata kuncinya, tapi dia mentor.
+        self.assertEqual(self._nama(response), ["Andi Maba"])
+
+    def test_other_events_are_not_counted(self):
+        lain = SiwakEvent.objects.create(judul="Acara Lain")
+        self._rsvp("2106000009", "Kak Lain", Profile.ROLE_MENTOR, hadir=True, event=lain)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(self._tab(response)[1], ("Mentor", 1, 2))
+
+    def test_tabs_search_and_export_keep_each_others_filter(self):
+        response = self.client.get(self.url, {"role": "mentee", "q": "maba"})
+
+        tab = {t["label"]: t for t in response.context["tab_peran"]}
+        self.assertTrue(tab["Mentee"]["aktif"])
+        self.assertEqual(tab["Mentor"]["url"], "?q=maba&role=mentor")
+        self.assertEqual(tab["Semua"]["url"], "?q=maba")
+        self.assertEqual(response.context["kueri"], "q=maba&role=mentee")
+        self.assertContains(response, '<input type="hidden" name="role" value="mentee" />', html=True)
+        csv_url = reverse("siwak:panel_rsvp_csv", args=[self.event.pk])
+        self.assertContains(response, f'href="{csv_url}?q=maba&amp;role=mentee"')
+
+    def test_an_empty_tab_says_so(self):
+        acara = SiwakEvent.objects.create(judul="Acara Mentee")
+        self._rsvp("2506000010", "Fani Maba", Profile.ROLE_MENTEE, event=acara)
+
+        response = self.client.get(reverse("siwak:panel_rsvp", args=[acara.pk]), {"role": "mentor"})
+
+        self.assertContains(response, "Belum ada mentor yang RSVP untuk acara ini.")
+
+    def test_the_export_follows_the_tab_and_names_each_role(self):
+        response = self.client.get(
+            reverse("siwak:panel_rsvp_csv", args=[self.event.pk]), {"role": "mentor"}
+        )
+
+        baris = response.content.decode("utf-8").splitlines()
+        self.assertIn("Peran", baris[0])
+        self.assertEqual(len(baris), 3)
+        self.assertIn("Kak Andi", baris[1])
+        self.assertIn("Mentor", baris[1])
+        self.assertNotIn("Maba", "\n".join(baris))
+
+
 class QrcodeServiceTests(TestCase):
     """Unit tests for the signing/QR helpers (PRD 10 - Signed QR token)."""
 

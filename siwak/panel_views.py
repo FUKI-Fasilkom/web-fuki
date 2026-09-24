@@ -18,7 +18,7 @@ from django.contrib import messages
 from django.contrib.auth.views import redirect_to_login
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import F, Max, ProtectedError, Q
+from django.db.models import Count, F, Max, ProtectedError, Q
 from django.forms import inlineformset_factory
 from django.http import Http404, HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
@@ -578,12 +578,33 @@ CARI_RSVP = (
 )
 
 
-def _rsvp_queryset(event, kata=""):
+# Tab saringan peran di atas daftar RSVP: (nilai ?role=, label). "" = semua.
+TAB_PERAN_RSVP = [
+    ("", "Semua"),
+    (Profile.ROLE_MENTOR, "Mentor"),
+    (Profile.ROLE_MENTEE, "Mentee"),
+]
+
+
+def _peran_rsvp(request):
+    """Peran yang disaring lewat `?role=`, atau "" untuk semua peserta.
+
+    Huruf besar ikut diterima (`?role=MENTOR`): alamat ini sering diketik dan
+    dibagikan tangan antarpanitia. Nilai lain diabaikan, bukan 404 — saringan
+    yang salah ketik lebih baik jatuh ke "semua" daripada halaman rusak.
+    """
+    peran = (request.GET.get("role") or "").strip().lower()
+    return peran if peran in dict(Profile.ROLE_CHOICES) else ""
+
+
+def _rsvp_queryset(event, kata="", peran=""):
     qs = (
         EventRSVP.objects.filter(event=event)
         .select_related("user__profil")
         .order_by("user__profil__nama_lengkap", "user__username")
     )
+    if peran:
+        qs = qs.filter(user__profil__role=peran)
     if kata:
         saringan = Q()
         for nama_field in CARI_RSVP:
@@ -592,16 +613,56 @@ def _rsvp_queryset(event, kata=""):
     return qs
 
 
+def _hitung_rsvp(event):
+    """Semua angka ringkasan RSVP satu acara, dalam satu query.
+
+    Kuncinya "semua", "mentor", "mentee" (terdaftar), masing-masing dengan
+    akhiran "_hadir" (sudah check-in), plus "kupon" (kupon ditukar). Peserta
+    tanpa profil atau tanpa role hanya terhitung di "semua" — karena itu
+    semua ≠ mentor + mentee, dan templat menyebut sisanya.
+    """
+    hadir = Q(status_kehadiran="hadir")
+    mentor = Q(user__profil__role=Profile.ROLE_MENTOR)
+    mentee = Q(user__profil__role=Profile.ROLE_MENTEE)
+    return EventRSVP.objects.filter(event=event).aggregate(
+        semua=Count("pk"),
+        semua_hadir=Count("pk", filter=hadir),
+        kupon=Count("pk", filter=Q(status_kupon="redeemed")),
+        mentor=Count("pk", filter=mentor),
+        mentor_hadir=Count("pk", filter=mentor & hadir),
+        mentee=Count("pk", filter=mentee),
+        mentee_hadir=Count("pk", filter=mentee & hadir),
+    )
+
+
 @staf_required
 def panel_rsvp(request, pk):
     event = get_object_or_404(SiwakEvent, pk=pk)
     kata = (request.GET.get("q") or "").strip()
-    daftar = _rsvp_queryset(event, kata)
+    peran = _peran_rsvp(request)
+    daftar = _rsvp_queryset(event, kata, peran)
 
     # Ringkasan di atas tabel sengaja dihitung dari seluruh peserta acara, bukan
-    # dari hasil pencarian: angka "Sudah check-in" yang ikut menyusut saat
-    # panitia mengetik satu nama akan terbaca seperti data yang hilang.
-    semua = _rsvp_queryset(event)
+    # dari hasil pencarian atau tab peran: angka "Sudah check-in" yang ikut
+    # menyusut saat panitia mengetik satu nama akan terbaca seperti data yang
+    # hilang. Angka per peran punya tempatnya sendiri, di tab saringannya.
+    angka = _hitung_rsvp(event)
+
+    # Berpindah tab tetap membawa pencarian yang sedang aktif, dan sebaliknya
+    # (lihat input tersembunyi di form cari), supaya dua saringan ini bisa
+    # dipakai bersamaan.
+    tab_peran = []
+    for nilai, label in TAB_PERAN_RSVP:
+        kunci = nilai or "semua"
+        params = {k: v for k, v in (("q", kata), ("role", nilai)) if v}
+        tab_peran.append({
+            "nilai": nilai,
+            "label": label,
+            "hadir": angka[f"{kunci}_hadir"],
+            "terdaftar": angka[kunci],
+            "url": f"?{urlencode(params)}" if params else request.path,
+            "aktif": nilai == peran,
+        })
 
     bagian = PETA_BAGIAN["event"]
     return render(request, "siwak/panel/rsvp.html", _kerangka(
@@ -617,17 +678,21 @@ def panel_rsvp(request, pk):
         event=event,
         halaman=Paginator(daftar, PER_HALAMAN).get_page(request.GET.get("page")),
         kata=kata,
+        peran=peran,
+        label_peran=dict(TAB_PERAN_RSVP)[peran],
+        tab_peran=tab_peran,
+        tanpa_peran=angka["semua"] - angka["mentor"] - angka["mentee"],
         # Kotak cari disembunyikan kalau acaranya memang belum punya peserta:
         # mencari di daftar kosong hanya menambah pertanyaan.
-        ada_rsvp=semua.exists(),
-        kueri=urlencode({"q": kata}) if kata else "",
+        ada_rsvp=angka["semua"] > 0,
+        kueri=urlencode({k: v for k, v in (("q", kata), ("role", peran)) if v}),
         url_kembali=request.get_full_path(),
         pilihan_kehadiran=EventRSVP.KEHADIRAN_STATUS_CHOICES,
         pilihan_kupon=EventRSVP.QR_CHOICES,
         ringkasan_rsvp=[
-            ("Total RSVP", semua.count()),
-            ("Sudah check-in", semua.filter(status_kehadiran="hadir").count()),
-            ("Kupon ditukar", semua.filter(status_kupon="redeemed").count()),
+            ("Total RSVP", angka["semua"]),
+            ("Sudah check-in", angka["semua_hadir"]),
+            ("Kupon ditukar", angka["kupon"]),
         ],
     ))
 
@@ -635,21 +700,24 @@ def panel_rsvp(request, pk):
 @staf_required
 def panel_rsvp_csv(request, pk):
     event = get_object_or_404(SiwakEvent, pk=pk)
-    # Unduhan mengikuti pencarian yang sedang aktif. Kalau tidak, tombol unduh
-    # akan memberi berkas yang isinya berbeda dari yang sedang dilihat panitia.
+    # Unduhan mengikuti pencarian dan tab peran yang sedang aktif. Kalau tidak,
+    # tombol unduh akan memberi berkas yang isinya berbeda dari yang sedang
+    # dilihat panitia.
     kata = (request.GET.get("q") or "").strip()
+    peran = _peran_rsvp(request)
 
     respons = HttpResponse(content_type="text/csv; charset=utf-8")
     aman = "".join(c if c.isalnum() else "-" for c in event.judul).strip("-").lower()
     respons["Content-Disposition"] = f'attachment; filename="rsvp-{aman or event.pk}.csv"'
 
     penulis = csv.writer(respons)
-    penulis.writerow(["Nama", "NPM", "Kehadiran", "Alasan izin", "QR Kehadiran", "QR Kupon"])
-    for rsvp in _rsvp_queryset(event, kata):
+    penulis.writerow(["Nama", "NPM", "Peran", "Kehadiran", "Alasan izin", "QR Kehadiran", "QR Kupon"])
+    for rsvp in _rsvp_queryset(event, kata, peran):
         profil = getattr(rsvp.user, "profil", None)
         penulis.writerow([
             profil.nama_lengkap if profil else rsvp.user.username,
             profil.npm if profil else "",
+            profil.get_role_display() if profil and profil.role else "",
             rsvp.get_kehadiran_display(),
             rsvp.alasan_izin,
             rsvp.get_status_kehadiran_display(),
