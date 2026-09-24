@@ -173,6 +173,32 @@ def _aksi(obj, sumber):
     ]
 
 
+def _saring(qs, sumber, request):
+    """Terapkan dropdown penyaring milik `sumber` dari alamat halaman.
+
+    Mengembalikan queryset tersaring, dropdown siap render, dan apakah ada
+    penyaring yang aktif. Nilai dicocokkan dengan pilihannya lebih dulu: nilai
+    yang tidak dikenal diabaikan, bukan dikirim ke query.
+    """
+    dropdown = []
+    aktif = False
+    for saringan in sumber.saringan:
+        pilihan = [(str(nilai), label) for nilai, label in saringan.pilihan()]
+        nilai = (request.GET.get(saringan.kunci) or "").strip()
+        if nilai not in dict(pilihan):
+            nilai = ""
+        if nilai:
+            qs = qs.filter(**{saringan.lookup: nilai})
+            aktif = True
+        dropdown.append({
+            "kunci": saringan.kunci,
+            "label": saringan.label,
+            "pilihan": pilihan,
+            "terpilih": nilai,
+        })
+    return qs, dropdown, aktif
+
+
 def _angka(nilai):
     """Pk dari isian form, atau None kalau kosong/bukan angka. Dipakai supaya
     pilihan dropdown yang kosong tidak pernah sampai ke query sebagai teks."""
@@ -318,6 +344,7 @@ def panel_daftar(request, slug):
         for nama_field in sumber.pencarian:
             filter_cari |= Q(**{f"{nama_field}__icontains": kata})
         qs = qs.filter(filter_cari)
+    qs, saringan, ada_saringan = _saring(qs, sumber, request)
 
     qs, kunci_urut, turun = _urutkan(qs, sumber, request)
 
@@ -369,6 +396,8 @@ def panel_daftar(request, slug):
         baris=baris,
         halaman=halaman,
         kata=kata,
+        saringan=saringan,
+        ada_saringan=ada_saringan,
         kunci_urut=kunci_urut,
         arah_turun=turun,
         pilihan_urut=pilihan_urut,
@@ -558,15 +587,20 @@ def panel_kelompok_detail(request, pk):
     lewat dropdown di daftar Mentee dan Mentor, supaya aturan penempatannya
     (role wajib ada, kelompok dilepas saat role berubah) tidak punya jalur kedua.
 
-    Presensi dibaca sebagai satu kisi mentee × sesi. Catatan milik mentee yang
-    sudah pindah kelompok tidak ikut: yang ditampilkan isi kelompok sekarang.
-    Detail per mentee (nilai per aspek, jawaban tugas, feedback) ada di halaman
-    detail mentee.
+    Presensi dibaca sebagai satu kisi mentee × sesi; `?sesi=<nomor>` menyempitkan
+    kisinya ke satu sesi. Catatan milik mentee yang sudah pindah kelompok tidak
+    ikut: yang ditampilkan isi kelompok sekarang. Detail per mentee (nilai per
+    aspek, jawaban tugas, feedback) ada di halaman detail mentee.
     """
     kelompok = get_object_or_404(KelompokMentoring, pk=pk)
     mentor = list(kelompok.daftar_mentor.select_related("user").order_by("nama_lengkap"))
     mentee = list(kelompok.daftar_mentee.select_related("user").order_by("nama_lengkap"))
-    sesi = list(kelompok.mentoring_sessions.order_by("nomor"))
+    semua_sesi = list(kelompok.mentoring_sessions.order_by("nomor"))
+
+    sesi_dipilih = (request.GET.get("sesi") or "").strip()
+    if sesi_dipilih not in {str(s.nomor) for s in semua_sesi}:
+        sesi_dipilih = ""
+    sesi = [s for s in semua_sesi if not sesi_dipilih or str(s.nomor) == sesi_dipilih]
 
     presensi = {
         (peserta_id, sesi_id): status
@@ -635,7 +669,9 @@ def panel_kelompok_detail(request, pk):
         mentor=mentor,
         baris=baris,
         kolom_sesi=kolom_sesi,
-        sesi_aktif=sum(s.is_active for s in sesi),
+        pilihan_sesi=semua_sesi,
+        sesi_dipilih=sesi_dipilih,
+        sesi_aktif=sum(s.is_active for s in semua_sesi),
         tugas_aktif=tugas_aktif,
     ))
 

@@ -73,11 +73,28 @@
 </section>
 
 <section aria-labelledby="judul-mentee">
-  <h2 id="judul-mentee" class="text-lg font-bold text-navy">Mentee</h2>
-  <p class="mb-3 mt-1 text-sm leading-relaxed text-navy-400">
-    Presensi tiap sesi diisi mentor. Tugas = tugas aktif yang sudah dikumpulkan; Dinilai = yang
-    sudah diberi nilai mentor. Buka nama mentee untuk jawaban, feedback, dan nilai per aspeknya.
-  </p>
+  <div class="mb-3 flex flex-wrap items-end justify-between gap-3">
+    <div class="min-w-0">
+      <h2 id="judul-mentee" class="text-lg font-bold text-navy">Mentee</h2>
+      <p class="mt-1 max-w-2xl text-sm leading-relaxed text-navy-400">
+        Presensi tiap sesi diisi mentor. Tugas = tugas aktif yang sudah dikumpulkan; Dinilai = yang
+        sudah diberi nilai mentor. Buka nama mentee untuk jawaban, feedback, dan nilai per aspeknya.
+      </p>
+    </div>
+    {% if pilihan_sesi %}
+    <form method="get" class="flex items-center gap-2">
+      <label for="saring-sesi" class="text-xs font-bold uppercase tracking-wide text-navy-400">Sesi</label>
+      <select id="saring-sesi" name="sesi" onchange="this.form.submit()"
+              class="min-h-[40px] rounded-xl border-2 border-gold-light bg-white px-3 text-sm font-semibold text-navy transition focus:border-gold focus:outline-none focus:ring-4 focus:ring-gold/25">
+        <option value="">Semua sesi</option>
+        {% for s in pilihan_sesi %}
+        <option value="{{ s.nomor }}" {% if s.nomor|stringformat:"d" == sesi_dipilih %}selected{% endif %}>{{ s.judul }}</option>
+        {% endfor %}
+      </select>
+      <noscript><button type="submit" class="rounded-xl bg-navy px-3 py-2 text-xs font-bold text-white">Terapkan</button></noscript>
+    </form>
+    {% endif %}
+  </div>
 
   {% if baris %}
   {% comment %}

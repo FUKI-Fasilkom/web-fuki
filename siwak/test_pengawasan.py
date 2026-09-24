@@ -1,5 +1,5 @@
-"""Pengawasan pengurus atas data mentoring dan catatan privat mentee di
-panel SIWAK.
+"""Pengawasan pengurus atas data mentoring, catatan privat mentee, dan
+penyaring kelompok/sesi di panel SIWAK.
 
 Regression guard yang paling penting di sini: `Profile.notes` hanya boleh
 terbaca dan tersunting oleh pengurus dan mentor kelompok mentee itu — tidak
@@ -275,3 +275,83 @@ class PengawasanAdminTests(TestCase):
         self.assertEqual(
             self.client.get(reverse("siwak:panel_tambah", args=["presensi"])).status_code, 404
         )
+
+
+class PanelSaringanTests(TestCase):
+    """The kelompok / sesi dropdown filters on the panel lists."""
+
+    def setUp(self):
+        self.client.force_login(User.objects.create_user(username="pengurus", is_staff=True))
+        self.kelompok_a = KelompokMentoring.objects.create(nama_kelompok="Kelompok A")
+        self.kelompok_b = KelompokMentoring.objects.create(nama_kelompok="Kelompok B")
+        self.kelompok_a.mentoring_sessions.filter(nomor=1).update(is_active=True)
+        self.ani = _profil("2500000001", "Ani", Profile.ROLE_MENTEE, self.kelompok_a)
+        self.budi = _profil("2500000002", "Budi", Profile.ROLE_MENTEE, self.kelompok_b)
+        for mentee, kelompok in ((self.ani, self.kelompok_a), (self.budi, self.kelompok_b)):
+            for nomor, status in ((1, "hadir"), (2, "izin")):
+                MentoringAttendance.objects.create(
+                    session=kelompok.mentoring_sessions.get(nomor=nomor), peserta=mentee, status=status
+                )
+
+    def _daftar(self, slug, **params):
+        response = self.client.get(reverse("siwak:panel_daftar", args=[slug]), params)
+        self.assertEqual(response.status_code, 200)
+        return response, list(response.context["halaman"].object_list)
+
+    def test_the_session_list_filters_by_group_session_and_status(self):
+        a = str(self.kelompok_a.pk)
+
+        _, sesi = self._daftar("sesi", kelompok=a)
+        self.assertEqual({s.kelompok_id for s in sesi}, {self.kelompok_a.pk})
+        self.assertEqual(len(sesi), 4)
+
+        _, sesi = self._daftar("sesi", kelompok=a, sesi="2")
+        self.assertEqual([(s.kelompok_id, s.nomor) for s in sesi], [(self.kelompok_a.pk, 2)])
+
+        _, sesi = self._daftar("sesi", sesi="2")
+        self.assertEqual({s.kelompok_id for s in sesi}, {self.kelompok_a.pk, self.kelompok_b.pk})
+
+        _, sesi = self._daftar("sesi", aktif="1")
+        self.assertEqual([(s.kelompok_id, s.nomor) for s in sesi], [(self.kelompok_a.pk, 1)])
+
+    def test_the_attendance_list_filters_by_group_session_and_status(self):
+        _, baris = self._daftar("presensi", kelompok=str(self.kelompok_b.pk))
+        self.assertEqual({b.peserta_id for b in baris}, {self.budi.pk})
+
+        _, baris = self._daftar("presensi", sesi="2")
+        self.assertEqual({(b.peserta_id, b.session.nomor) for b in baris}, {(self.ani.pk, 2), (self.budi.pk, 2)})
+
+        _, baris = self._daftar("presensi", kelompok=str(self.kelompok_a.pk), status="hadir")
+        self.assertEqual([(b.peserta_id, b.session.nomor) for b in baris], [(self.ani.pk, 1)])
+
+    def test_the_mentee_list_filters_by_group(self):
+        _, mentee = self._daftar("peserta", kelompok=str(self.kelompok_a.pk))
+
+        self.assertEqual(mentee, [self.ani])
+
+    def test_unknown_filter_values_are_ignored_not_queried(self):
+        response, baris = self._daftar("presensi", kelompok="bukan-angka", sesi="9", status="mungkin")
+
+        self.assertEqual(len(baris), 4)
+        self.assertFalse(response.context["ada_saringan"])
+
+    def test_filters_survive_search_sorting_and_paging(self):
+        a = str(self.kelompok_a.pk)
+
+        response, _ = self._daftar("presensi", kelompok=a, sesi="1", q="ani")
+
+        self.assertIn(f"kelompok={a}", response.context["kueri"])
+        self.assertIn("sesi=1", response.context["kueri"])
+        urut = [k["url"] for k in response.context["kepala"] if k["bisa_urut"]]
+        self.assertTrue(urut)
+        self.assertTrue(all(f"kelompok={a}" in u and "sesi=1" in u for u in urut))
+        self.assertContains(response, f'<option value="{a}" selected>Kelompok A</option>', html=True)
+
+    def test_the_group_page_can_narrow_its_grid_to_one_session(self):
+        response = self.client.get(
+            reverse("siwak:panel_kelompok_detail", args=[self.kelompok_a.pk]), {"sesi": "2"}
+        )
+
+        self.assertEqual([k["sesi"].nomor for k in response.context["kolom_sesi"]], [2])
+        (ani,) = response.context["baris"]
+        self.assertEqual([p["status"] for p in ani["presensi"]], ["izin"])

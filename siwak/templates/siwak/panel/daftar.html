@@ -14,22 +14,34 @@
   {% endif %}
 </header>
 
-{% if sumber_data.pencarian %}
-<form method="get" class="mb-4 flex flex-wrap gap-2">
+{% if sumber_data.pencarian or saringan %}
+<form method="get" class="mb-4 flex flex-wrap gap-2" role="search">
   {% comment %}
-    Urutan dan pencarian adalah dua hal berbeda, tapi keduanya tersimpan di
-    alamat halaman. Kunci urutan dibawa ikut supaya mencari tidak diam-diam
-    mengembalikan daftar ke urutan awal.
+    Urutan, pencarian, dan dropdown penyaring adalah hal berbeda, tapi semuanya
+    tersimpan di alamat halaman. Kunci urutan dibawa ikut supaya mencari atau
+    menyaring tidak diam-diam mengembalikan daftar ke urutan awal.
   {% endcomment %}
   {% if kunci_urut %}<input type="hidden" name="urut" value="{{ kunci_urut }}" />{% endif %}
   {% if arah_turun %}<input type="hidden" name="arah" value="turun" />{% endif %}
+  {% for s in saringan %}
+  <label for="saring-{{ s.kunci }}" class="sr-only">{{ s.label }}</label>
+  <select id="saring-{{ s.kunci }}" name="{{ s.kunci }}" onchange="this.form.submit()"
+          class="min-h-[44px] w-full rounded-xl border-2 border-gold-light bg-white px-3 text-sm font-semibold text-navy transition focus:border-gold focus:outline-none focus:ring-4 focus:ring-gold/25 sm:w-auto">
+    <option value="">Semua {{ s.label|lower }}</option>
+    {% for nilai, label in s.pilihan %}
+    <option value="{{ nilai }}" {% if nilai == s.terpilih %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  {% endfor %}
+  {% if sumber_data.pencarian %}
   <input type="search" name="q" value="{{ kata }}" placeholder="Cari {{ sumber_data.label_jamak|lower }}…"
          class="min-h-[44px] w-full flex-1 rounded-xl border-2 border-gold-light bg-white px-4 text-[15px] text-navy placeholder-navy-400/60 transition focus:border-gold focus:outline-none focus:ring-4 focus:ring-gold/25 sm:w-auto" />
+  {% endif %}
   <button type="submit"
           class="min-h-[44px] rounded-xl bg-navy px-5 text-sm font-bold text-white transition hover:bg-navy-700">
-    Cari
+    {% if sumber_data.pencarian %}Cari{% else %}Terapkan{% endif %}
   </button>
-  {% if kata %}
+  {% if kata or ada_saringan %}
   <a href="{% url 'siwak:panel_daftar' sumber_data.slug %}"
      class="inline-flex min-h-[44px] items-center rounded-xl border-2 border-navy px-5 text-sm font-bold text-navy transition hover:bg-cream-300">
     Bersihkan
@@ -199,10 +211,11 @@
 {% else %}
 <div class="rounded-2xl border-2 border-dashed border-gold-light bg-white px-6 py-14 text-center">
   <p class="text-base font-bold text-navy">
-    {% if kata %}Tidak ada hasil untuk “{{ kata }}”.{% else %}{{ sumber_data.kosong }}{% endif %}
+    {% if kata or ada_saringan %}Tidak ada hasil{% if kata %} untuk “{{ kata }}”{% endif %}{% if ada_saringan %} dengan saringan ini{% endif %}.
+    {% else %}{{ sumber_data.kosong }}{% endif %}
   </p>
   <p class="mx-auto mt-1.5 max-w-md text-sm leading-relaxed text-navy-400">
-    {% if kata %}Coba kata kunci lain, atau bersihkan pencarian.
+    {% if kata or ada_saringan %}Coba kata kunci atau saringan lain, atau bersihkan semuanya.
     {% else %}{{ sumber_data.deskripsi }}{% endif %}
   </p>
   {% if url_tambah %}

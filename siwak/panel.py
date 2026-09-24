@@ -75,6 +75,22 @@ class AksiBaris:
 
 
 @dataclass(frozen=True)
+class Saringan:
+    """Satu dropdown penyaring di atas tabel daftar, dibaca dari `?<kunci>=`.
+
+    `pilihan` dipanggil setiap kali halaman dibuka dan mengembalikan
+    [(nilai, label)]; `lookup` adalah field ORM yang dicocokkan dengan nilai
+    terpilih. Nilai yang tidak ada di pilihan diabaikan, jadi alamat yang
+    diketik asal-asalan tidak pernah sampai ke query sebagai teks bebas.
+    """
+
+    kunci: str
+    label: str
+    pilihan: Callable
+    lookup: str
+
+
+@dataclass(frozen=True)
 class Sumber:
     """Satu jenis data yang bisa dikelola lewat panel."""
 
@@ -99,6 +115,8 @@ class Sumber:
     boleh_hapus: bool = True
     # Tombol tambahan per baris, di samping Ubah dan Hapus.
     aksi_baris: tuple = ()
+    # Dropdown penyaring (kelompok, sesi, ...) di samping kotak cari.
+    saringan: tuple = ()
 
     def ambil_queryset(self):
         return self.queryset() if self.queryset else self.model.objects.all()
@@ -179,6 +197,21 @@ def _urut_nama_kelompok(awalan=""):
     tanpa perlu fungsi SQL khusus yang belum tentu ada di SQLite.
     """
     return (Length(f"{awalan}nama_kelompok"), f"{awalan}nama_kelompok")
+
+
+def _pilihan_kelompok():
+    return [
+        (k.pk, k.nama_kelompok)
+        for k in KelompokMentoring.objects.order_by(*_urut_nama_kelompok())
+    ]
+
+
+def _saring_kelompok(lookup):
+    return Saringan("kelompok", "Kelompok", _pilihan_kelompok, lookup)
+
+
+def _saring_sesi(lookup):
+    return Saringan("sesi", "Sesi", lambda: MentoringSession.SESSION_CHOICES, lookup)
 
 
 def _feedback_terbaru():
@@ -363,6 +396,7 @@ SUMBER = [
             AksiBaris(lambda o: "Detail", "siwak:panel_mentee_detail"),
         ),
         pencarian=("nama_lengkap", "npm"),
+        saringan=(_saring_kelompok("kelompok_id"),),
         kosong="Belum ada mentee. Pilih role Mentee untuk sebuah akun di daftar Profile.",
         queryset=lambda: Profile.objects.filter(
             role=Profile.ROLE_MENTEE
@@ -550,6 +584,11 @@ SUMBER = [
             Kolom("Catatan", lambda o: o.catatan or "—", "panjang"),
         ),
         pencarian=("kelompok__nama_kelompok",),
+        saringan=(
+            _saring_kelompok("kelompok_id"),
+            _saring_sesi("nomor"),
+            Saringan("aktif", "Status", lambda: [("1", "Aktif"), ("0", "Nonaktif")], "is_active"),
+        ),
         kosong="Sesi mentoring muncul otomatis begitu kelompok mentoring dibuat.",
         queryset=lambda: MentoringSession.objects.select_related("kelompok"),
         pengurutan={
@@ -588,6 +627,11 @@ SUMBER = [
             AksiBaris(lambda o: "Detail mentee", "siwak:panel_mentee_detail", pk=lambda o: o.peserta_id),
         ),
         pencarian=("peserta__nama_lengkap", "peserta__npm"),
+        saringan=(
+            _saring_kelompok("session__kelompok_id"),
+            _saring_sesi("session__nomor"),
+            Saringan("status", "Status", lambda: MentoringAttendance.STATUS_CHOICES, "status"),
+        ),
         kosong="Belum ada presensi yang diisi mentor.",
         queryset=lambda: MentoringAttendance.objects.select_related(
             "peserta", "session__kelompok", "recorded_by"
