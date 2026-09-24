@@ -43,6 +43,12 @@ urlpatterns = [
         mentor_views.mentee_detail,
         name="mentor_mentee_detail",
     ),
+    # Catatan privat mentee: satu pintu untuk mentor kelompoknya dan pengurus.
+    path(
+        "mentee/<int:participant_id>/catatan/",
+        mentor_views.mentee_catatan,
+        name="mentee_catatan",
+    ),
     path(
         "mentor/kelompok/<int:group_id>/tugas/",
         mentor_views.assignments,

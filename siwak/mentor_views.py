@@ -2,17 +2,20 @@ from pathlib import Path
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
 from django.db.models import Count, Prefetch, Q
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils.http import urlencode
-from django.utils.http import content_disposition_header
+from django.utils.http import content_disposition_header, url_has_allowed_host_and_scheme
+from django.views.decorators.http import require_POST
 from storages.backends.s3 import S3Storage
 
 from .mentor_forms import (
     AssignmentReviewForm,
+    CatatanMenteeForm,
     MenteeAssessmentForm,
     MenteeSessionForm,
 )
@@ -28,6 +31,7 @@ from .models import (
     TugasSubmission,
 )
 from .services.mentor import (
+    boleh_akses_catatan,
     mentor_for_user,
     require_mentor,
     save_assessments,
@@ -318,8 +322,43 @@ def mentee_detail(request, participant_id):
             "present_count": present_count,
             "assignment_rows": assignment_rows,
             "session_cards": session_cards,
+            # Halaman ini memang hanya terbuka untuk mentor kelompoknya, tapi
+            # aturan catatan tetap dibaca dari satu sumber yang sama.
+            "boleh_catatan": boleh_akses_catatan(request.user, participant),
+            "catatan_form": CatatanMenteeForm(instance=participant),
         },
     )
+
+
+@login_required
+@require_POST
+def mentee_catatan(request, participant_id):
+    """Simpan catatan privat (`Profile.notes`) satu mentee.
+
+    Satu pintu untuk dua halaman — detail mentee di portal mentor dan di panel
+    pengurus — supaya aturan aksesnya (`boleh_akses_catatan`) hanya ditulis di
+    satu tempat. Yang tidak berhak mendapat 403: mentee itu sendiri, mentee
+    lain, dan mentor kelompok lain.
+    """
+    participant = get_object_or_404(Profile, pk=participant_id, role=Profile.ROLE_MENTEE)
+    if not boleh_akses_catatan(request.user, participant):
+        raise PermissionDenied("Catatan ini hanya untuk pengurus dan mentor kelompoknya.")
+
+    form = CatatanMenteeForm(request.POST, instance=participant)
+    if form.is_valid():
+        form.save()
+        messages.success(request, f"Catatan untuk {participant.nama_lengkap} tersimpan.")
+    else:
+        messages.error(request, "Catatan belum tersimpan. Periksa isiannya lalu coba lagi.")
+
+    tujuan = request.POST.get("next") or ""
+    if tujuan and url_has_allowed_host_and_scheme(
+        tujuan, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        return redirect(tujuan)
+    if request.user.is_staff:
+        return redirect("siwak:panel_mentee_detail", pk=participant.pk)
+    return redirect("siwak:mentor_mentee_detail", participant_id=participant.pk)
 
 
 @login_required

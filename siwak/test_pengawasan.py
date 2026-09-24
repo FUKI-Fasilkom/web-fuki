@@ -1,4 +1,10 @@
-"""Pengawasan pengurus atas data mentoring yang diisi mentor di panel SIWAK."""
+"""Pengawasan pengurus atas data mentoring dan catatan privat mentee di
+panel SIWAK.
+
+Regression guard yang paling penting di sini: `Profile.notes` hanya boleh
+terbaca dan tersunting oleh pengurus dan mentor kelompok mentee itu — tidak
+pernah oleh mentee sendiri, mentee lain, mentor kelompok lain, atau pengunjung.
+"""
 
 import datetime
 
@@ -21,9 +27,13 @@ from .models import (
     Tugas,
     TugasSubmission,
 )
+from .services.mentor import boleh_akses_catatan
 
 
 User = get_user_model()
+
+CATATAN = "Perlu pendampingan ekstra soal tilawah."
+
 
 def _profil(username, nama, role, kelompok=None, npm=None, **extra):
     return Profile.objects.create(
@@ -34,6 +44,122 @@ def _profil(username, nama, role, kelompok=None, npm=None, **extra):
         role=role,
         kelompok=kelompok,
     )
+
+
+class CatatanMenteeTests(TestCase):
+    """Who may read and write the private note on one mentee."""
+
+    def setUp(self):
+        self.kelompok_a = KelompokMentoring.objects.create(nama_kelompok="Kelompok A")
+        self.kelompok_b = KelompokMentoring.objects.create(nama_kelompok="Kelompok B")
+        self.mentor_a = _profil("2100000001", "Mentor A", Profile.ROLE_MENTOR, self.kelompok_a)
+        self.mentor_b = _profil("2100000002", "Mentor B", Profile.ROLE_MENTOR, self.kelompok_b)
+        self.mentee_a = _profil("2500000001", "Mentee A", Profile.ROLE_MENTEE, self.kelompok_a)
+        self.teman_a = _profil("2500000002", "Teman A", Profile.ROLE_MENTEE, self.kelompok_a)
+        self.mentee_a.notes = CATATAN
+        self.mentee_a.save(update_fields=["notes"])
+        self.staf = User.objects.create_user(username="pengurus", is_staff=True)
+        self.url_simpan = reverse("siwak:mentee_catatan", args=[self.mentee_a.pk])
+
+    def _simpan(self, isi="Catatan baru", **extra):
+        return self.client.post(self.url_simpan, {"notes": isi, **extra})
+
+    def _catatan(self):
+        self.mentee_a.refresh_from_db()
+        return self.mentee_a.notes
+
+    def test_the_groups_mentor_can_read_and_write_it(self):
+        self.client.force_login(self.mentor_a.user)
+        halaman = reverse("siwak:mentor_mentee_detail", args=[self.mentee_a.pk])
+
+        self.assertContains(self.client.get(halaman), CATATAN)
+
+        response = self._simpan(next=f"{halaman}#catatan")
+
+        self.assertRedirects(response, f"{halaman}#catatan", fetch_redirect_response=False)
+        self.assertEqual(self._catatan(), "Catatan baru")
+
+    def test_staff_can_read_and_write_it(self):
+        self.client.force_login(self.staf)
+
+        self.assertContains(
+            self.client.get(reverse("siwak:panel_mentee_detail", args=[self.mentee_a.pk])), CATATAN
+        )
+        self.assertContains(
+            self.client.get(reverse("siwak:panel_kelompok_detail", args=[self.kelompok_a.pk])), CATATAN
+        )
+
+        response = self._simpan()
+
+        self.assertRedirects(
+            response, reverse("siwak:panel_mentee_detail", args=[self.mentee_a.pk]),
+            fetch_redirect_response=False,
+        )
+        self.assertEqual(self._catatan(), "Catatan baru")
+
+    def test_a_mentor_of_another_group_gets_403_and_never_sees_it(self):
+        self.client.force_login(self.mentor_b.user)
+
+        self.assertEqual(self._simpan().status_code, 403)
+        self.assertEqual(self._catatan(), CATATAN)
+        # Halaman mentee kelompok lain memang tertutup untuknya.
+        response = self.client.get(reverse("siwak:mentor_mentee_detail", args=[self.mentee_a.pk]))
+        self.assertEqual(response.status_code, 404)
+        self.assertNotContains(response, CATATAN, status_code=404)
+
+    def test_the_mentee_and_other_mentees_can_neither_read_nor_write_it(self):
+        for mentee in (self.mentee_a, self.teman_a):
+            with self.subTest(mentee=mentee.nama_lengkap):
+                self.client.force_login(mentee.user)
+                self.assertEqual(self._simpan().status_code, 403)
+                for url in (
+                    reverse("siwak:tugas_list"),
+                    reverse("siwak:mentee_feedback_history"),
+                    reverse("siwak:landing"),
+                ):
+                    self.assertNotContains(self.client.get(url), CATATAN)
+                self.assertEqual(
+                    self.client.get(reverse("siwak:panel_mentee_detail", args=[self.mentee_a.pk])).status_code,
+                    403,
+                )
+        self.assertEqual(self._catatan(), CATATAN)
+
+    def test_the_public_group_search_never_shows_it(self):
+        response = self.client.post(reverse("siwak:kelompok_search"), {"nama_lengkap": "Mentee A"})
+
+        self.assertEqual(response.context["result_state"], "found")
+        self.assertNotContains(response, CATATAN)
+
+    def test_a_mentor_without_a_group_cannot_touch_an_ungrouped_mentee(self):
+        """kelompok_id=None on both sides must not count as "same group"."""
+        tanpa_kelompok = _profil("2100000003", "Mentor Lepas", Profile.ROLE_MENTOR)
+        mentee_lepas = _profil("2500000009", "Mentee Lepas", Profile.ROLE_MENTEE)
+
+        self.assertFalse(boleh_akses_catatan(tanpa_kelompok.user, mentee_lepas))
+        self.client.force_login(tanpa_kelompok.user)
+        response = self.client.post(
+            reverse("siwak:mentee_catatan", args=[mentee_lepas.pk]), {"notes": "x"}
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_only_logged_in_posts_are_accepted(self):
+        response = self._simpan()
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse("siwak:login"), response.url)
+
+        self.client.force_login(self.mentor_a.user)
+        self.assertEqual(self.client.get(self.url_simpan).status_code, 405)
+        self.assertEqual(self._catatan(), CATATAN)
+
+    def test_an_offsite_next_is_ignored(self):
+        self.client.force_login(self.mentor_a.user)
+
+        response = self._simpan(next="https://jahat.example.com/")
+
+        self.assertRedirects(
+            response, reverse("siwak:mentor_mentee_detail", args=[self.mentee_a.pk]),
+            fetch_redirect_response=False,
+        )
 
 
 class PengawasanAdminTests(TestCase):

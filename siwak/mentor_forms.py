@@ -5,6 +5,7 @@ from .models import (
     AssessmentAspect,
     MenteeAssessment,
     MentoringAttendance,
+    Profile,
 )
 
 
@@ -98,6 +99,28 @@ class MenteeAssessmentForm(forms.Form):
                     "Isi nilai terlebih dahulu sebelum menambahkan catatan.",
                 )
         return cleaned_data
+
+
+class CatatanMenteeForm(forms.ModelForm):
+    """Catatan privat satu mentee (`Profile.notes`).
+
+    Dipakai halaman mentor dan panel pengurus lewat satu view yang sama
+    (`mentor_views.mentee_catatan`), jadi yang dibersihkan di sini hanya isinya;
+    siapa yang boleh menyimpan diperiksa view itu.
+    """
+
+    class Meta:
+        model = Profile
+        fields = ["notes"]
+        widgets = {
+            "notes": forms.Textarea(
+                attrs={
+                    "class": FIELD_CLASSES,
+                    "rows": 4,
+                    "placeholder": "Catatan privat tentang mentee ini",
+                }
+            ),
+        }
 
 
 class AssignmentReviewForm(forms.ModelForm):

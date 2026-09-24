@@ -26,6 +26,27 @@ def require_mentor(user):
     return mentor
 
 
+def boleh_akses_catatan(user, mentee):
+    """Siapa yang boleh membaca dan menyunting `Profile.notes` milik `mentee`.
+
+    Hanya pengurus (`is_staff`) dan mentor yang memegang kelompok mentee itu.
+    Mentee sendiri, mentee lain, dan mentor kelompok lain tidak pernah boleh.
+
+    `mentee.kelompok_id` wajib dicek lebih dulu: filter `kelompok_id=None`
+    di ORM berarti IS NULL, sehingga mentor tanpa kelompok akan "cocok" dengan
+    setiap mentee yang belum ditempatkan.
+    """
+    if not user or not user.is_authenticated:
+        return False
+    if user.is_staff:
+        return True
+    if mentee.role != Profile.ROLE_MENTEE or not mentee.kelompok_id:
+        return False
+    return Profile.objects.filter(
+        user=user, role=Profile.ROLE_MENTOR, kelompok_id=mentee.kelompok_id
+    ).exists()
+
+
 @transaction.atomic
 def save_session_record(*, form, participant, session, mentor):
     attendance, _ = MentoringAttendance.objects.update_or_create(

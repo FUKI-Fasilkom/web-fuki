@@ -104,6 +104,7 @@
           <th scope="col" class="whitespace-nowrap px-3.5 py-3 text-center text-xs font-bold uppercase tracking-wide">Tugas</th>
           <th scope="col" class="whitespace-nowrap px-3.5 py-3 text-center text-xs font-bold uppercase tracking-wide">Dinilai</th>
           <th scope="col" class="whitespace-nowrap px-3.5 py-3 text-center text-xs font-bold uppercase tracking-wide">Rata-rata nilai</th>
+          <th scope="col" class="whitespace-nowrap px-3.5 py-3 text-xs font-bold uppercase tracking-wide">Catatan privat</th>
         </tr>
       </thead>
       <tbody>
@@ -132,6 +133,9 @@
           <td class="whitespace-nowrap px-3.5 py-3 text-center text-navy">{{ b.tugas }} / {{ tugas_aktif }}</td>
           <td class="whitespace-nowrap px-3.5 py-3 text-center text-navy">{{ b.dinilai }} / {{ b.tugas }}</td>
           <td class="whitespace-nowrap px-3.5 py-3 text-center font-semibold text-navy">{{ b.rata_nilai|default:"—" }}</td>
+          <td class="px-3.5 py-3 text-navy-400">
+            {% if b.profil.notes %}<span class="block max-w-[28ch] text-navy" title="{{ b.profil.notes }}">{{ b.profil.notes|truncatechars:80 }}</span>{% else %}—{% endif %}
+          </td>
         </tr>
         {% endfor %}
       </tbody>
@@ -142,7 +146,7 @@
           {% for kol in kolom_sesi %}
           <td class="whitespace-nowrap px-3.5 py-2.5 text-center">{{ kol.hadir }} / {{ baris|length }}</td>
           {% endfor %}
-          <td colspan="4"></td>
+          <td colspan="5"></td>
         </tr>
       </tfoot>
       {% endif %}

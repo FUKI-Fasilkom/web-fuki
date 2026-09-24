@@ -646,7 +646,8 @@ def panel_mentee_detail(request, pk):
 
     Presensi dan feedback tiap sesi, nilai per aspek, serta setiap tugas beserta
     jawaban, nilai, feedback, dan riwayat penilaian mentornya. Semuanya hanya
-    baca: yang mengisinya mentor dari portalnya.
+    baca — yang mengisinya mentor dari portalnya — kecuali catatan privat, yang
+    disimpan lewat `mentee_catatan` (pintu yang sama dengan halaman mentor).
 
     Sesi kelompok lama ikut tampil kalau mentee ini punya presensi atau feedback
     di sana, mis. sesudah dipindah kelompok: data itu tetap miliknya.
@@ -739,6 +740,7 @@ def panel_mentee_detail(request, pk):
         baris_tugas=baris_tugas,
         jumlah_terkumpul=sum(1 for b in baris_tugas if b["submission"]),
         jumlah_dinilai=sum(1 for b in baris_tugas if b["review"]),
+        url_kembali=request.get_full_path(),
     ))
 
 

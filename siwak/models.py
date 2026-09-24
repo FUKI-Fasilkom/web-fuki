@@ -104,6 +104,16 @@ class Profile(models.Model):
         verbose_name="Kelompok",
         help_text="Mentee: kelompok tempat dia jadi peserta. Mentor: kelompok yang dia pegang.",
     )
+    # Catatan privat tentang mentee ini. Hanya pengurus dan mentor kelompoknya
+    # yang boleh membaca dan menyuntingnya (lihat services.mentor.
+    # boleh_akses_catatan) — mentee itu sendiri tidak pernah melihatnya, jadi
+    # jangan pernah menampilkannya di halaman yang terbuka untuk mentee.
+    notes = models.TextField(
+        blank=True,
+        default="",
+        verbose_name="Catatan privat",
+        help_text="Hanya terlihat oleh pengurus dan mentor kelompok mentee ini.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

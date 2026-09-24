@@ -357,8 +357,8 @@ SUMBER = [
             Kolom("Kelompok", lambda o: o.kelompok_id, "pilih_kelompok", urut="kelompok"),
             Kolom("Sudah login SSO", lambda o: o.user_id is not None, "bool"),
         ),
-        # Halaman detailnya yang memuat presensi, nilai, dan tugasnya — daftar
-        # ini hanya muat identitas dan kelompoknya.
+        # Halaman detailnya yang memuat presensi, nilai, tugas, dan catatan
+        # privatnya — daftar ini hanya muat identitas dan kelompoknya.
         aksi_baris=(
             AksiBaris(lambda o: "Detail", "siwak:panel_mentee_detail"),
         ),
