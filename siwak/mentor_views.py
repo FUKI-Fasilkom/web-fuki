@@ -441,10 +441,21 @@ def answer_download(request, submission_id, answer_id):
 
 # --- Halaman rekap mentor: presensi, nilai mentee, penilaian tugas ---------
 #
-# Ketiganya berbentuk satu <form> besar berisi banyak baris. Baris yang tidak
-# disentuh (`has_changed()` False) dilewati; kalau ada baris yang tidak valid,
-# tidak ada yang disimpan (all-or-nothing) supaya mentor melihat semua galatnya
-# sekaligus tanpa kehilangan isian.
+# Ketiganya berbentuk satu <form> besar berisi banyak baris, dan boleh diisi
+# sebagian: mentor yang baru sempat mengisi 3 dari 10 mentee tetap bisa
+# menyimpan ketiganya.
+#
+#   * Baris yang tidak disentuh (`has_changed()` False) dilewati; datanya yang
+#     lama tetap utuh. Baris yang isiannya sama sekali tidak ikut terkirim
+#     (`_dikirim`) juga dianggap tidak disentuh.
+#   * Setiap baris berdiri sendiri. Baris yang valid langsung disimpan walau ada
+#     baris lain yang galat; baris yang galat tidak disimpan dan ditampilkan lagi
+#     lengkap dengan isiannya.
+#   * Form barisnya dibuat dengan `use_required_attribute=False`. Tanpa itu
+#     Django menempelkan atribut HTML `required` ke isian wajib (status presensi,
+#     nilai tugas) di SETIAP baris, dan peramban menolak mengirim form sebelum
+#     semua baris terisi — aturan "wajib" per baris tetap dicek di server,
+#     hanya untuk baris yang benar-benar diisi.
 
 
 def _rekap_context(request):
@@ -464,15 +475,38 @@ def _paginate(request, rows):
     return halaman, kueri
 
 
-def _rekap_selesai(request, error_count):
-    """Balasan sesudah POST: pesan galat (None), atau PRG ke halaman yang sama."""
+def _dikirim(request, prefix):
+    """Apakah isian baris ber-`prefix` ini ikut terkirim di POST.
+
+    Baris yang sama sekali tidak ada di kiriman diperlakukan seperti baris yang
+    tidak disentuh — bukan sebagai baris yang dikosongkan. Tanpa ini, klien yang
+    hanya mengirim baris yang diisinya membuat setiap baris lain ber-data lama
+    terbaca "berubah jadi kosong" lalu galat.
+    """
+    awalan = f"{prefix}-"
+    return request.method == "POST" and any(key.startswith(awalan) for key in request.POST)
+
+
+def _rekap_selesai(request, saved_count, error_count):
+    """Balasan sesudah POST.
+
+    Ada baris galat: pesan (berapa yang sudah tersimpan, berapa yang belum) lalu
+    None, supaya halaman digambar ulang dengan isian dan galatnya. Tanpa galat:
+    PRG ke halaman yang sama.
+    """
     if error_count:
+        if saved_count:
+            messages.success(request, f"{saved_count} baris berhasil disimpan.")
         messages.error(
             request,
-            f"{error_count} baris belum valid. Perbaiki isian yang ditandai lalu simpan lagi.",
+            f"{error_count} baris belum valid dan belum disimpan. "
+            "Perbaiki isian yang ditandai lalu simpan lagi.",
         )
         return None
-    messages.success(request, "Perubahan berhasil disimpan.")
+    if saved_count:
+        messages.success(request, f"{saved_count} baris berhasil disimpan.")
+    else:
+        messages.info(request, "Tidak ada perubahan yang perlu disimpan.")
     return redirect(request.get_full_path())
 
 
@@ -519,29 +553,31 @@ def mentor_attendance(request):
         # dengan halaman detail mentee).
         row["form"] = None
         if session.is_active:
+            prefix = f"s{session.pk}m{participant.pk}"
+            dikirim = _dikirim(request, prefix)
             row["form"] = MenteeSessionForm(
-                request.POST if posting else None,
+                request.POST if dikirim else None,
                 existing_attendance=row["attendance"],
                 existing_feedback=row["feedback_entry"],
-                prefix=f"s{session.pk}m{participant.pk}",
+                prefix=prefix,
+                use_required_attribute=False,
             )
-            if posting and row["form"].has_changed():
+            if dikirim and row["form"].has_changed():
                 if row["form"].is_valid():
                     valid.append(row)
                 else:
                     error_count += 1
 
     if posting:
-        if not error_count:
-            for row in valid:
-                save_attendance_row(
-                    form=row["form"],
-                    participant=row["participant"],
-                    session=row["session"],
-                    mentor=mentor,
-                    feedback_entry=row["feedback_entry"],
-                )
-        response = _rekap_selesai(request, error_count)
+        for row in valid:
+            save_attendance_row(
+                form=row["form"],
+                participant=row["participant"],
+                session=row["session"],
+                mentor=mentor,
+                feedback_entry=row["feedback_entry"],
+            )
+        response = _rekap_selesai(request, len(valid), error_count)
         if response:
             return response
 
@@ -583,13 +619,16 @@ def mentor_assessments(request):
     valid = []
     rows = []
     for participant in halaman.object_list:
+        prefix = f"m{participant.pk}"
+        dikirim = _dikirim(request, prefix)
         form = MenteeAssessmentForm(
-            request.POST if posting else None,
+            request.POST if dikirim else None,
             participant=participant,
             aspects=aspects,
-            prefix=f"m{participant.pk}",
+            prefix=prefix,
+            use_required_attribute=False,
         )
-        if posting and form.has_changed():
+        if dikirim and form.has_changed():
             if form.is_valid():
                 valid.append((participant, form))
             else:
@@ -610,10 +649,9 @@ def mentor_assessments(request):
         )
 
     if posting:
-        if not error_count:
-            for participant, form in valid:
-                save_assessments(form=form, participant=participant, mentor=mentor)
-        response = _rekap_selesai(request, error_count)
+        for participant, form in valid:
+            save_assessments(form=form, participant=participant, mentor=mentor)
+        response = _rekap_selesai(request, len(valid), error_count)
         if response:
             return response
 
@@ -681,24 +719,26 @@ def mentor_task_reviews(request):
     for row in halaman.object_list:
         submission = row["submission"]
         row["review"] = getattr(submission, "mentor_review", None)
+        prefix = f"t{submission.pk}"
+        dikirim = _dikirim(request, prefix)
         row["form"] = AssignmentReviewForm(
-            request.POST if posting else None,
+            request.POST if dikirim else None,
             instance=row["review"],
-            prefix=f"t{submission.pk}",
+            prefix=prefix,
+            use_required_attribute=False,
         )
-        if posting and row["form"].has_changed():
+        if dikirim and row["form"].has_changed():
             if row["form"].is_valid():
                 valid.append(row)
             else:
                 error_count += 1
 
     if posting:
-        if not error_count:
-            for row in valid:
-                save_assignment_review(
-                    form=row["form"], submission=row["submission"], mentor=mentor
-                )
-        response = _rekap_selesai(request, error_count)
+        for row in valid:
+            save_assignment_review(
+                form=row["form"], submission=row["submission"], mentor=mentor
+            )
+        response = _rekap_selesai(request, len(valid), error_count)
         if response:
             return response
 

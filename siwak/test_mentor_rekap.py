@@ -1,4 +1,5 @@
 import datetime
+import re
 import shutil
 import tempfile
 
@@ -155,7 +156,8 @@ class MentorRekapPagesTests(TestCase):
         self.assertFalse(MentorFeedback.objects.filter(peserta=self.ani).exists())
         self.assertTrue(MentoringAttendance.objects.filter(peserta=self.ani).exists())
 
-    def test_attendance_invalid_row_blocks_the_whole_save(self):
+    def test_attendance_saves_valid_rows_even_when_another_row_is_invalid(self):
+        """Simpan bertahap: satu baris galat tidak menahan baris lain."""
         self.client.force_login(self.mentor.user)
         data = self._attendance_post(self.sesi1, self.ani, status="hadir", catatan="", feedback="")
         # Feedback tanpa status = baris tidak valid.
@@ -164,9 +166,72 @@ class MentorRekapPagesTests(TestCase):
         response = self.client.post(reverse("siwak:mentor_attendance"), data)
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "belum valid")
-        self.assertContains(response, "Tanpa status")  # isian tidak hilang
-        self.assertFalse(MentoringAttendance.objects.exists())
+        self.assertContains(response, "1 baris berhasil disimpan")
+        self.assertContains(response, "1 baris belum valid")
+        self.assertContains(response, "Tanpa status")  # isian yang galat tidak hilang
+        self.assertTrue(MentoringAttendance.objects.filter(peserta=self.ani, status="hadir").exists())
+        self.assertFalse(MentoringAttendance.objects.filter(peserta=self.budi).exists())
+
+    def test_batch_rows_carry_no_html_required_attribute(self):
+        """Atribut `required` di setiap baris membuat peramban menolak mengirim
+        form sebelum semua mentee terisi — justru yang ingin dihindari."""
+        self.client.force_login(self.mentor.user)
+
+        presensi = self.client.get(reverse("siwak:mentor_attendance")).content.decode()
+        status = re.search(rf'<select[^>]*name="s{self.sesi1.pk}m{self.ani.pk}-status"[^>]*>', presensi)
+        self.assertIsNotNone(status)
+        self.assertNotIn("required", status.group(0))
+
+        tugas = self.client.get(reverse("siwak:mentor_task_reviews")).content.decode()
+        nilai = re.search(rf'<input[^>]*name="t{self.sub_ani.pk}-score"[^>]*>', tugas)
+        self.assertIsNotNone(nilai)
+        self.assertNotIn("required", nilai.group(0))
+
+    def test_attendance_saves_only_the_rows_that_were_filled(self):
+        """3 dari sekian baris diisi: ketiganya tersimpan, sisanya tetap kosong,
+        dan data lama di baris yang tidak dikirim sama sekali tetap utuh."""
+        MentoringAttendance.objects.create(session=self.sesi2, peserta=self.budi, status="izin", catatan="Lama")
+        self.client.force_login(self.mentor.user)
+        data = {}
+        data.update(self._attendance_post(self.sesi1, self.ani, status="hadir", catatan="", feedback=""))
+        data.update(self._attendance_post(self.sesi1, self.budi, status="tidak_hadir", catatan="", feedback=""))
+        data.update(self._attendance_post(self.sesi2, self.ani, status="hadir", catatan="", feedback="Bagus"))
+        # Baris (sesi 2, Budi) tidak dikirim sama sekali.
+
+        response = self.client.post(reverse("siwak:mentor_attendance"), data)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(MentoringAttendance.objects.count(), 4)
+        lama = MentoringAttendance.objects.get(session=self.sesi2, peserta=self.budi)
+        self.assertEqual((lama.status, lama.catatan), ("izin", "Lama"))
+        self.assertEqual(MentorFeedback.objects.get(peserta=self.ani).isi, "Bagus")
+
+    def test_assessment_and_task_review_save_valid_rows_despite_an_invalid_one(self):
+        self.client.force_login(self.mentor.user)
+        nilai = self._assessment_post(
+            self.ani, **{f"score_{self.aspect_a.pk}": 85, f"catatan_{self.aspect_a.pk}": ""}
+        )
+        nilai.update(self._assessment_post(
+            self.budi, **{f"score_{self.aspect_a.pk}": 150, f"catatan_{self.aspect_a.pk}": ""}
+        ))
+
+        response = self.client.post(reverse("siwak:mentor_assessments"), nilai)
+
+        self.assertContains(response, "1 baris belum valid")
+        self.assertEqual(MenteeAssessment.objects.get(peserta=self.ani).score, 85)
+        self.assertFalse(MenteeAssessment.objects.filter(peserta=self.budi).exists())
+
+        sub_budi = self._submit(self.task, self.budi)
+        tugas = {
+            f"t{self.sub_ani.pk}-score": 90, f"t{self.sub_ani.pk}-feedback": "",
+            f"t{sub_budi.pk}-score": 150, f"t{sub_budi.pk}-feedback": "",
+        }
+
+        response = self.client.post(reverse("siwak:mentor_task_reviews"), tugas)
+
+        self.assertContains(response, "1 baris belum valid")
+        self.assertEqual(AssignmentReview.objects.get(submission=self.sub_ani).score, 90)
+        self.assertFalse(AssignmentReview.objects.filter(submission=sub_budi).exists())
 
     def test_attendance_inactive_session_and_foreign_rows_are_ignored(self):
         self.client.force_login(self.mentor.user)
