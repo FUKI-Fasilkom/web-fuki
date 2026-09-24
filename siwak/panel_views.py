@@ -5,7 +5,8 @@ Empat view CRUD di bawah (`panel_daftar`, `panel_tambah`, `panel_ubah`,
 membedakan satu menu dengan menu lain hanyalah isi `Sumber`-nya, bukan kodenya.
 
 Di luar itu ada dua kelompok view kecil: halaman khusus yang memang tidak
-berbentuk CRUD biasa (konten halaman utama dan daftar RSVP per acara), dan
+berbentuk CRUD biasa (konten halaman utama, detail satu kelompok mentoring,
+dan daftar RSVP per acara), dan
 penyunting relasi (`panel_set_kelompok`, `panel_set_role`) yang dipanggil
 langsung dari dropdown di halaman daftar tanpa membuka form ubah.
 """
@@ -32,12 +33,14 @@ from .models import (
     Choice,
     EventRSVP,
     KelompokMentoring,
+    MentoringAttendance,
     Profile,
     MentoringSession,
     Question,
     SiwakEvent,
     SiwakInfo,
     Tugas,
+    TugasSubmission,
 )
 from .panel import (
     BAGIAN,
@@ -533,6 +536,84 @@ def panel_set_role(request, pk):
             pesan += " Kelompok sebelumnya dilepas."
         messages.success(request, pesan)
     return _kembali(request, cadangan)
+
+
+# ---------------------------------------------------------------------------
+# Detail satu kelompok mentoring — hanya baca
+# ---------------------------------------------------------------------------
+
+@staf_required
+def panel_kelompok_detail(request, pk):
+    """Satu kelompok lengkap: mentor, seluruh mentee, dan rekap presensinya.
+
+    Daftar Kelompok hanya muat nama mentor dan jumlah mentee; halaman ini yang
+    menjawab "siapa saja isinya". Sengaja hanya baca: memindahkan anggota tetap
+    lewat dropdown di daftar Mentee dan Mentor, supaya aturan penempatannya
+    (role wajib ada, kelompok dilepas saat role berubah) tidak punya jalur kedua.
+
+    Presensi dibaca sebagai satu kisi mentee × sesi. Catatan milik mentee yang
+    sudah pindah kelompok tidak ikut: yang ditampilkan isi kelompok sekarang.
+    """
+    kelompok = get_object_or_404(KelompokMentoring, pk=pk)
+    mentor = list(kelompok.daftar_mentor.select_related("user").order_by("nama_lengkap"))
+    mentee = list(kelompok.daftar_mentee.select_related("user").order_by("nama_lengkap"))
+    sesi = list(kelompok.mentoring_sessions.order_by("nomor"))
+
+    presensi = {
+        (peserta_id, sesi_id): status
+        for peserta_id, sesi_id, status in MentoringAttendance.objects.filter(
+            session__kelompok=kelompok, peserta__in=mentee
+        ).values_list("peserta_id", "session_id", "status")
+    }
+    label_status = dict(MentoringAttendance.STATUS_CHOICES)
+
+    # Tugas berlaku untuk semua kelompok, jadi yang dihitung cukup tugas aktif
+    # yang sudah dikumpulkan tiap mentee (lewat akun loginnya).
+    tugas_aktif = Tugas.objects.filter(is_active=True).count()
+    terkumpul = dict(
+        TugasSubmission.objects.filter(
+            tugas__is_active=True, user__profil__in=mentee
+        ).values("user__profil").annotate(n=Count("pk")).values_list("user__profil", "n")
+    )
+
+    baris = []
+    for m in mentee:
+        status = [presensi.get((m.pk, s.pk)) for s in sesi]
+        baris.append({
+            "profil": m,
+            "presensi": [{"status": st or "", "label": label_status.get(st, "—")} for st in status],
+            "hadir": status.count(MentoringAttendance.STATUS_HADIR),
+            "tugas": terkumpul.get(m.pk, 0),
+        })
+
+    kolom_sesi = [
+        {
+            "sesi": s,
+            "hadir": sum(
+                presensi.get((m.pk, s.pk)) == MentoringAttendance.STATUS_HADIR for m in mentee
+            ),
+        }
+        for s in sesi
+    ]
+
+    bagian = PETA_BAGIAN["kelompok"]
+    return render(request, "siwak/panel/kelompok_detail.html", _kerangka(
+        request,
+        judul=kelompok.nama_kelompok,
+        bagian="kelompok",
+        sumber="kelompok",
+        remah=[
+            (bagian.nama, reverse("siwak:panel_bagian", args=[bagian.slug])),
+            ("Kelompok Mentoring", reverse("siwak:panel_daftar", args=["kelompok"])),
+            (kelompok.nama_kelompok, ""),
+        ],
+        kelompok=kelompok,
+        mentor=mentor,
+        baris=baris,
+        kolom_sesi=kolom_sesi,
+        sesi_aktif=sum(s.is_active for s in sesi),
+        tugas_aktif=tugas_aktif,
+    ))
 
 
 # ---------------------------------------------------------------------------

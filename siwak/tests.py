@@ -43,6 +43,7 @@ from .models import (
     KelompokMentoring,
     Profile,
     MenteeAssessment,
+    MentoringAttendance,
     MentoringSession,
     Question,
     SiwakEvent,
@@ -1335,6 +1336,106 @@ class KelompokSearchTests(TestCase):
         response = self._cari("Belum Ada")
 
         self.assertEqual(response.context["result_state"], "no_group_yet")
+
+
+class PanelKelompokDetailTests(TestCase):
+    """Verify the read-only detail page of one mentoring group."""
+
+    def setUp(self):
+        self.client.force_login(User.objects.create_user(username="pengurus", is_staff=True))
+        self.kelompok = KelompokMentoring.objects.create(
+            nama_kelompok="Kelompok 7", kapasitas=10, link_grup="https://chat.whatsapp.com/k7"
+        )
+        self.url = reverse("siwak:panel_kelompok_detail", args=[self.kelompok.pk])
+        self.mentor = Profile.objects.create(
+            npm="2106000070", nama_lengkap="Kak Ahmad",
+            role=Profile.ROLE_MENTOR, kelompok=self.kelompok,
+        )
+        self.aisyah = Profile.objects.create(
+            user=User.objects.create_user(username="aisyah"),
+            npm="2506000070", nama_lengkap="Aisyah Putri", jurusan="SI",
+            role=Profile.ROLE_MENTEE, kelompok=self.kelompok,
+        )
+        self.bima = Profile.objects.create(
+            npm="2506000071", nama_lengkap="Bima Sakti", jurusan="IK",
+            role=Profile.ROLE_MENTEE, kelompok=self.kelompok,
+        )
+        lain = KelompokMentoring.objects.create(nama_kelompok="Kelompok 8")
+        Profile.objects.create(
+            npm="2506000080", nama_lengkap="Candra Lain", jurusan="IK",
+            role=Profile.ROLE_MENTEE, kelompok=lain,
+        )
+
+    def test_the_page_lists_the_mentor_and_every_mentee(self):
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["mentor"], [self.mentor])
+        self.assertEqual([b["profil"] for b in response.context["baris"]], [self.aisyah, self.bima])
+        self.assertContains(response, "Kak Ahmad")
+        for teks in ("Aisyah Putri", "2506000070", "Sistem Informasi", "Bima Sakti", "2506000071"):
+            self.assertContains(response, teks)
+        self.assertContains(response, "https://chat.whatsapp.com/k7")
+        self.assertNotContains(response, "Candra Lain")
+
+    def test_attendance_is_laid_out_per_mentee_and_session(self):
+        sesi1, sesi2 = self.kelompok.mentoring_sessions.order_by("nomor")[:2]
+        MentoringAttendance.objects.create(session=sesi1, peserta=self.aisyah, status="hadir")
+        MentoringAttendance.objects.create(session=sesi2, peserta=self.aisyah, status="izin")
+        MentoringAttendance.objects.create(session=sesi1, peserta=self.bima, status="tidak_hadir")
+
+        response = self.client.get(self.url)
+
+        aisyah, bima = response.context["baris"]
+        self.assertEqual([p["status"] for p in aisyah["presensi"]], ["hadir", "izin", "", ""])
+        self.assertEqual(aisyah["hadir"], 1)
+        self.assertEqual([p["status"] for p in bima["presensi"]], ["tidak_hadir", "", "", ""])
+        self.assertEqual(bima["hadir"], 0)
+        self.assertEqual([k["hadir"] for k in response.context["kolom_sesi"]], [1, 0, 0, 0])
+
+    def test_submitted_active_tasks_are_counted_per_mentee(self):
+        besok = timezone.now() + datetime.timedelta(days=1)
+        aktif = Tugas.objects.create(judul_tugas="T1", deskripsi="d", deadline=besok)
+        nonaktif = Tugas.objects.create(judul_tugas="T2", deskripsi="d", deadline=besok, is_active=False)
+        TugasSubmission.objects.create(tugas=aktif, user=self.aisyah.user)
+        TugasSubmission.objects.create(tugas=nonaktif, user=self.aisyah.user)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.context["tugas_aktif"], 1)
+        self.assertEqual([b["tugas"] for b in response.context["baris"]], [1, 0])
+
+    def test_an_unknown_group_returns_not_found(self):
+        response = self.client.get(reverse("siwak:panel_kelompok_detail", args=[99999]))
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_only_staff_may_open_it(self):
+        """It lists every mentee's NPM, so it stays behind the panel guard."""
+        self.client.logout()
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse("admin:login"), response.url)
+
+        self.client.force_login(User.objects.create_user(username="maba"))
+        self.assertEqual(self.client.get(self.url).status_code, 403)
+
+    def test_the_group_list_links_to_it_with_or_without_a_search(self):
+        daftar = reverse("siwak:panel_daftar", args=["kelompok"])
+        for params in ({}, {"q": "Kelompok 7"}):
+            with self.subTest(params=params):
+                self.assertContains(self.client.get(daftar, params), f'href="{self.url}"')
+
+    def test_the_public_search_result_links_to_it_only_for_staff(self):
+        cari = reverse("siwak:kelompok_search")
+
+        response = self.client.post(cari, {"nama_lengkap": "Aisyah Putri"})
+        self.assertContains(response, f'href="{self.url}"')
+
+        self.client.logout()
+        response = self.client.post(cari, {"nama_lengkap": "Aisyah Putri"})
+        self.assertEqual(response.context["result_state"], "found")
+        self.assertNotContains(response, f'href="{self.url}"')
 
 
 class PanelUrutanTests(TestCase):

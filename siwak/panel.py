@@ -409,6 +409,11 @@ SUMBER = [
             Kolom("Mentee", lambda o: f"{_jumlah_mentee(o)} / {o.kapasitas}", "tag", urut="peserta"),
             Kolom("Aktif", lambda o: o.is_active, "bool"),
         ),
+        # Daftar ini hanya muat nama mentor dan jumlah mentee; halaman detailnya
+        # yang memuat seluruh anggota beserta rekap presensinya.
+        aksi_baris=(
+            AksiBaris(lambda o: "Detail", "siwak:panel_kelompok_detail"),
+        ),
         pencarian=("nama_kelompok",),
         kosong="Belum ada kelompok mentoring.",
         queryset=lambda: KelompokMentoring.objects.prefetch_related("anggota").annotate(

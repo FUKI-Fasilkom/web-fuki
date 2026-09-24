@@ -204,7 +204,18 @@
 
       {% endif %}
 
-      <div class="mt-6">
+      <div class="mt-6 space-y-3">
+        {% comment %}
+          Hanya untuk pengurus: halaman detailnya memuat NPM seluruh mentee
+          kelompok ini, jadi tetap di panel dan tidak pernah terbuka untuk maba.
+        {% endcomment %}
+        {% if user.is_staff %}
+        <a
+          href="{% url 'siwak:panel_kelompok_detail' peserta.kelompok.pk %}"
+          class="flex min-h-10 w-full items-center justify-center rounded-lg border border-white/40 px-5 py-2 text-sm font-semibold text-white hover:bg-white/10 focus:outline-none focus-visible:ring-4 focus-visible:ring-white/60 transition">
+          Detail kelompok (panel pengurus)
+        </a>
+        {% endif %}
         <a
           href="{% url 'siwak:kelompok_search' %}"
           class="flex min-h-10 w-full items-center justify-center rounded-lg bg-[#D9E8FF] px-5 py-2 text-sm font-semibold text-[#001B3D] shadow hover:bg-white focus:outline-none focus-visible:ring-4 focus-visible:ring-white/60 transition">
