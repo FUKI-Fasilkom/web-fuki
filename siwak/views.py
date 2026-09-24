@@ -560,9 +560,9 @@ def qr_verify(request, signed):
 def pindai_beranda(request):
     """Halaman awal akun pemindai QR, tujuannya setelah Login Akun Khusus.
 
-    Tidak ada pemindai di dalam halaman ini: produksi masih HTTP, dan peramban
+    Tidak ada pemindai di dalam halaman ini: produksi masih HTTP, dan browser
     hanya mengizinkan kamera di HTTPS. Pemindaiannya dilakukan kamera HP, yang
-    membuka tautan QR peserta di peramban bawaan — halaman ini menjelaskan itu,
+    membuka link QR peserta di browser bawaan — halaman ini menjelaskan itu,
     dan menyebut jenis QR yang boleh dipindai akun ini.
     """
     return render(request, "siwak/pindai.html", {
