@@ -753,6 +753,22 @@ class PanelAccessTests(TestCase):
             with self.subTest(url=url):
                 self.assertEqual(self.client.get(url).status_code, 200)
 
+    def test_the_logout_button_leaves_through_siwak_to_the_main_page(self):
+        """Staff now sign in through Login Akun Khusus, so the panel's "Keluar"
+        must not drop them on Django admin's "Logged out" page."""
+        User.objects.create_user(username="pengurus", password="RahasiaKuat123", is_staff=True)
+        self.client.post(
+            reverse("siwak:login_khusus"), {"username": "pengurus", "password": "RahasiaKuat123"}
+        )
+
+        halaman = self.client.get(reverse("siwak:panel_beranda"))
+        self.assertContains(halaman, f'action="{reverse("siwak:logout")}"')
+        self.assertNotContains(halaman, reverse("admin:logout"))
+
+        response = self.client.post(reverse("siwak:logout"))
+        self.assertRedirects(response, "/", fetch_redirect_response=False)
+        self.assertNotIn("_auth_user_id", self.client.session)
+
     def test_unknown_data_type_returns_not_found(self):
         """A made-up resource slug must not fall through to a server error."""
         self.client.force_login(User.objects.create_user(username="pengurus", is_staff=True))
