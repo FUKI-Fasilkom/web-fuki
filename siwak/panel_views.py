@@ -6,7 +6,7 @@ membedakan satu menu dengan menu lain hanyalah isi `Sumber`-nya, bukan kodenya.
 
 Di luar itu ada dua kelompok view kecil: halaman khusus yang memang tidak
 berbentuk CRUD biasa (konten halaman utama, detail satu kelompok mentoring,
-dan daftar RSVP per acara), dan
+detail satu mentee, dan daftar RSVP per acara), dan
 penyunting relasi (`panel_set_kelompok`, `panel_set_role`) yang dipanggil
 langsung dari dropdown di halaman daftar tanpa membuka form ubah.
 """
@@ -19,7 +19,7 @@ from django.contrib import messages
 from django.contrib.auth.views import redirect_to_login
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Count, F, Max, ProtectedError, Q
+from django.db.models import Avg, Count, F, Max, Prefetch, ProtectedError, Q
 from django.forms import inlineformset_factory
 from django.http import Http404, HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
@@ -30,9 +30,13 @@ from django.utils.text import slugify
 from django.views.decorators.http import require_POST
 
 from .models import (
+    AssessmentAspect,
+    AssignmentReview,
+    AssignmentReviewHistory,
     Choice,
     EventRSVP,
     KelompokMentoring,
+    MenteeAssessment,
     MentoringAttendance,
     Profile,
     MentoringSession,
@@ -164,7 +168,7 @@ def _sel(obj, sumber, nomor):
 def _aksi(obj, sumber):
     """Tombol tambahan baris ini — labelnya boleh menghitung isi objeknya."""
     return [
-        {"label": a.label(obj), "url": reverse(a.nama_url, args=[obj.pk])}
+        {"label": a.label(obj), "url": reverse(a.nama_url, args=[a.pk(obj) if a.pk else obj.pk])}
         for a in sumber.aksi_baris
     ]
 
@@ -556,6 +560,8 @@ def panel_kelompok_detail(request, pk):
 
     Presensi dibaca sebagai satu kisi mentee × sesi. Catatan milik mentee yang
     sudah pindah kelompok tidak ikut: yang ditampilkan isi kelompok sekarang.
+    Detail per mentee (nilai per aspek, jawaban tugas, feedback) ada di halaman
+    detail mentee.
     """
     kelompok = get_object_or_404(KelompokMentoring, pk=pk)
     mentor = list(kelompok.daftar_mentor.select_related("user").order_by("nama_lengkap"))
@@ -571,22 +577,37 @@ def panel_kelompok_detail(request, pk):
     label_status = dict(MentoringAttendance.STATUS_CHOICES)
 
     # Tugas berlaku untuk semua kelompok, jadi yang dihitung cukup tugas aktif
-    # yang sudah dikumpulkan tiap mentee (lewat akun loginnya).
+    # yang sudah dikumpulkan tiap mentee (lewat akun loginnya), dan berapa di
+    # antaranya yang sudah dinilai mentor.
     tugas_aktif = Tugas.objects.filter(is_active=True).count()
     terkumpul = dict(
         TugasSubmission.objects.filter(
             tugas__is_active=True, user__profil__in=mentee
         ).values("user__profil").annotate(n=Count("pk")).values_list("user__profil", "n")
     )
+    dinilai = dict(
+        AssignmentReview.objects.filter(
+            submission__tugas__is_active=True, submission__user__profil__in=mentee
+        ).values("submission__user__profil").annotate(n=Count("pk"))
+        .values_list("submission__user__profil", "n")
+    )
+    # Rata-rata aspek yang masih aktif, sama dengan yang dilihat mentor.
+    rata_nilai = dict(
+        MenteeAssessment.objects.filter(peserta__in=mentee, aspect__is_active=True)
+        .values("peserta").annotate(rata=Avg("score")).values_list("peserta", "rata")
+    )
 
     baris = []
     for m in mentee:
         status = [presensi.get((m.pk, s.pk)) for s in sesi]
+        rata = rata_nilai.get(m.pk)
         baris.append({
             "profil": m,
             "presensi": [{"status": st or "", "label": label_status.get(st, "—")} for st in status],
             "hadir": status.count(MentoringAttendance.STATUS_HADIR),
             "tugas": terkumpul.get(m.pk, 0),
+            "dinilai": dinilai.get(m.pk, 0),
+            "rata_nilai": round(rata, 1) if rata is not None else None,
         })
 
     kolom_sesi = [
@@ -616,6 +637,108 @@ def panel_kelompok_detail(request, pk):
         kolom_sesi=kolom_sesi,
         sesi_aktif=sum(s.is_active for s in sesi),
         tugas_aktif=tugas_aktif,
+    ))
+
+
+@staf_required
+def panel_mentee_detail(request, pk):
+    """Semua yang tercatat tentang satu mentee, untuk diperiksa pengurus.
+
+    Presensi dan feedback tiap sesi, nilai per aspek, serta setiap tugas beserta
+    jawaban, nilai, feedback, dan riwayat penilaian mentornya. Semuanya hanya
+    baca: yang mengisinya mentor dari portalnya.
+
+    Sesi kelompok lama ikut tampil kalau mentee ini punya presensi atau feedback
+    di sana, mis. sesudah dipindah kelompok: data itu tetap miliknya.
+    """
+    mentee = get_object_or_404(
+        Profile.objects.select_related("kelompok", "user"), pk=pk, role=Profile.ROLE_MENTEE
+    )
+    kelompok = mentee.kelompok
+    mentor = list(kelompok.daftar_mentor.order_by("nama_lengkap")) if kelompok else []
+
+    presensi = {
+        a.session_id: a
+        for a in mentee.mentoring_attendance.select_related("session__kelompok", "recorded_by")
+    }
+    feedback = {}
+    for entry in mentee.mentor_feedback.select_related("session__kelompok", "mentor").order_by("created_at"):
+        feedback.setdefault(entry.session_id, []).append(entry)
+    sesi = {
+        s.pk: s
+        for s in (kelompok.mentoring_sessions.select_related("kelompok") if kelompok else [])
+    }
+    for a in presensi.values():
+        sesi.setdefault(a.session_id, a.session)
+    for entries in feedback.values():
+        for entry in entries:
+            sesi.setdefault(entry.session_id, entry.session)
+    baris_sesi = [
+        {"sesi": s, "presensi": presensi.get(s.pk), "feedback": feedback.get(s.pk, [])}
+        for s in sorted(
+            sesi.values(),
+            key=lambda s: (s.kelompok_id != mentee.kelompok_id, s.kelompok.nama_kelompok, s.nomor),
+        )
+    ]
+
+    # Aspek aktif selalu tampil (kosong = belum dinilai); aspek yang sudah
+    # dimatikan hanya tampil kalau mentee ini sempat dinilai di sana.
+    nilai = {n.aspect_id: n for n in mentee.assessments.select_related("aspect", "assessed_by")}
+    baris_nilai = [
+        {"aspek": aspek, "nilai": nilai.get(aspek.pk)}
+        for aspek in AssessmentAspect.objects.order_by("urutan", "nama")
+        if aspek.is_active or aspek.pk in nilai
+    ]
+    skor_aktif = [n.score for n in nilai.values() if n.aspect.is_active]
+
+    submissions = (
+        TugasSubmission.objects.filter(user=mentee.user)
+        .select_related("mentor_review__reviewer")
+        .prefetch_related(
+            "answers__question",
+            "answers__selected_choice",
+            Prefetch(
+                "mentor_review_history",
+                queryset=AssignmentReviewHistory.objects.select_related("reviewer"),
+            ),
+        )
+        if mentee.user_id
+        else TugasSubmission.objects.none()
+    )
+    per_tugas = {s.tugas_id: s for s in submissions}
+    baris_tugas = []
+    for tugas in Tugas.objects.order_by("deadline"):
+        submission = per_tugas.get(tugas.pk)
+        baris_tugas.append({
+            "tugas": tugas,
+            "submission": submission,
+            "review": getattr(submission, "mentor_review", None) if submission else None,
+            "riwayat": list(submission.mentor_review_history.all()) if submission else [],
+        })
+
+    bagian = PETA_BAGIAN["kelompok"]
+    return render(request, "siwak/panel/mentee_detail.html", _kerangka(
+        request,
+        judul=mentee.nama_lengkap,
+        bagian="kelompok",
+        sumber="peserta",
+        remah=[
+            (bagian.nama, reverse("siwak:panel_bagian", args=[bagian.slug])),
+            ("Mentee", reverse("siwak:panel_daftar", args=["peserta"])),
+            (mentee.nama_lengkap, ""),
+        ],
+        mentee=mentee,
+        kelompok=kelompok,
+        mentor=mentor,
+        baris_sesi=baris_sesi,
+        jumlah_hadir=sum(
+            a.status == MentoringAttendance.STATUS_HADIR for a in presensi.values()
+        ),
+        baris_nilai=baris_nilai,
+        rata_nilai=round(sum(skor_aktif) / len(skor_aktif), 1) if skor_aktif else None,
+        baris_tugas=baris_tugas,
+        jumlah_terkumpul=sum(1 for b in baris_tugas if b["submission"]),
+        jumlah_dinilai=sum(1 for b in baris_tugas if b["review"]),
     ))
 
 

@@ -7,7 +7,7 @@ Django 6.0 (Python 3.12) + PostgreSQL website for FUKI Fasilkom UI. Settings liv
 - Copy `.env.example` to `.env` and fill in `DJANGO_SECRET`, `DEBUG=True`, and Postgres creds (`DB_NAME`/`DB_USER`/`DB_PASSWORD`). There is no SQLite fallback; Postgres is required. `DATABASE_URL` overrides the discrete vars if set.
 - `DEBUG` is only true when exactly `"True"`, and `DJANGO_SECRET` is required (also fails fast in `entrypoint.sh`).
 - Commands: `pip install -r requirements.txt` (fully pinned), `python manage.py migrate`, `python manage.py runserver`. Seed demo data for `siwak` with `python manage.py seed_siwak`.
-- `python manage.py check --deploy --fail-level ERROR` is the CI gate, but it is not the only verification: `siwak` has a real suite (~300 tests in `siwak/tests.py`, `test_mentor.py`, `test_mentor_rekap.py`, `test_gallery_storage.py`) covering CAS/SSO sync, the panel, QR/RSVP, and tugas upload. Run `python manage.py test siwak` before touching any of those. The other apps' `tests.py` are still empty.
+- `python manage.py check --deploy --fail-level ERROR` is the CI gate, but it is not the only verification: `siwak` has a real suite (~330 tests in `siwak/tests.py`, `test_mentor.py`, `test_mentor_rekap.py`, `test_pengawasan.py`, `test_gallery_storage.py`) covering CAS/SSO sync, the panel, QR/RSVP, and tugas upload. Run `python manage.py test siwak` before touching any of those. The other apps' `tests.py` are still empty.
 - The suite is expected to be fully green. Several tests assert exact template whitespace (e.g. the `_back_button.html` include), so a purely cosmetic template edit can fail them — that is the test doing its job, not noise to silence.
 
 ## Migrations

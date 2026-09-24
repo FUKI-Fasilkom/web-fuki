@@ -75,7 +75,8 @@
 <section aria-labelledby="judul-mentee">
   <h2 id="judul-mentee" class="text-lg font-bold text-navy">Mentee</h2>
   <p class="mb-3 mt-1 text-sm leading-relaxed text-navy-400">
-    Presensi tiap sesi diisi mentor. Kolom Tugas menghitung tugas aktif yang sudah dikumpulkan.
+    Presensi tiap sesi diisi mentor. Tugas = tugas aktif yang sudah dikumpulkan; Dinilai = yang
+    sudah diberi nilai mentor. Buka nama mentee untuk jawaban, feedback, dan nilai per aspeknya.
   </p>
 
   {% if baris %}
@@ -101,13 +102,17 @@
           {% endfor %}
           <th scope="col" class="whitespace-nowrap px-3.5 py-3 text-center text-xs font-bold uppercase tracking-wide">Hadir</th>
           <th scope="col" class="whitespace-nowrap px-3.5 py-3 text-center text-xs font-bold uppercase tracking-wide">Tugas</th>
+          <th scope="col" class="whitespace-nowrap px-3.5 py-3 text-center text-xs font-bold uppercase tracking-wide">Dinilai</th>
+          <th scope="col" class="whitespace-nowrap px-3.5 py-3 text-center text-xs font-bold uppercase tracking-wide">Rata-rata nilai</th>
         </tr>
       </thead>
       <tbody>
         {% for b in baris %}
         <tr class="border-t border-gold-light/70 align-middle even:bg-cream-50">
           <td class="px-3.5 py-3 text-navy-400">{{ forloop.counter }}</td>
-          <td class="whitespace-nowrap px-3.5 py-3 font-semibold text-navy">{{ b.profil.nama_lengkap }}</td>
+          <td class="whitespace-nowrap px-3.5 py-3 font-semibold text-navy">
+            <a href="{% url 'siwak:panel_mentee_detail' b.profil.pk %}" class="underline decoration-gold underline-offset-2 transition hover:text-navy-700">{{ b.profil.nama_lengkap }}</a>
+          </td>
           <td class="whitespace-nowrap px-3.5 py-3 text-navy">{{ b.profil.npm|default:"—" }}</td>
           <td class="px-3.5 py-3 text-navy">{{ b.profil.get_jurusan_display|default:"—" }}</td>
           {% for p in b.presensi %}
@@ -125,6 +130,8 @@
           {% endfor %}
           <td class="whitespace-nowrap px-3.5 py-3 text-center font-semibold text-navy">{{ b.hadir }} / {{ kolom_sesi|length }}</td>
           <td class="whitespace-nowrap px-3.5 py-3 text-center text-navy">{{ b.tugas }} / {{ tugas_aktif }}</td>
+          <td class="whitespace-nowrap px-3.5 py-3 text-center text-navy">{{ b.dinilai }} / {{ b.tugas }}</td>
+          <td class="whitespace-nowrap px-3.5 py-3 text-center font-semibold text-navy">{{ b.rata_nilai|default:"—" }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -135,7 +142,7 @@
           {% for kol in kolom_sesi %}
           <td class="whitespace-nowrap px-3.5 py-2.5 text-center">{{ kol.hadir }} / {{ baris|length }}</td>
           {% endfor %}
-          <td colspan="2"></td>
+          <td colspan="4"></td>
         </tr>
       </tfoot>
       {% endif %}

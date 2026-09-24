@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 from django.contrib.auth import get_user_model
-from django.db.models import Count, Q
+from django.db.models import Count, OuterRef, Q, Subquery
 from django.db.models.functions import Length
 from django.utils import formats
 
@@ -22,6 +22,8 @@ from .models import (
     GaleriFoto,
     KelompokMentoring,
     KetuaSiwak,
+    MentorFeedback,
+    MentoringAttendance,
     MentoringBenefit,
     MentoringSession,
     MentoringTujuan,
@@ -63,11 +65,13 @@ class AksiBaris:
     """Tombol tambahan di ujung satu baris daftar, mis. "Pertanyaan (3)".
 
     `label` menerima objek barisnya supaya tombolnya bisa menyebut jumlah, dan
-    `nama_url` dipanggil dengan pk objek itu.
+    `nama_url` dipanggil dengan pk objek itu — atau dengan hasil `pk(objek)`
+    kalau tombolnya menuju objek lain, mis. mentee dari sebuah baris presensi.
     """
 
     label: Callable
     nama_url: str
+    pk: Callable = None
 
 
 @dataclass(frozen=True)
@@ -175,6 +179,19 @@ def _urut_nama_kelompok(awalan=""):
     tanpa perlu fungsi SQL khusus yang belum tentu ada di SQLite.
     """
     return (Length(f"{awalan}nama_kelompok"), f"{awalan}nama_kelompok")
+
+
+def _feedback_terbaru():
+    """Isi feedback sesi terbaru untuk (sesi, mentee) satu baris presensi.
+
+    Subquery, bukan prefetch: feedback menempel ke pasangan sesi+mentee, bukan
+    ke baris presensinya, jadi tidak ada relasi yang bisa di-prefetch langsung.
+    """
+    return Subquery(
+        MentorFeedback.objects.filter(
+            session=OuterRef("session"), peserta=OuterRef("peserta")
+        ).order_by("-created_at").values("isi")[:1]
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -339,6 +356,11 @@ SUMBER = [
             # kalau harus membuka form ubah dulu setiap kali.
             Kolom("Kelompok", lambda o: o.kelompok_id, "pilih_kelompok", urut="kelompok"),
             Kolom("Sudah login SSO", lambda o: o.user_id is not None, "bool"),
+        ),
+        # Halaman detailnya yang memuat presensi, nilai, dan tugasnya — daftar
+        # ini hanya muat identitas dan kelompoknya.
+        aksi_baris=(
+            AksiBaris(lambda o: "Detail", "siwak:panel_mentee_detail"),
         ),
         pencarian=("nama_lengkap", "npm"),
         kosong="Belum ada mentee. Pilih role Mentee untuk sebuah akun di daftar Profile.",
@@ -540,6 +562,47 @@ SUMBER = [
         urut_awal="kelompok",
     ),
     Sumber(
+        slug="presensi",
+        bagian="mentoring",
+        label="Presensi Mentoring",
+        label_jamak="Presensi & Feedback",
+        deskripsi=(
+            "Semua presensi yang diisi mentor di seluruh kelompok, beserta feedback sesi "
+            "terbarunya. Hanya untuk dipantau: presensi diisi mentor dari portalnya."
+        ),
+        model=MentoringAttendance,
+        form=None,
+        boleh_tambah=False,
+        boleh_ubah=False,
+        boleh_hapus=False,
+        kolom=(
+            Kolom("Mentee", lambda o: o.peserta.nama_lengkap, utama=True, urut="mentee"),
+            Kolom("Kelompok", lambda o: o.session.kelompok.nama_kelompok, urut="kelompok"),
+            Kolom("Sesi", lambda o: o.session.judul, urut="sesi"),
+            Kolom("Status", lambda o: o.get_status_display(), "tag"),
+            Kolom("Catatan", lambda o: o.catatan or "—", "panjang"),
+            Kolom("Feedback mentor", lambda o: _potong(o.feedback_terbaru) or "—", "panjang"),
+            Kolom("Dicatat oleh", lambda o: o.recorded_by.nama_lengkap if o.recorded_by else "—"),
+        ),
+        aksi_baris=(
+            AksiBaris(lambda o: "Detail mentee", "siwak:panel_mentee_detail", pk=lambda o: o.peserta_id),
+        ),
+        pencarian=("peserta__nama_lengkap", "peserta__npm"),
+        kosong="Belum ada presensi yang diisi mentor.",
+        queryset=lambda: MentoringAttendance.objects.select_related(
+            "peserta", "session__kelompok", "recorded_by"
+        ).annotate(feedback_terbaru=_feedback_terbaru()),
+        pengurutan={
+            "mentee": ("peserta__nama_lengkap",),
+            "kelompok": _urut_nama_kelompok("session__kelompok__")
+            + ("session__nomor", "peserta__nama_lengkap"),
+            "sesi": ("session__nomor",)
+            + _urut_nama_kelompok("session__kelompok__")
+            + ("peserta__nama_lengkap",),
+        },
+        urut_awal="kelompok",
+    ),
+    Sumber(
         slug="aspek",
         bagian="mentoring",
         label="Aspek Penilaian",
@@ -650,7 +713,7 @@ BAGIAN = [
     Bagian(
         slug="mentoring",
         nama="Mentoring",
-        deskripsi="Sesi mentoring, aspek penilaian, dan tugas beserta pertanyaannya.",
+        deskripsi="Sesi mentoring, rekap presensi & feedback, aspek penilaian, dan tugas beserta pertanyaannya.",
         ikon="tugas",
     ),
 ]
