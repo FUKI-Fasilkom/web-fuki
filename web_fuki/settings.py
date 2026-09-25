@@ -15,6 +15,7 @@ import os
 import sys
 import dj_database_url
 import requests
+import sentry_sdk
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -273,6 +274,22 @@ if RUNNING_TESTS:
     STORAGES["default"] = {
         "BACKEND": "django.core.files.storage.InMemoryStorage",
     }
+
+
+# ---------------------------------------------------------------------------
+# Monitoring — Sentry
+# ---------------------------------------------------------------------------
+# Error tracking plus a sample of performance traces; the Django integration is
+# enabled automatically because Django is installed. Skipped under
+# `manage.py test`: the suite deliberately triggers 403s, 404s and errors, and
+# without this guard every local test run would send events and traces to the
+# same Sentry project as production.
+if not RUNNING_TESTS:
+    sentry_sdk.init(
+        dsn="https://cb9cca9e8889db66cedc56d94d2ee33e@o4512145721458688.ingest.us.sentry.io/4512145755602944",
+        send_default_pii=True,
+        traces_sample_rate=0.2,
+    )
 
 
 # Default primary key field type

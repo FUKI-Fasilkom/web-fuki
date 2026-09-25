@@ -124,6 +124,24 @@ class CatatanMenteeTests(TestCase):
                 )
         self.assertEqual(self._catatan(), CATATAN)
 
+    def test_it_is_masked_from_clarity_session_recordings(self):
+        """base.html loads Microsoft Clarity on every page, panel included; a
+        note rendered outside a masked element would end up in its replays."""
+        self.assertContains(self.client.get(reverse("siwak:landing")), "clarity.ms/tag/")
+
+        masker = 'data-clarity-mask="True"'
+        self.client.force_login(self.mentor_a.user)
+        self.assertContains(
+            self.client.get(reverse("siwak:mentor_mentee_detail", args=[self.mentee_a.pk])), masker
+        )
+        self.client.force_login(self.staf)
+        for url in (
+            reverse("siwak:panel_mentee_detail", args=[self.mentee_a.pk]),
+            reverse("siwak:panel_kelompok_detail", args=[self.kelompok_a.pk]),
+        ):
+            with self.subTest(url=url):
+                self.assertContains(self.client.get(url), masker)
+
     def test_the_public_group_search_never_shows_it(self):
         response = self.client.post(reverse("siwak:kelompok_search"), {"nama_lengkap": "Mentee A"})
 
