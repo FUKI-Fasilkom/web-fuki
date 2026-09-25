@@ -15,7 +15,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from .mentor_forms import CatatanMenteeForm
+from .mentor_forms import FIELD_CLASSES, CatatanMenteeForm
 from .models import (
     Answer,
     AssessmentAspect,
@@ -32,7 +32,7 @@ from .models import (
     Tugas,
     TugasSubmission,
 )
-from .services.mentor import boleh_akses_catatan
+from .services.mentor import boleh_baca_catatan, boleh_ubah_catatan
 
 
 User = get_user_model()
@@ -84,23 +84,77 @@ class CatatanMenteeTests(TestCase):
         self.assertRedirects(response, f"{halaman}#catatan", fetch_redirect_response=False)
         self.assertEqual(self._catatan(), "Catatan baru")
 
-    def test_staff_can_read_and_write_it(self):
+    def test_staff_can_read_it_but_never_write_it(self):
+        """Catatan milik mentor kelompoknya: pengurus hanya membaca, dan
+        POST langsung ke pintunya pun ditolak — bukan sekadar form disembunyikan."""
         self.client.force_login(self.staf)
+        halaman = reverse("siwak:panel_mentee_detail", args=[self.mentee_a.pk])
 
-        self.assertContains(
-            self.client.get(reverse("siwak:panel_mentee_detail", args=[self.mentee_a.pk])), CATATAN
-        )
+        response = self.client.get(halaman)
+        self.assertContains(response, CATATAN)
+        self.assertContains(response, "Hanya baca")
+        self.assertNotContains(response, self.url_simpan)
+        self.assertNotContains(response, 'name="notes"')
         self.assertContains(
             self.client.get(reverse("siwak:panel_kelompok_detail", args=[self.kelompok_a.pk])), CATATAN
         )
 
-        response = self._simpan()
+        self.assertEqual(self._simpan().status_code, 403)
+        self.assertEqual(self._catatan(), CATATAN)
+        self.assertTrue(boleh_baca_catatan(self.staf, self.mentee_a))
+        self.assertFalse(boleh_ubah_catatan(self.staf, self.mentee_a))
 
-        self.assertRedirects(
-            response, reverse("siwak:panel_mentee_detail", args=[self.mentee_a.pk]),
-            fetch_redirect_response=False,
-        )
+    def test_a_staff_account_that_is_also_the_groups_mentor_may_write_it(self):
+        """Yang menentukan hak menyunting adalah memegang kelompoknya, bukan is_staff."""
+        self.mentor_a.user.is_staff = True
+        self.mentor_a.user.save(update_fields=["is_staff"])
+        self.client.force_login(self.mentor_a.user)
+
+        self._simpan()
+
         self.assertEqual(self._catatan(), "Catatan baru")
+
+    def test_the_panel_says_so_when_the_mentor_has_not_written_one(self):
+        self.mentee_a.notes = "   "
+        self.mentee_a.save(update_fields=["notes"])
+        self.client.force_login(self.staf)
+
+        response = self.client.get(reverse("siwak:panel_mentee_detail", args=[self.mentee_a.pk]))
+
+        self.assertContains(response, "Belum ada catatan dari mentor.")
+
+    def test_the_django_admin_shows_it_read_only(self):
+        admin = User.objects.create_superuser(username="super", password="x")
+        self.client.force_login(admin)
+
+        response = self.client.get(reverse("admin:siwak_profile_change", args=[self.mentee_a.pk]))
+
+        self.assertContains(response, CATATAN)
+        self.assertNotContains(response, 'name="notes"')
+
+    def test_the_mentor_field_is_styled_like_session_feedback_and_has_a_placeholder(self):
+        """Regresi: `widgets` sempat terlepas dari Meta sehingga isiannya polos."""
+        self.kelompok_a.mentoring_sessions.filter(nomor=1).update(is_active=True)
+        self.client.force_login(self.mentor_a.user)
+        halaman = reverse("siwak:mentor_mentee_detail", args=[self.mentee_a.pk])
+
+        html = self.client.get(halaman).content.decode()
+        catatan = re.search(r'<textarea[^>]*name="notes"[^>]*>', html).group(0)
+        feedback = re.search(r'<textarea[^>]*name="[^"]*feedback"[^>]*>', html).group(0)
+        self.assertIn(f'class="{FIELD_CLASSES}"', catatan)
+        self.assertIn(f'class="{FIELD_CLASSES}"', feedback)
+        self.assertIn('placeholder="Belum ada catatan.', catatan)
+
+    def test_clearing_it_keeps_the_placeholder_and_says_it_was_removed(self):
+        self.client.force_login(self.mentor_a.user)
+        halaman = reverse("siwak:mentor_mentee_detail", args=[self.mentee_a.pk])
+
+        response = self._simpan(isi="", next=halaman)
+
+        self.assertEqual(self._catatan(), "")
+        response = self.client.get(halaman)
+        self.assertContains(response, "Catatan untuk Mentee A dihapus.")
+        self.assertContains(response, 'placeholder="Belum ada catatan.')
 
     def test_a_mentor_of_another_group_gets_403_and_never_sees_it(self):
         self.client.force_login(self.mentor_b.user)
@@ -140,7 +194,8 @@ class CatatanMenteeTests(TestCase):
         tanpa_kelompok = _profil("2100000003", "Mentor Lepas", Profile.ROLE_MENTOR)
         mentee_lepas = _profil("2500000009", "Mentee Lepas", Profile.ROLE_MENTEE)
 
-        self.assertFalse(boleh_akses_catatan(tanpa_kelompok.user, mentee_lepas))
+        self.assertFalse(boleh_ubah_catatan(tanpa_kelompok.user, mentee_lepas))
+        self.assertFalse(boleh_baca_catatan(tanpa_kelompok.user, mentee_lepas))
         self.client.force_login(tanpa_kelompok.user)
         response = self.client.post(
             reverse("siwak:mentee_catatan", args=[mentee_lepas.pk]), {"notes": "x"}
@@ -171,7 +226,7 @@ class CatatanMenteeTests(TestCase):
         tugas = Tugas.objects.create(
             judul_tugas="Refleksi", deskripsi="d", deadline=timezone.now() + datetime.timedelta(days=1)
         )
-        pemindai = User.objects.create_user(username="pindai-gate")
+        pemindai = User.objects.create_user(username="panitia-gate")
         pemindai.user_permissions.add(Permission.objects.get(codename="pindai_registrasi"))
         halaman = [
             reverse("siwak:landing"),
@@ -404,6 +459,39 @@ class PengawasanAdminTests(TestCase):
         html = response.content.decode()
         kartu = re.search(r"(\d+)<span[^>]*> / (\d+)</span></p>\s*<p[^>]*>Sesi aktif", html)
         self.assertEqual(kartu.groups(), ("2", "4"))
+
+    def test_attendance_statuses_get_distinct_colours_on_every_panel_page(self):
+        """Hadir hijau, Izin kuning, Tidak Hadir merah — di mana pun enum ini tampil."""
+        sesi2 = self.kelompok.mentoring_sessions.get(nomor=2)
+        sesi3 = self.kelompok.mentoring_sessions.get(nomor=3)
+        MentoringAttendance.objects.create(session=sesi2, peserta=self.mentee, status="izin")
+        MentoringAttendance.objects.create(session=sesi3, peserta=self.mentee, status="tidak_hadir")
+        acara = SiwakEvent.objects.create(judul="Main Event")
+        EventRSVP.objects.create(event=acara, user=self.mentee.user, kehadiran="hadir")
+        EventRSVP.objects.create(event=acara, user=self.teman.user, kehadiran="izin",
+                                 alasan_izin="Sakit")
+        warna = {
+            "Hadir": "bg-green-100", "Izin": "bg-amber-100", "Tidak Hadir": "bg-red-100",
+        }
+        self.client.force_login(self.staf)
+
+        for url, label in (
+            (self.url, ("Hadir", "Izin", "Tidak Hadir")),
+            (reverse("siwak:panel_kelompok_detail", args=[self.kelompok.pk]), ("Hadir", "Izin", "Tidak Hadir")),
+            (reverse("siwak:panel_daftar", args=["presensi"]), ("Hadir", "Izin", "Tidak Hadir")),
+            (reverse("siwak:panel_rsvp", args=[acara.pk]), ("Hadir", "Izin")),
+        ):
+            html = self.client.get(url).content.decode()
+            for teks in label:
+                with self.subTest(url=url, status=teks):
+                    self.assertRegex(html, rf'class="[^"]*{warna[teks]}[^"]*">{teks}</span>')
+
+    def test_the_mentor_review_on_the_answers_page_stands_out_on_navy(self):
+        self.client.force_login(self.staf)
+
+        html = self.client.get(reverse("siwak:panel_jawaban", args=[self.tugas.pk])).content.decode()
+
+        self.assertRegex(html, r'<div class="rounded-xl bg-navy[^"]*">\s*<p[^>]*>Penilaian mentor</p>')
 
 
 class PanelSaringanTests(TestCase):

@@ -9,6 +9,10 @@ berbentuk CRUD biasa (konten halaman utama, detail satu kelompok mentoring,
 detail satu mentee, dan daftar RSVP per acara), dan penyunting langsung
 (`panel_set_kelompok`, `panel_set_role`, `panel_set_link`, `panel_set_npm`) yang
 dipanggil dari dropdown atau isian di halaman daftar tanpa membuka form ubah.
+
+Satu-satunya yang bukan untuk pengurus: `pindai_rsvp` dan `pindai_rsvp_status`,
+daftar RSVP untuk akun panitia di /siwak/pindai/. Tinggal di sini karena
+isinya sama dengan daftar RSVP panel (`_konteks_rsvp`, `_ubah_status_rsvp`).
 """
 
 import csv
@@ -18,11 +22,11 @@ from urllib.parse import urlencode
 from django.contrib import messages
 from django.contrib.auth.views import redirect_to_login
 from django.core.paginator import Paginator
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import Avg, Count, F, Max, Prefetch, ProtectedError, Q
 from django.forms import inlineformset_factory
-from django.http import Http404, HttpResponse, HttpResponseForbidden
+from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -30,6 +34,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.text import slugify
 from django.views.decorators.http import require_POST
 
+from .akses import AksesDitolak
 from .models import (
     AssessmentAspect,
     AssignmentReview,
@@ -59,7 +64,9 @@ from .panel import (
     sumber_bagian,
 )
 from .panel_forms import InfoSiwakForm, PertanyaanForm, PilihanForm, RsvpProfilForm
+from .services.pemindai import boleh_memindai
 from .services.rsvp import buat_rsvp, klaim_rsvp_tertunda
+from .views import pemindai_required
 
 PER_HALAMAN = 25
 
@@ -72,7 +79,8 @@ TIPE_BUTUH_ROLE = {"pilih_role"}
 def staf_required(view_func):
     """Hanya untuk pengurus. Mengikuti pola `pemindai_required` di views.py:
     yang belum login diarahkan ke login admin, yang sudah login tapi bukan staf
-    mendapat 403 — bukan dilempar balik ke halaman login berulang-ulang.
+    mendapat halaman 403 "Akses Ditolak" (lihat `akses.py`) — bukan dilempar
+    balik ke halaman login berulang-ulang.
 
     Akun pemindai QR sengaja selalu `is_staff=False` (lihat AkunPemindaiForm),
     jadi decorator inilah yang menutup seluruh panel untuknya."""
@@ -81,9 +89,7 @@ def staf_required(view_func):
     def _wrapped(request, *args, **kwargs):
         if request.user.is_authenticated:
             if not request.user.is_staff:
-                return HttpResponseForbidden(
-                    "Akun ini tidak punya akses ke panel SIWAK."
-                )
+                raise AksesDitolak("admin")
             return view_func(request, *args, **kwargs)
         return redirect_to_login(request.get_full_path(), reverse("admin:login"))
 
@@ -882,8 +888,8 @@ def panel_mentee_detail(request, pk):
 
     Presensi dan feedback tiap sesi, nilai per aspek, serta setiap tugas beserta
     jawaban, nilai, feedback, dan riwayat penilaian mentornya. Semuanya hanya
-    baca — yang mengisinya mentor dari portalnya — kecuali catatan privat, yang
-    disimpan lewat `mentee_catatan` (pintu yang sama dengan halaman mentor).
+    baca — yang mengisinya mentor dari portalnya — termasuk catatan privat,
+    yang hanya boleh disunting mentor kelompoknya (`boleh_ubah_catatan`).
 
     Sesi kelompok lama ikut tampil kalau mentee ini punya presensi atau feedback
     di sana, mis. sesudah dipindah kelompok: data itu tetap miliknya.
@@ -976,7 +982,6 @@ def panel_mentee_detail(request, pk):
         baris_tugas=baris_tugas,
         jumlah_terkumpul=sum(1 for b in baris_tugas if b["submission"]),
         jumlah_dinilai=sum(1 for b in baris_tugas if b["review"]),
-        url_kembali=request.get_full_path(),
     ))
 
 
@@ -1082,9 +1087,10 @@ def _hitung_rsvp(event):
     )
 
 
-@staf_required
-def panel_rsvp(request, pk):
-    event = get_object_or_404(SiwakEvent, pk=pk)
+def _konteks_rsvp(request, event):
+    """Isi daftar RSVP satu acara (ringkasan, tab peran, saringan, halaman),
+    dipakai bersama panel pengurus dan halaman panitia di /siwak/pindai/.
+    Yang boleh diubah dari daftarnya ditentukan pemanggil (`boleh_*`)."""
     kata = (request.GET.get("q") or "").strip()
     peran = _peran_rsvp(request)
     kelompok, pilihan_kelompok_rsvp = _kelompok_terpilih(request)
@@ -1115,18 +1121,9 @@ def panel_rsvp(request, pk):
             "aktif": nilai == peran,
         })
 
-    bagian = PETA_BAGIAN["event"]
-    return render(request, "siwak/panel/rsvp.html", _kerangka(
-        request,
-        judul=f"RSVP · {event.judul}",
-        bagian="event",
-        sumber="event",
-        remah=[
-            (bagian.nama, reverse("siwak:panel_bagian", args=["event"])),
-            ("SIWAK Events", reverse("siwak:panel_daftar", args=["event"])),
-            ("RSVP", ""),
-        ],
+    return dict(
         event=event,
+        url_daftar=request.path,
         halaman=Paginator(daftar, PER_HALAMAN).get_page(request.GET.get("page")),
         kata=kata,
         peran=peran,
@@ -1152,7 +1149,50 @@ def panel_rsvp(request, pk):
             ("Menunggu login", menunggu),
         ],
         rsvp_menunggu=menunggu,
+    )
+
+
+@staf_required
+def panel_rsvp(request, pk):
+    event = get_object_or_404(SiwakEvent, pk=pk)
+    bagian = PETA_BAGIAN["event"]
+    return render(request, "siwak/panel/rsvp.html", _kerangka(
+        request,
+        judul=f"RSVP · {event.judul}",
+        bagian="event",
+        sumber="event",
+        remah=[
+            (bagian.nama, reverse("siwak:panel_bagian", args=["event"])),
+            ("SIWAK Events", reverse("siwak:panel_daftar", args=["event"])),
+            ("RSVP", ""),
+        ],
+        rute_status="siwak:panel_rsvp_status",
+        boleh_kehadiran=True,
+        boleh_kupon=True,
+        boleh_hapus=True,
+        **_konteks_rsvp(request, event),
     ))
+
+
+@pemindai_required
+def pindai_rsvp(request, pk):
+    """Daftar RSVP satu acara untuk akun panitia (pemindai QR).
+
+    Isinya sama dengan daftar RSVP di panel, minus semua yang bukan urusan
+    panitia: tanpa menu panel, tanpa ubah acara, hapus RSVP, buka-tutup RSVP,
+    dan unduh CSV. Dropdown status hanya muncul untuk jenis QR yang boleh
+    dipindai akun ini — gatekeeper membetulkan QR kehadiran, konsumsi QR
+    kupon — supaya koreksi manual tidak lebih luas dari izin memindainya.
+    """
+    event = get_object_or_404(SiwakEvent, pk=pk)
+    return render(request, "siwak/pindai_rsvp.html", {
+        "rute_status": "siwak:pindai_rsvp_status",
+        "boleh_kehadiran": boleh_memindai(request.user, "registrasi"),
+        "boleh_kupon": boleh_memindai(request.user, "kupon"),
+        "boleh_hapus": False,
+        "back_url": reverse("siwak:pindai_beranda"),
+        **_konteks_rsvp(request, event),
+    })
 
 
 @staf_required
@@ -1196,9 +1236,32 @@ MEDAN_RSVP = {
 }
 
 
+# Jenis QR (kunci EventRSVP.IZIN_PINDAI) yang izinnya dibutuhkan panitia untuk
+# menyunting tiap kolom status dari /siwak/pindai/.
+JENIS_QR_MEDAN = {"kehadiran": "registrasi", "kupon": "kupon"}
+
+
 @staf_required
 @require_POST
 def panel_rsvp_status(request, pk):
+    rsvp = get_object_or_404(EventRSVP, pk=pk)
+    return _ubah_status_rsvp(request, rsvp, reverse("siwak:panel_rsvp", args=[rsvp.event_id]))
+
+
+@pemindai_required
+@require_POST
+def pindai_rsvp_status(request, pk):
+    """Versi panitia dari `panel_rsvp_status`: hanya kolom yang jenis QR-nya
+    boleh dipindai akun ini. Dropdown kolom lain memang tidak ditampilkan,
+    jadi yang sampai ke penolakan ini hanya kiriman yang dirakit sendiri."""
+    rsvp = get_object_or_404(EventRSVP, pk=pk)
+    jenis = JENIS_QR_MEDAN.get(request.POST.get("medan") or "")
+    if jenis and not boleh_memindai(request.user, jenis):
+        raise PermissionDenied("Akun ini tidak boleh mengubah status QR ini.")
+    return _ubah_status_rsvp(request, rsvp, reverse("siwak:pindai_rsvp", args=[rsvp.event_id]))
+
+
+def _ubah_status_rsvp(request, rsvp, cadangan):
     """Ubah status QR Kehadiran / QR Kupon satu peserta langsung dari daftarnya.
 
     Cap waktunya ikut diurus supaya baris ini tetap sama bentuknya dengan hasil
@@ -1206,9 +1269,6 @@ def panel_rsvp_status(request, pk):
     status yang diturunkan kehilangan cap waktunya. Tanpa itu akan ada baris
     yang tertulis "belum hadir" tapi masih menyimpan jam check-in.
     """
-    rsvp = get_object_or_404(EventRSVP, pk=pk)
-    cadangan = reverse("siwak:panel_rsvp", args=[rsvp.event_id])
-
     medan = MEDAN_RSVP.get(request.POST.get("medan") or "")
     if medan is None:
         messages.error(request, "Kolom status yang diminta tidak dikenal.")

@@ -29,6 +29,10 @@ def protected_submission_media(request, path):
     """Never expose SIWAK task files through Django's DEBUG media helper."""
     return HttpResponseNotFound()
 
+
+# Halaman 403 bergaya SIWAK yang menunjukkan jalan ke bagian milik user sendiri.
+handler403 = 'siwak.akses.handler403'
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('main.urls')),

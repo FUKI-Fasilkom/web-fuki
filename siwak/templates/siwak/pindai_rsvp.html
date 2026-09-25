@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+
+{% comment %}
+  Daftar RSVP satu acara untuk akun panitia (pemindai QR). Isinya sama dengan
+  daftar RSVP panel (panel/_rsvp_isi.html), tapi di luar kerangka panel dan
+  tanpa ubah acara, hapus RSVP, buka-tutup RSVP, maupun unduh CSV. Dropdown
+  status QR hanya untuk jenis QR yang boleh dipindai akun ini.
+{% endcomment %}
+
+{% block title %}RSVP {{ event.judul }}{% endblock %}
+{% block meta_robots %}noindex, nofollow{% endblock %}
+
+{% block content %}
+{% include 'siwak/_messages.html' %}
+
+<div class="relative">
+  {% include 'components/redesign_header.html' with page_title="RSVP Peserta" subtitle=event.judul ringkas=True %}
+
+  {% include 'siwak/_back_button.html' with href=back_url label="Kembali ke halaman pemindai" %}
+</div>
+
+<section class="w-full bg-[#F9F8F5] py-12 sm:py-16">
+  <div class="mx-auto w-full max-w-6xl px-4 sm:px-6">
+    <p class="mb-5 text-sm text-navy-400">
+      {% if event.tanggal %}{{ event.tanggal|date:"j F Y" }}{% else %}Tanggal belum diisi{% endif %}
+      {% if event.lokasi %} · {{ event.lokasi }}{% endif %}
+    </p>
+
+    {% include 'siwak/panel/_rsvp_isi.html' %}
+  </div>
+</section>
+{% endblock %}

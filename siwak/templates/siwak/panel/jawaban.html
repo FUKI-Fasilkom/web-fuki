@@ -119,16 +119,20 @@
       </p>
       {% endfor %}
 
-      <div class="rounded-xl bg-cream-50 px-4 py-3">
-        <p class="text-xs font-bold uppercase tracking-wide text-navy-400">Penilaian mentor</p>
+      {% comment %}
+        Latar navy, bukan krem: penilaian mentor harus langsung terbedakan dari
+        soal dan jawaban mentee di atasnya.
+      {% endcomment %}
+      <div class="rounded-xl bg-navy px-4 py-3.5 text-white">
+        <p class="text-xs font-bold uppercase tracking-wide text-gold">Penilaian mentor</p>
         {% if item.review %}
-        <p class="mt-1 text-sm text-navy"><span class="font-bold">Nilai {{ item.review.score }}</span> · {{ item.review.reviewer.nama_lengkap|default:"Mentor" }} · {{ item.review.updated_at|date:"j M Y, H:i" }}</p>
-        {% if item.review.feedback %}<p class="mt-1 whitespace-pre-line text-sm text-navy">{{ item.review.feedback }}</p>{% endif %}
+        <p class="mt-1.5 text-sm text-cream-300"><span class="text-base font-bold text-white">Nilai {{ item.review.score }}</span> · {{ item.review.reviewer.nama_lengkap|default:"Mentor" }} · {{ item.review.updated_at|date:"j M Y, H:i" }}</p>
+        {% if item.review.feedback %}<p class="mt-1.5 whitespace-pre-line text-sm text-white">{{ item.review.feedback }}</p>{% endif %}
         {% else %}
-        <p class="mt-1 text-sm text-navy-400">Belum dinilai mentor.</p>
+        <p class="mt-1.5 text-sm text-cream-300">Belum dinilai mentor.</p>
         {% endif %}
         {% if item.profil and item.profil.role == 'mentee' %}
-        <a href="{% url 'siwak:panel_mentee_detail' item.profil.pk %}" class="mt-2 inline-block text-sm font-semibold text-navy underline decoration-gold underline-offset-2">Detail mentee</a>
+        <a href="{% url 'siwak:panel_mentee_detail' item.profil.pk %}" class="mt-2.5 inline-block text-sm font-semibold text-white underline decoration-gold underline-offset-2 transition hover:text-gold">Detail mentee</a>
         {% endif %}
       </div>
     </div>

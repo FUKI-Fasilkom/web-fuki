@@ -1,6 +1,6 @@
-from django.core.exceptions import PermissionDenied
 from django.db import transaction
 
+from siwak.akses import AksesDitolak
 from siwak.models import (
     AssignmentReviewHistory,
     Profile,
@@ -22,15 +22,14 @@ def mentor_for_user(user):
 def require_mentor(user):
     mentor = mentor_for_user(user)
     if mentor is None:
-        raise PermissionDenied("Halaman ini hanya dapat diakses oleh mentor.")
+        raise AksesDitolak("mentor")
     return mentor
 
 
-def boleh_akses_catatan(user, mentee):
-    """Siapa yang boleh membaca dan menyunting `Profile.notes` milik `mentee`.
-
-    Hanya pengurus (`is_staff`) dan mentor yang memegang kelompok mentee itu.
-    Mentee sendiri, mentee lain, dan mentor kelompok lain tidak pernah boleh.
+def boleh_ubah_catatan(user, mentee):
+    """Siapa yang boleh menyunting `Profile.notes` milik `mentee`: hanya mentor
+    yang memegang kelompok mentee itu. Pengurus hanya membaca (lihat
+    `boleh_baca_catatan`) — catatan ini milik mentornya.
 
     `mentee.kelompok_id` wajib dicek lebih dulu: filter `kelompok_id=None`
     di ORM berarti IS NULL, sehingga mentor tanpa kelompok akan "cocok" dengan
@@ -38,13 +37,20 @@ def boleh_akses_catatan(user, mentee):
     """
     if not user or not user.is_authenticated:
         return False
-    if user.is_staff:
-        return True
     if mentee.role != Profile.ROLE_MENTEE or not mentee.kelompok_id:
         return False
     return Profile.objects.filter(
         user=user, role=Profile.ROLE_MENTOR, kelompok_id=mentee.kelompok_id
     ).exists()
+
+
+def boleh_baca_catatan(user, mentee):
+    """Siapa yang boleh membaca `Profile.notes` milik `mentee`: pengurus
+    (`is_staff`) dan mentor yang memegang kelompoknya. Mentee sendiri, mentee
+    lain, dan mentor kelompok lain tidak pernah boleh."""
+    if user and user.is_authenticated and user.is_staff:
+        return True
+    return boleh_ubah_catatan(user, mentee)
 
 
 @transaction.atomic

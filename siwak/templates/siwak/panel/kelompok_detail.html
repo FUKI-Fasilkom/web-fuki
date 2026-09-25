@@ -135,15 +135,7 @@
           <td class="px-3.5 py-3 text-navy">{{ b.profil.get_jurusan_display|default:"—" }}</td>
           {% for p in b.presensi %}
           <td class="px-3.5 py-3 text-center">
-            {% if p.status == 'hadir' %}
-            <span class="inline-block whitespace-nowrap rounded-full bg-cream-300 px-2.5 py-1 text-[11px] font-bold text-navy">{{ p.label }}</span>
-            {% elif p.status == 'izin' %}
-            <span class="inline-block whitespace-nowrap rounded-full bg-badge/60 px-2.5 py-1 text-[11px] font-semibold text-navy">{{ p.label }}</span>
-            {% elif p.status == 'tidak_hadir' %}
-            <span class="inline-block whitespace-nowrap rounded-full bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-700">{{ p.label }}</span>
-            {% else %}
-            <span class="text-navy-400" title="Belum dicatat">{{ p.label }}</span>
-            {% endif %}
+            {% include 'siwak/panel/_status_presensi.html' with status=p.status label=p.label %}
           </td>
           {% endfor %}
           <td class="whitespace-nowrap px-3.5 py-3 text-center font-semibold text-navy">{{ b.hadir }} / {{ kolom_sesi|length }}</td>

@@ -104,14 +104,27 @@ class MenteeAssessmentForm(forms.Form):
 class CatatanMenteeForm(forms.ModelForm):
     """Catatan privat satu mentee (`Profile.notes`).
 
-    Dipakai halaman mentor dan panel pengurus lewat satu view yang sama
-    (`mentor_views.mentee_catatan`), jadi yang dibersihkan di sini hanya isinya;
-    siapa yang boleh menyimpan diperiksa view itu.
+    Hanya dipakai halaman detail mentee di portal mentor, lewat
+    `mentor_views.mentee_catatan`; siapa yang boleh menyimpan diperiksa view itu.
+    Isiannya bergaya sama dengan "Feedback sesi" di halaman yang sama.
     """
 
     class Meta:
         model = Profile
         fields = ["notes"]
+        # Penjelasan siapa yang bisa membaca sudah ada di atas isiannya.
+        help_texts = {"notes": ""}
+        widgets = {
+            "notes": forms.Textarea(
+                attrs={
+                    "class": FIELD_CLASSES,
+                    "rows": 3,
+                    # Tampil setiap kali catatannya kosong — belum pernah diisi
+                    # maupun sesudah isinya dihapus.
+                    "placeholder": "Belum ada catatan. Tulis catatan privat tentang mentee ini",
+                }
+            ),
+        }
 
     def save(self, commit=True):
         # Hanya kolom `notes` yang ditulis. `ModelForm.save()` biasa menulis ulang
@@ -121,15 +134,6 @@ class CatatanMenteeForm(forms.ModelForm):
         if commit:
             profil.save(update_fields=["notes"])
         return profil
-        widgets = {
-            "notes": forms.Textarea(
-                attrs={
-                    "class": FIELD_CLASSES,
-                    "rows": 4,
-                    "placeholder": "Catatan privat tentang mentee ini",
-                }
-            ),
-        }
 
 
 class AssignmentReviewForm(forms.ModelForm):

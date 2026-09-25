@@ -1,0 +1,9 @@
+{% comment %}
+  Status QR yang hanya dibaca, pengganti `_dropdown_status.html` bagi panitia
+  yang tidak memegang izin jenis QR itu. Warnanya sama dengan dropdown-nya.
+  Parameter: sekarang, aktif_saat, label.
+{% endcomment %}
+<span class="inline-flex min-h-[38px] w-full items-center rounded-xl border-2 px-2.5 py-1.5 text-[13px] font-semibold
+             {% if sekarang == aktif_saat %}border-navy bg-cream-300 text-navy{% else %}border-gold-light bg-white text-navy-400{% endif %}">
+  {{ label|default:"—" }}
+</span>

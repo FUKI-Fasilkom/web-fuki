@@ -2,9 +2,9 @@
 
 {% comment %}
   Detail satu mentee untuk pengurus: semua yang diisi mentor tentang dia.
-  Hanya baca, kecuali catatan privat. Catatan itu disimpan lewat
-  `siwak:mentee_catatan`, pintu yang sama dengan halaman mentor, supaya aturan
-  aksesnya hanya ada di satu tempat.
+  Seluruhnya hanya baca, termasuk catatan privat — catatan itu milik mentor
+  kelompoknya dan hanya disunting dari portal mentor (`siwak:mentee_catatan`
+  menolak pengurus).
 {% endcomment %}
 
 {% block panel %}
@@ -50,20 +50,20 @@
 </section>
 
 <section id="catatan" class="mb-8 scroll-mt-24 rounded-2xl border-2 border-gold-light bg-white p-5 sm:p-6" aria-labelledby="judul-catatan">
-  <h2 id="judul-catatan" class="text-lg font-bold text-navy">Catatan privat</h2>
-  <p class="mt-1 text-sm text-navy-400">Hanya terlihat oleh pengurus dan mentor kelompok mentee ini — tidak pernah oleh mentee.</p>
-  <form method="post" action="{% url 'siwak:mentee_catatan' mentee.pk %}" class="mt-4 space-y-3">
-    {% csrf_token %}
-    <input type="hidden" name="next" value="{{ url_kembali }}#catatan" />
-    <label for="catatan-mentee" class="sr-only">Catatan privat {{ mentee.nama_lengkap }}</label>
-    <textarea id="catatan-mentee" name="notes" rows="4"
-              class="w-full rounded-xl border-2 border-gold-light bg-white px-4 py-3 text-[15px] text-navy placeholder-navy-400/60 transition focus:border-gold focus:outline-none focus:ring-4 focus:ring-gold/25"
-              placeholder="Belum ada catatan.">{{ mentee.notes }}</textarea>
-    <button type="submit"
-            class="inline-flex min-h-[44px] items-center rounded-xl bg-navy px-6 text-sm font-bold text-white transition hover:bg-navy-700">
-      Simpan catatan
-    </button>
-  </form>
+  <div class="flex flex-wrap items-baseline justify-between gap-2">
+    <h2 id="judul-catatan" class="text-lg font-bold text-navy">Catatan privat mentor</h2>
+    <span class="rounded-full bg-navy/5 px-2.5 py-1 text-[11px] font-semibold text-navy-400">Hanya baca</span>
+  </div>
+  <p class="mt-1 text-sm text-navy-400">
+    Ditulis dan hanya bisa diubah oleh mentor kelompok mentee ini, dari portal mentor. Tidak pernah terlihat oleh mentee.
+  </p>
+  {% if mentee.notes.strip %}
+  <p class="mt-4 whitespace-pre-line rounded-xl bg-cream-50 px-4 py-3 text-[15px] text-navy">{{ mentee.notes }}</p>
+  {% else %}
+  <p class="mt-4 rounded-xl border-2 border-dashed border-gold-light px-4 py-3 text-sm text-navy-400">
+    Belum ada catatan dari mentor.
+  </p>
+  {% endif %}
 </section>
 
 <section class="mb-8" aria-labelledby="judul-presensi">
@@ -90,7 +90,7 @@
           </td>
           <td class="whitespace-nowrap px-3.5 py-3">
             {% if b.presensi %}
-            <span class="inline-block rounded-full bg-cream-300 px-2.5 py-1 text-[11px] font-bold text-navy">{{ b.presensi.get_status_display }}</span>
+            {% include 'siwak/panel/_status_presensi.html' with status=b.presensi.status label=b.presensi.get_status_display %}
             <span class="mt-1 block text-xs text-navy-400">oleh {{ b.presensi.recorded_by.nama_lengkap|default:"—" }}</span>
             {% else %}<span class="text-navy-400">Belum dicatat</span>{% endif %}
           </td>

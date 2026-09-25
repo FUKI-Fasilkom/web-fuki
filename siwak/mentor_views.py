@@ -31,7 +31,7 @@ from .models import (
     TugasSubmission,
 )
 from .services.mentor import (
-    boleh_akses_catatan,
+    boleh_ubah_catatan,
     mentor_for_user,
     require_mentor,
     save_assessments,
@@ -331,7 +331,7 @@ def mentee_detail(request, participant_id):
             "session_cards": session_cards,
             # Halaman ini memang hanya terbuka untuk mentor kelompoknya, tapi
             # aturan catatan tetap dibaca dari satu sumber yang sama.
-            "boleh_catatan": boleh_akses_catatan(request.user, participant),
+            "boleh_catatan": boleh_ubah_catatan(request.user, participant),
             "catatan_form": CatatanMenteeForm(instance=participant),
         },
     )
@@ -342,19 +342,23 @@ def mentee_detail(request, participant_id):
 def mentee_catatan(request, participant_id):
     """Simpan catatan privat (`Profile.notes`) satu mentee.
 
-    Satu pintu untuk dua halaman — detail mentee di portal mentor dan di panel
-    pengurus — supaya aturan aksesnya (`boleh_akses_catatan`) hanya ditulis di
-    satu tempat. Yang tidak berhak mendapat 403: mentee itu sendiri, mentee
-    lain, dan mentor kelompok lain.
+    Hanya mentor kelompok mentee itu yang boleh (`boleh_ubah_catatan`).
+    Pengurus membacanya di panel tanpa bisa mengubah, jadi pengurus pun mendapat
+    403 di sini — begitu juga mentee itu sendiri, mentee lain, dan mentor
+    kelompok lain. Penjaganya di sini, bukan hanya di templat: form yang
+    disembunyikan tidak menghalangi POST yang dikirim langsung.
     """
     participant = get_object_or_404(Profile, pk=participant_id, role=Profile.ROLE_MENTEE)
-    if not boleh_akses_catatan(request.user, participant):
-        raise PermissionDenied("Catatan ini hanya untuk pengurus dan mentor kelompoknya.")
+    if not boleh_ubah_catatan(request.user, participant):
+        raise PermissionDenied("Catatan ini hanya bisa diubah mentor kelompoknya.")
 
     form = CatatanMenteeForm(request.POST, instance=participant)
     if form.is_valid():
         form.save()
-        messages.success(request, f"Catatan untuk {participant.nama_lengkap} tersimpan.")
+        if participant.notes.strip():
+            messages.success(request, f"Catatan untuk {participant.nama_lengkap} tersimpan.")
+        else:
+            messages.success(request, f"Catatan untuk {participant.nama_lengkap} dihapus.")
     else:
         messages.error(request, "Catatan belum tersimpan. Periksa isiannya lalu coba lagi.")
 
@@ -363,8 +367,6 @@ def mentee_catatan(request, participant_id):
         tujuan, allowed_hosts={request.get_host()}, require_https=request.is_secure()
     ):
         return redirect(tujuan)
-    if request.user.is_staff:
-        return redirect("siwak:panel_mentee_detail", pk=participant.pk)
     return redirect("siwak:mentor_mentee_detail", participant_id=participant.pk)
 
 

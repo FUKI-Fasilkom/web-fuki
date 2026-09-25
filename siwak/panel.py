@@ -42,7 +42,8 @@ class Kolom:
     """Satu kolom di tabel daftar.
 
     `tipe` menentukan cara sel digambar: "teks", "panjang" (dipotong),
-    "gambar", "bool" (centang/silang), "tanggal", "tag", "nomor" (urutan baris
+    "gambar", "bool" (centang/silang), "tanggal", "tag", "status_presensi"
+    (lencana Hadir/Izin/Tidak Hadir; nilainya pasangan (status, label)), "nomor" (urutan baris
     di daftar, ikut nomor halaman), "saklar_rsvp" (tombol buka/tutup RSVP),
     "pilih_kelompok" / "pilih_kelompok_mentor" (dropdown kelompok untuk mentee
     dan untuk mentor; keduanya menyimpan lewat satu alamat yang sama, bedanya
@@ -556,12 +557,12 @@ SUMBER = [
         queryset=lambda: SiwakEvent.objects.prefetch_related("rsvp_list"),
     ),
     Sumber(
-        slug="pemindai",
+        slug="panitia",
         bagian="event",
-        label="Akun Pemindai QR",
-        label_jamak="Akun Pemindai QR",
+        label="Akun Panitia SIWAK",
+        label_jamak="Akun Panitia SIWAK",
         deskripsi=(
-            "Akun panitia untuk memindai QR peserta di hari acara — gatekeeper untuk "
+            "Akun panitia SIWAK untuk memindai QR peserta di hari acara — gatekeeper untuk "
             "registrasi ulang, divisi konsumsi untuk kupon makan. Masuk lewat "
             "“Login Akun Khusus” dan langsung mendarat di halaman pemindai "
             "(/siwak/pindai/). Akun ini hanya bisa memindai: panel SIWAK dan "
@@ -575,8 +576,8 @@ SUMBER = [
             Kolom("Akun aktif", lambda o: o.is_active, "bool"),
         ),
         pencarian=("username",),
-        kosong="Belum ada akun pemindai QR.",
-        # Hanya akun berawalan pemindai. Itu juga yang menjaga halaman ubah dan
+        kosong="Belum ada akun panitia SIWAK.",
+        # Hanya akun berawalan panitia. Itu juga yang menjaga halaman ubah dan
         # hapus di sini tidak bisa dipakai menyunting akun lain — superuser,
         # misalnya — cukup dengan mengganti pk di alamatnya.
         queryset=lambda: User.objects.filter(
@@ -648,7 +649,7 @@ SUMBER = [
             Kolom("Mentee", lambda o: o.peserta.nama_lengkap, utama=True, urut="mentee"),
             Kolom("Kelompok", lambda o: o.session.kelompok.nama_kelompok, urut="kelompok"),
             Kolom("Sesi", lambda o: o.session.judul, urut="sesi"),
-            Kolom("Status", lambda o: o.get_status_display(), "tag"),
+            Kolom("Status", lambda o: (o.status, o.get_status_display()), "status_presensi"),
             Kolom("Catatan", lambda o: o.catatan or "—", "panjang"),
             Kolom("Feedback mentor", lambda o: _potong(o.feedback_terbaru) or "—", "panjang"),
             Kolom("Dicatat oleh", lambda o: o.recorded_by.nama_lengkap if o.recorded_by else "—"),
@@ -781,7 +782,7 @@ BAGIAN = [
     Bagian(
         slug="event",
         nama="SIWAK Events",
-        deskripsi="Acara SIWAK-NG, pengaturan buka-tutup RSVP-nya, dan akun pemindai QR panitia.",
+        deskripsi="Acara SIWAK-NG, pengaturan buka-tutup RSVP-nya, dan akun panitia SIWAK untuk memindai QR.",
         ikon="tiket",
     ),
     Bagian(
