@@ -1,3 +1,6 @@
+from unittest.mock import patch
+
+import requests
 from django.test import TestCase
 from django.urls import resolve, reverse
 
@@ -37,3 +40,14 @@ class LampiranTugasTidakTerbukaTests(TestCase):
         for path in ('/media/siwak/jawaban/a.pdf', '/media/siwak/tugas/1/2/a.pdf'):
             with self.subTest(path=path):
                 self.assertIs(resolve(path).func, protected_submission_media)
+
+
+class LaporSubmitTests(TestCase):
+    def test_kegagalan_webhook_dicatat_dan_dijawab_502(self):
+        data = {'judul': 'Tombol rusak', 'jenis': 'Bug', 'deskripsi': 'Tidak bisa diklik.'}
+        with patch.dict('os.environ', {'DISCORD_WEBHOOK_URL': 'https://discord.invalid/hook'}), \
+                patch('main.views.requests.post', side_effect=requests.ConnectionError('down')), \
+                self.assertLogs('main.views', level='ERROR'):
+            response = self.client.post(reverse('lapor_submit'), data)
+        self.assertEqual(response.status_code, 502)
+        self.assertFalse(response.json()['ok'])
