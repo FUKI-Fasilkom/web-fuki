@@ -80,6 +80,11 @@ class CsvBawaanTests(TestCase):
         self.assertEqual(ada, dipakai)
 
 
+class LogoBirDepTests(TestCase):
+    def test_logo_cadangan_adalah_berkas_static_yang_ada(self):
+        self.assertTrue((STATIC_DIR / BirDep(nama="Tanpa Logo").logo_url).is_file())
+
+
 class RenderFotoTests(TestCase):
     def setUp(self):
         self.p = PengurusInti.objects.create(

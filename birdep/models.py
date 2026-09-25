@@ -33,10 +33,10 @@ class BirDep(models.Model):
     
     @property
     def logo_url(self):
-        """Helper method untuk mendapatkan URL logo"""
+        """Path static logo BirDep; logo FUKI bila nama berkasnya kosong."""
         if self.logo_filename:
             return f'images/{self.logo_filename}'
-        return 'images/default-logo.png' 
+        return 'images/Logo-FUKI.png'
 
 class Program(models.Model):
     birdep = models.ForeignKey(BirDep, on_delete=models.CASCADE, related_name='programs')
