@@ -156,6 +156,9 @@ TEMPLATES = [
                 # base.html bisa menyusun <title>, canonical, Open Graph, dan JSON-LD
                 # dari satu sumber saja.
                 'main.context_processors.seo',
+                # Apakah halaman ini boleh memuat Microsoft Clarity (lihat
+                # CLARITY_EXCLUDED_PREFIXES).
+                'main.context_processors.monitoring',
             ],
         },
     },
@@ -276,22 +279,6 @@ if RUNNING_TESTS:
     }
 
 
-# ---------------------------------------------------------------------------
-# Monitoring — Sentry
-# ---------------------------------------------------------------------------
-# Error tracking plus a sample of performance traces; the Django integration is
-# enabled automatically because Django is installed. Skipped under
-# `manage.py test`: the suite deliberately triggers 403s, 404s and errors, and
-# without this guard every local test run would send events and traces to the
-# same Sentry project as production.
-if not RUNNING_TESTS:
-    sentry_sdk.init(
-        dsn="https://cb9cca9e8889db66cedc56d94d2ee33e@o4512145721458688.ingest.us.sentry.io/4512145755602944",
-        send_default_pii=True,
-        traces_sample_rate=0.2,
-    )
-
-
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
@@ -366,3 +353,42 @@ LOGGING = {
         'cas': {'handlers': ['console'], 'level': 'DEBUG', 'propagate': False},
     },
 }
+
+
+# ---------------------------------------------------------------------------
+# Monitoring — Sentry & Microsoft Clarity
+# ---------------------------------------------------------------------------
+# Sentry environment tag. Staging and production are already told apart by the
+# SITE_URL that deploy.yml writes into app.env, so no new pipeline variable is
+# needed; an explicit DJANGO_ENV still wins if one is ever set. DEBUG is only on
+# for local development.
+SENTRY_ENVIRONMENT = os.getenv("DJANGO_ENV") or (
+    "staging" if "staging" in SITE_URL
+    else "development" if DEBUG
+    else "production"
+)
+
+# Error tracking plus a sample of performance traces; the Django integration is
+# enabled automatically because Django is installed. Skipped under
+# `manage.py test`: the suite deliberately triggers 403s, 404s and errors, and
+# without this guard every local test run would send events and traces to the
+# same Sentry project as production.
+if not RUNNING_TESTS:
+    sentry_sdk.init(
+        dsn="https://cb9cca9e8889db66cedc56d94d2ee33e@o4512145721458688.ingest.us.sentry.io/4512145755602944",
+        send_default_pii=True,
+        traces_sample_rate=0.2,
+        environment=SENTRY_ENVIRONMENT,
+    )
+
+# Microsoft Clarity records sessions, page text included, so it is kept off the
+# internal pages that show other students' names and NPMs. Any URL under one of
+# these prefixes renders without the Clarity script (see
+# main/context_processors.monitoring). Django's own /admin/ does not extend
+# templates/base.html, so it never loads Clarity in the first place.
+CLARITY_EXCLUDED_PREFIXES = (
+    "/siwak/admin/",   # panel pengurus
+    "/siwak/mentor/",  # portal mentor: daftar & detail mentee
+    "/siwak/qr/",      # konfirmasi scan QR: nama + NPM peserta
+    "/siwak/pindai/",  # halaman awal akun pemindai
+)

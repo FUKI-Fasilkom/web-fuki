@@ -12,11 +12,13 @@
   <meta name="google-site-verification" content="{{ GOOGLE_SITE_VERIFICATION }}" />
 
   {% comment %}
-    Microsoft Clarity (heatmap & rekaman sesi). Ikut ke semua halaman yang
-    mewarisi base.html, termasuk panel SIWAK. Isi yang tidak boleh ikut
-    terekam ditandai `data-clarity-mask="True"` di templatnya masing-masing
-    (mis. catatan privat mentee).
+    Microsoft Clarity (heatmap & rekaman sesi). Hanya di halaman untuk umum:
+    halaman internal yang menampilkan nama dan NPM mahasiswa lain (panel,
+    portal mentor, pindai QR) tidak memuatnya — lihat CLARITY_EXCLUDED_PREFIXES
+    di settings.py. `data-clarity-mask="True"` pada catatan privat mentee tetap
+    dipasang sebagai lapis kedua.
   {% endcomment %}
+  {% if CLARITY_AKTIF %}
   <script type="text/javascript">
       (function(c,l,a,r,i,t,y){
           c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
@@ -24,6 +26,7 @@
           y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
       })(window, document, "clarity", "script", "ynppi4af3g");
   </script>
+  {% endif %}
 
   {% comment %}
     JUDUL & DESKRIPSI

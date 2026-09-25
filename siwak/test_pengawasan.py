@@ -18,16 +18,19 @@ from .models import (
     AssessmentAspect,
     AssignmentReview,
     AssignmentReviewHistory,
+    EventRSVP,
     KelompokMentoring,
     MenteeAssessment,
     MentorFeedback,
     MentoringAttendance,
     Profile,
     Question,
+    SiwakEvent,
     Tugas,
     TugasSubmission,
 )
 from .services.mentor import boleh_akses_catatan
+from .services.qrcode_service import sign_payload
 
 
 User = get_user_model()
@@ -125,10 +128,8 @@ class CatatanMenteeTests(TestCase):
         self.assertEqual(self._catatan(), CATATAN)
 
     def test_it_is_masked_from_clarity_session_recordings(self):
-        """base.html loads Microsoft Clarity on every page, panel included; a
-        note rendered outside a masked element would end up in its replays."""
-        self.assertContains(self.client.get(reverse("siwak:landing")), "clarity.ms/tag/")
-
+        """Second layer behind ClarityTests: these pages do not load Clarity at
+        all, but the note stays masked should that ever change."""
         masker = 'data-clarity-mask="True"'
         self.client.force_login(self.mentor_a.user)
         self.assertContains(
@@ -373,3 +374,51 @@ class PanelSaringanTests(TestCase):
         self.assertEqual([k["sesi"].nomor for k in response.context["kolom_sesi"]], [2])
         (ani,) = response.context["baris"]
         self.assertEqual([p["status"] for p in ani["presensi"]], ["izin"])
+
+
+class ClarityTests(TestCase):
+    """Microsoft Clarity records sessions, page text included: it belongs on
+    public pages only, never on internal pages showing other students' names
+    and NPMs."""
+
+    TAG = "clarity.ms/tag/"
+
+    def test_public_pages_load_clarity(self):
+        for url in ("/", reverse("siwak:landing"), reverse("siwak:kelompok_search"), reverse("siwak:login")):
+            with self.subTest(url=url):
+                self.assertContains(self.client.get(url), self.TAG)
+
+    def test_internal_pages_do_not_load_clarity(self):
+        kelompok = KelompokMentoring.objects.create(nama_kelompok="Kelompok A")
+        mentor = _profil("2100000001", "Mentor A", Profile.ROLE_MENTOR, kelompok)
+        mentee = _profil("2500000001", "Mentee A", Profile.ROLE_MENTEE, kelompok)
+        rsvp = EventRSVP.objects.create(
+            event=SiwakEvent.objects.create(judul="Main Event"), user=mentee.user
+        )
+        qr = reverse("siwak:qr_verify", args=[sign_payload("registrasi", rsvp.qr_registrasi_token)])
+
+        halaman = {
+            User.objects.create_superuser(username="admin", password="x"): (
+                reverse("siwak:panel_beranda"),
+                reverse("siwak:panel_daftar", args=["peserta"]),
+                reverse("siwak:panel_kelompok_detail", args=[kelompok.pk]),
+                reverse("siwak:panel_mentee_detail", args=[mentee.pk]),
+                reverse("siwak:panel_rsvp", args=[rsvp.event_id]),
+                reverse("siwak:pindai_beranda"),
+                qr,
+            ),
+            mentor.user: (
+                reverse("siwak:mentor_dashboard"),
+                reverse("siwak:mentor_mentee_detail", args=[mentee.pk]),
+                reverse("siwak:mentor_attendance"),
+                reverse("siwak:mentor_assessments"),
+                reverse("siwak:mentor_task_reviews"),
+            ),
+        }
+        for akun, urls in halaman.items():
+            self.client.force_login(akun)
+            for url in urls:
+                with self.subTest(akun=akun.username, url=url):
+                    response = self.client.get(url)
+                    self.assertEqual(response.status_code, 200)
+                    self.assertNotContains(response, self.TAG)
