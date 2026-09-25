@@ -1,10 +1,4 @@
-try:
-    from django.db import models
-except Exception:
-    # Fallback for editor/type-checker environments where Django isn't available.
-    # At runtime (in a Django project) the real django.db.models will be imported.
-    from types import SimpleNamespace
-    models = SimpleNamespace()
+from django.db import models
 from django.urls import reverse
 from django.utils.text import slugify
 
@@ -35,7 +29,7 @@ class BirDep(models.Model):
         super().save(*args, **kwargs)
     
     def get_absolute_url(self):
-        return reverse('main:birdep_tentang', kwargs={'slug': self.slug})
+        return reverse('birdep:birdep_tentang', kwargs={'slug': self.slug})
     
     @property
     def logo_url(self):
@@ -87,10 +81,6 @@ class Fungsionaris(models.Model):
     def __str__(self):
         return f"{self.nama} - {self.jabatan} ({self.birdep.nama})"
 
-    @property
-    def foto_url(self):
-        """Path static untuk foto, atau None bila belum diisi (pakai {% static %})."""
-        return self.foto_path or None
 
 class PengurusInti(models.Model):
     KATEGORI_CHOICES = [
@@ -142,8 +132,3 @@ class PengurusInti(models.Model):
     
     def get_absolute_url(self):
         return reverse('birdep:pi_detail', kwargs={'slug': self.slug})
-
-    @property
-    def foto_url(self):
-        """Path static untuk foto, atau None bila belum diisi (pakai {% static %})."""
-        return self.foto_path or None

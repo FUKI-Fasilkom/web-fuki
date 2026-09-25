@@ -4,10 +4,10 @@ Kartu satu orang: fungsionaris BirDep maupun pengurus PI/KI/MDC.
 
 Cara pakai (selalu tambahkan `only`):
 
-    {% templatetag openblock %} include 'birdep/components/kartu_orang.html' with foto=f.foto_url nama=f.nama judul=f.nama keterangan=f.jabatan only {% templatetag closeblock %}
+    {% templatetag openblock %} include 'birdep/components/kartu_orang.html' with foto=f.foto_path nama=f.nama judul=f.nama keterangan=f.jabatan only {% templatetag closeblock %}
 
 Parameter:
-  foto       -- path static (model.foto_url, mis. images/fungsionaris/x.jpg); kosong = kotak abu-abu polos, sama seperti polaroid profil
+  foto       -- path static (model.foto_path, mis. images/fungsionaris/x.jpg); kosong = kotak abu-abu polos, sama seperti polaroid profil
   nama       -- nama orangnya, untuk alt foto
   judul      -- baris tebal di bawah foto
   keterangan -- baris kedua

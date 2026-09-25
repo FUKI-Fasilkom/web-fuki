@@ -2,8 +2,6 @@ from django.shortcuts import render
 
 from birdep.models import PengurusInti
 
-# Create your views here.
-
 
 def tentang_fuki(request):
     # Ketua & Wakil diambil dari birdep.PengurusInti, BUKAN dari profil.Fungsionaris:

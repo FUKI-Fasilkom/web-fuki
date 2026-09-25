@@ -1,6 +1,5 @@
 from django.db import models
 
-# Create your models here.
 
 class Fungsionaris(models.Model):
     nama = models.CharField(max_length=100)
