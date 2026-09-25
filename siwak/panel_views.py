@@ -1493,15 +1493,6 @@ def _jawaban_queryset(tugas, kata="", kelompok=""):
     return cari_teks(qs, CARI_PESERTA, kata)
 
 
-def _isi_jawaban(jawaban):
-    """Satu jawaban jadi tulisan siap tampil, apa pun tipenya."""
-    if jawaban.selected_choice_id:
-        return jawaban.selected_choice.teks
-    if jawaban.file_answer:
-        return jawaban.file_answer.name.split("/")[-1]
-    return jawaban.text_answer
-
-
 def _pasangkan_jawaban(pengumpulan, pertanyaan):
     """Pasangkan tiap pertanyaan dengan jawabannya, termasuk yang belum diisi."""
     peta = {j.question_id: j for j in pengumpulan.answers.all()}
@@ -1511,7 +1502,7 @@ def _pasangkan_jawaban(pengumpulan, pertanyaan):
         baris.append({
             "pertanyaan": soal,
             "jawaban": jawaban,
-            "isi": _isi_jawaban(jawaban) if jawaban else "",
+            "isi": jawaban.isi_teks if jawaban else "",
         })
     return baris
 
@@ -1594,7 +1585,7 @@ def panel_jawaban_csv(request, pk):
                 pengumpulan.get_status_display(),
                 timezone.localtime(pengumpulan.submitted_at).strftime("%Y-%m-%d %H:%M"),
             ]
-            + [_isi_jawaban(peta[s.pk]) if s.pk in peta else "" for s in pertanyaan]
+            + [peta[s.pk].isi_teks if s.pk in peta else "" for s in pertanyaan]
             + [
                 review.score if review else "",
                 review.feedback if review else "",

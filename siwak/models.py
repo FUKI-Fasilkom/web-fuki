@@ -1,3 +1,4 @@
+import os
 import uuid
 from dataclasses import dataclass
 
@@ -736,6 +737,15 @@ class Answer(models.Model):
 
     def __str__(self):
         return f"{self.submission} - {self.question}"
+
+    @property
+    def isi_teks(self):
+        """Jawaban sebagai teks, apa pun tipenya: teks pilihan, nama berkas, atau isian."""
+        if self.selected_choice_id:
+            return self.selected_choice.teks
+        if self.file_answer:
+            return os.path.basename(self.file_answer.name)
+        return self.text_answer
 
 
 class EventRSVP(models.Model):

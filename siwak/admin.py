@@ -1,4 +1,5 @@
 import csv
+import os
 import zipfile
 from io import BytesIO
 
@@ -33,6 +34,7 @@ from .models import (
     Tugas,
     TugasSubmission,
 )
+from .utils import nama_akun
 
 
 @admin.register(SiwakInfo)
@@ -181,7 +183,7 @@ class TugasAdmin(admin.ModelAdmin):
                     submission__tugas=tugas
                 ).exclude(file_answer="").exclude(file_answer=None)
                 for answer in answers:
-                    arcname = f"{folder}/{answer.submission_id}_{answer.pk}_{answer.file_answer.name.split('/')[-1]}"
+                    arcname = f"{folder}/{answer.submission_id}_{answer.pk}_{os.path.basename(answer.file_answer.name)}"
                     with answer.file_answer.open("rb") as fh:
                         zf.writestr(arcname, fh.read())
         buffer.seek(0)
@@ -233,7 +235,7 @@ class EventRSVPAdmin(admin.ModelAdmin):
         for rsvp in queryset.select_related("user__profil", "event"):
             profile = getattr(rsvp.user, "profil", None)
             writer.writerow([
-                profile.nama_lengkap if profile else rsvp.user.username,
+                nama_akun(rsvp.user),
                 profile.npm if profile else "",
                 rsvp.event.judul,
                 rsvp.status_kehadiran,
@@ -399,11 +401,7 @@ class AnswerAdmin(admin.ModelAdmin):
 
     @admin.display(description="Jawaban")
     def isi_singkat(self, obj):
-        if obj.selected_choice:
-            return obj.selected_choice.teks
-        if obj.file_answer:
-            return obj.file_answer.name.split("/")[-1]
-        return obj.text_answer[:60]
+        return obj.isi_teks[:60]
 
 
 @admin.register(AssignmentReview)

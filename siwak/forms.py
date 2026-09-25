@@ -24,6 +24,15 @@ class CariKelompokForm(forms.Form):
 
 
 
+def periksa_alasan_izin(form, data):
+    """Alasan wajib diisi kalau kehadirannya Izin. Dipakai form RSVP web dan
+    form RSVP buatan pengurus di panel; mengembalikan alasan yang sudah dirapikan."""
+    alasan = (data.get("alasan_izin") or "").strip()
+    if data.get("kehadiran") == "izin" and not alasan:
+        form.add_error("alasan_izin", "Alasan izin wajib diisi jika kehadiran memilih Izin.")
+    return alasan
+
+
 def validate_tugas_file(file, tugas):
     # File lama boleh dipertahankan tanpa membaca ulang objek dari S3.
     if not isinstance(file, UploadedFile):
@@ -88,10 +97,7 @@ class RSVPForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
-        kehadiran = cleaned_data.get("kehadiran")
-        alasan_izin = cleaned_data.get("alasan_izin")
-        if kehadiran == "izin" and not (alasan_izin or "").strip():
-            self.add_error("alasan_izin", "Alasan izin wajib diisi jika kehadiran memilih Izin.")
+        periksa_alasan_izin(self, cleaned_data)
         return cleaned_data
 
 class TugasAnswerForm(forms.Form):
