@@ -17,7 +17,6 @@ from .models import (
     Profile,
     MenteeAssessment,
     MentoringAttendance,
-    MentoringSession,
     MentorFeedback,
     Question,
     Tugas,

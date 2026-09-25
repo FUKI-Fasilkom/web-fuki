@@ -3,11 +3,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.core.files.uploadedfile import UploadedFile
 
-from .models import (
-    EventRSVP,
-    Question,
-    Tugas,
-)
+from .models import EventRSVP, Tugas
 
 INPUT_CLASSES = (
     "w-full rounded-xl border-[3px] border-[#3A3A3A] bg-[#EFEFEF] px-4 py-3 "

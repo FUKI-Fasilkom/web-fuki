@@ -1,4 +1,5 @@
 import uuid
+from dataclasses import dataclass
 
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
@@ -691,6 +692,18 @@ class AssignmentReviewHistory(models.Model):
 def _new_token():
     return uuid.uuid4().hex
 
+
+@dataclass(frozen=True)
+class JenisQR:
+    """Kolom-kolom `EventRSVP` milik satu jenis QR (registrasi ulang / kupon)."""
+
+    field_token: str
+    field_status: str
+    field_waktu: str
+    # Nilai status yang berarti QR ini sudah dipakai (check-in / kupon ditukar).
+    status_terpakai: str
+    pilihan_status: list
+
 class Answer(models.Model):
     submission = models.ForeignKey(
         TugasSubmission,
@@ -759,6 +772,16 @@ class EventRSVP(models.Model):
     # orang lain.
     USERNAME_PEMINDAI_PREFIX = "panitia-"
 
+    # Satu-satunya tempat kolom tiap jenis QR ditulis: dipakai halaman pindai
+    # (`qr_verify`) dan koreksi status manual dari daftar RSVP.
+    JENIS_QR = {
+        "registrasi": JenisQR(
+            "qr_registrasi_token", "status_kehadiran", "checked_in_at", "hadir",
+            KEHADIRAN_STATUS_CHOICES,
+        ),
+        "kupon": JenisQR("qr_kupon_token", "status_kupon", "redeemed_at", "redeemed", QR_CHOICES),
+    }
+
     event = models.ForeignKey(SiwakEvent, on_delete=models.CASCADE, related_name="rsvp_list")
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="event_rsvps")
     kehadiran = models.CharField(max_length=12, choices=ATTENDANCE_CHOICES, default="hadir")
@@ -785,6 +808,27 @@ class EventRSVP(models.Model):
 
     def __str__(self):
         return f"{self.user} - {self.event}"
+
+    def qr_terpakai(self, kind):
+        jenis = self.JENIS_QR[kind]
+        return getattr(self, jenis.field_status) == jenis.status_terpakai
+
+    def ubah_status_qr(self, kind, nilai):
+        """Simpan status QR `kind` beserta cap waktunya.
+
+        Baris ini harus tetap sama bentuknya dengan hasil pindai QR: status yang
+        baru dinaikkan ke "terpakai" mendapat waktu sekarang, status yang tetap
+        terpakai mempertahankan waktunya, dan status yang diturunkan kehilangan
+        cap waktunya — tanpa itu ada baris "belum hadir" yang menyimpan jam check-in.
+        """
+        jenis = self.JENIS_QR[kind]
+        sudah = self.qr_terpakai(kind)
+        setattr(self, jenis.field_status, nilai)
+        if nilai != jenis.status_terpakai:
+            setattr(self, jenis.field_waktu, None)
+        elif not sudah or getattr(self, jenis.field_waktu) is None:
+            setattr(self, jenis.field_waktu, timezone.now())
+        self.save(update_fields=[jenis.field_status, jenis.field_waktu])
 
 
 class RSVPTertunda(models.Model):
