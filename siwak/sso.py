@@ -25,6 +25,7 @@ from django_cas_ng.views import LoginView
 
 from .models import EventRSVP, Profile
 from .services.pemindai import boleh_memindai
+from .services.rsvp import klaim_rsvp_tertunda
 
 
 from django.dispatch import receiver
@@ -206,6 +207,9 @@ def sync_profile(
     profile.jurusan = jurusan
     profile.angkatan = angkatan
     profile.save()
+    # RSVP yang sudah masuk lewat form lain (seed_rsvp) baru bisa jadi EventRSVP
+    # setelah orangnya punya akun.
+    klaim_rsvp_tertunda(profile)
     return profile
 
 def role_landing_url(user):

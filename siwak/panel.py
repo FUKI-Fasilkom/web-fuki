@@ -47,7 +47,8 @@ class Kolom:
     "pilih_kelompok" / "pilih_kelompok_mentor" (dropdown kelompok untuk mentee
     dan untuk mentor; keduanya menyimpan lewat satu alamat yang sama, bedanya
     hanya label dan hitungan kapasitas), "pilih_role" (dropdown role profil),
-    atau "pilih_aktif". Lihat templat panel/_sel.html.
+    "pilih_aktif", atau penyunting teks "isi_link" (link grup WhatsApp kelompok)
+    dan "isi_npm" (NPM mentor). Lihat templat panel/_sel.html.
 
     `urut` diisi kunci pengurutan kalau judul kolomnya boleh diklik untuk
     mengurutkan; kuncinya harus ada di `Sumber.pengurutan`.
@@ -67,11 +68,15 @@ class AksiBaris:
     `label` menerima objek barisnya supaya tombolnya bisa menyebut jumlah, dan
     `nama_url` dipanggil dengan pk objek itu — atau dengan hasil `pk(objek)`
     kalau tombolnya menuju objek lain, mis. mentee dari sebuah baris presensi.
+    `bawa_kembali` menyisipkan alamat daftar yang sedang dibuka (lengkap dengan
+    pencarian dan urutannya) sebagai `?next=`, supaya halaman tujuan bisa
+    mengembalikan pengelola ke sana.
     """
 
     label: Callable
     nama_url: str
     pk: Callable = None
+    bawa_kembali: bool = False
 
 
 @dataclass(frozen=True)
@@ -139,6 +144,12 @@ class Bagian:
     deskripsi: str
     ikon: str
     menu: tuple = field(default_factory=tuple)
+
+
+# Tombol "Buat RSVP" di setiap daftar yang isinya Profile.
+AKSI_RSVP_PROFIL = (
+    AksiBaris(lambda o: "Buat RSVP", "siwak:panel_profil_rsvp", bawa_kembali=True),
+)
 
 
 def _potong(nilai, batas=90):
@@ -371,6 +382,7 @@ SUMBER = [
             "role": ("role", "nama_lengkap"),
         },
         urut_awal="nama",
+        aksi_baris=AKSI_RSVP_PROFIL,
     ),
     Sumber(
         slug="peserta",
@@ -390,9 +402,10 @@ SUMBER = [
             Kolom("Kelompok", lambda o: o.kelompok_id, "pilih_kelompok", urut="kelompok"),
             Kolom("Sudah login SSO", lambda o: o.user_id is not None, "bool"),
         ),
-        # Halaman detailnya yang memuat presensi, nilai, tugas, dan catatan
-        # privatnya — daftar ini hanya muat identitas dan kelompoknya.
-        aksi_baris=(
+        # "Buat RSVP" sama dengan di setiap daftar Profile lain dan tetap di
+        # depan. "Detail" membuka halaman yang memuat presensi, nilai, tugas,
+        # dan catatan privatnya — daftar ini hanya muat identitas dan kelompoknya.
+        aksi_baris=AKSI_RSVP_PROFIL + (
             AksiBaris(lambda o: "Detail", "siwak:panel_mentee_detail"),
         ),
         pencarian=("nama_lengkap", "npm"),
@@ -418,7 +431,9 @@ SUMBER = [
         form=f.MentorForm,
         kolom=(
             Kolom("Nama", lambda o: o.nama_lengkap, utama=True, urut="nama"),
-            Kolom("NPM", lambda o: o.npm or "—"),
+            # Bisa diisi langsung: mentor hasil seed CSV lahir tanpa NPM, dan NPM
+            # itulah yang menyambungkan barisnya ke akun SSO saat dia login.
+            Kolom("NPM", lambda o: o.npm or "", "isi_npm"),
             Kolom("Memegang kelompok", lambda o: o.kelompok_id, "pilih_kelompok_mentor", urut="kelompok"),
             Kolom("Sudah login SSO", lambda o: o.user_id is not None, "bool"),
         ),
@@ -435,6 +450,7 @@ SUMBER = [
             "kelompok": _urut_nama_kelompok("kelompok__") + ("nama_lengkap",),
         },
         urut_awal="nama",
+        aksi_baris=AKSI_RSVP_PROFIL,
     ),
     Sumber(
         slug="mentor_lokal",
@@ -465,6 +481,7 @@ SUMBER = [
             "kelompok": _urut_nama_kelompok("kelompok__") + ("nama_lengkap",),
         },
         urut_awal="nama",
+        aksi_baris=AKSI_RSVP_PROFIL,
     ),
     Sumber(
         slug="kelompok",
@@ -478,6 +495,9 @@ SUMBER = [
             Kolom("Kelompok", lambda o: o.nama_kelompok, utama=True, urut="nama"),
             Kolom("Mentor", _nama_mentor),
             Kolom("Mentee", lambda o: f"{_jumlah_mentee(o)} / {o.kapasitas}", "tag", urut="peserta"),
+            # Bisa diisi langsung, dan yang masih kosong ditandai merah supaya
+            # kelompok tanpa link gampang ketahuan.
+            Kolom("Link Grup WhatsApp", lambda o: o.link_grup, "isi_link", urut="link"),
             Kolom("Aktif", lambda o: o.is_active, "bool"),
         ),
         # Daftar ini hanya muat nama mentor dan jumlah mentee; halaman detailnya
@@ -495,6 +515,9 @@ SUMBER = [
             # Lewat alias anotasi, bukan Count() langsung: order_by() menolak
             # agregat yang tidak pernah masuk annotate().
             "peserta": ("urut_terisi",) + _urut_nama_kelompok(),
+            # Link kosong disimpan sebagai "" (bukan NULL), jadi menaik = yang
+            # belum punya link muncul paling atas.
+            "link": ("link_grup",) + _urut_nama_kelompok(),
         },
         urut_awal="nama",
     ),

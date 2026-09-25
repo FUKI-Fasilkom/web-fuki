@@ -65,7 +65,15 @@ class Fungsionaris(models.Model):
     birdep = models.ForeignKey(BirDep, on_delete=models.CASCADE, related_name='fungsionaris_set')
     nama = models.CharField(max_length=200, verbose_name="Nama Lengkap")
     jabatan = models.CharField(max_length=100, verbose_name="Jabatan")
-    foto = models.ImageField(upload_to='fungsionaris_photos/', blank=True, null=True, verbose_name="Foto Fungsionaris")
+    # Foto tidak lagi diunggah ke storage (S3). Yang disimpan hanya path ke aset
+    # statis, relatif terhadap static/, persis seperti BirDep.logo_filename.
+    foto_path = models.CharField(
+        max_length=150,
+        blank=True,
+        default="",
+        verbose_name="Path Foto",
+        help_text="Path aset statis, mis. images/fungsionaris/lanang.jpg",
+    )
     urutan = models.IntegerField(default=0, verbose_name="Urutan Tampilan")
     is_active = models.BooleanField(default=True, verbose_name="Aktif")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Dibuat pada")
@@ -78,6 +86,11 @@ class Fungsionaris(models.Model):
     
     def __str__(self):
         return f"{self.nama} - {self.jabatan} ({self.birdep.nama})"
+
+    @property
+    def foto_url(self):
+        """Path static untuk foto, atau None bila belum diisi (pakai {% static %})."""
+        return self.foto_path or None
 
 class PengurusInti(models.Model):
     KATEGORI_CHOICES = [
@@ -96,7 +109,15 @@ class PengurusInti(models.Model):
     nama = models.CharField(max_length=200, verbose_name="Nama Lengkap")
     jabatan = models.CharField(max_length=100, verbose_name="Jabatan")
     slug = models.SlugField(unique=True, blank=True, max_length=220)
-    foto = models.ImageField(upload_to='pengurus_inti_photos/', blank=True, null=True, verbose_name="Foto")
+    # Foto tidak lagi diunggah ke storage (S3). Yang disimpan hanya path ke aset
+    # statis, relatif terhadap static/, persis seperti BirDep.logo_filename.
+    foto_path = models.CharField(
+        max_length=150,
+        blank=True,
+        default="",
+        verbose_name="Path Foto",
+        help_text="Path aset statis, mis. images/fungsionaris/lanang.jpg",
+    )
     ikhtisar = models.TextField(blank=True, verbose_name="Ikhtisar", help_text="Ringkasan singkat tentang pengurus")
     deskripsi_kerja = models.TextField(blank=True, verbose_name="Deskripsi Kerja", help_text="Detail deskripsi kerja dan tanggung jawab")
     urutan = models.IntegerField(default=0, verbose_name="Urutan Tampilan")
@@ -121,3 +142,8 @@ class PengurusInti(models.Model):
     
     def get_absolute_url(self):
         return reverse('birdep:pi_detail', kwargs={'slug': self.slug})
+
+    @property
+    def foto_url(self):
+        """Path static untuk foto, atau None bila belum diisi (pakai {% static %})."""
+        return self.foto_path or None

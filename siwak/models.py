@@ -783,3 +783,37 @@ class EventRSVP(models.Model):
 
     def __str__(self):
         return f"{self.user} - {self.event}"
+
+
+class RSVPTertunda(models.Model):
+    """RSVP dari form lain untuk orang yang belum punya akun login (mentee maupun mentor).
+
+    `EventRSVP.user` wajib terisi, sedangkan `Profile` yang disiapkan pengelola
+    (mentee dari CSV pengelompokan, mentor dari CSV mentor) baru punya `user`
+    setelah orangnya login SSO pertama. RSVP mereka ditampung di sini, lengkap
+    dengan token QR-nya, lalu diubah jadi `EventRSVP` biasa oleh
+    `siwak.services.rsvp.klaim_rsvp_tertunda` begitu profilnya diklaim (lihat
+    `sync_profile`). Diisi oleh `seed_rsvp`.
+    """
+
+    event = models.ForeignKey(SiwakEvent, on_delete=models.CASCADE, related_name="rsvp_tertunda")
+    profile = models.ForeignKey(Profile, on_delete=models.CASCADE, related_name="rsvp_tertunda")
+    kehadiran = models.CharField(
+        max_length=12, choices=EventRSVP.ATTENDANCE_CHOICES, default="hadir"
+    )
+    alasan_izin = models.CharField(max_length=300, blank=True)
+    # Sama dengan EventRSVP: dibuat sekali di sini dan dibawa apa adanya saat
+    # dipindahkan, supaya QR yang tampil nanti identik dengan yang dihitung dari RSVP ini.
+    qr_registrasi_token = models.CharField(max_length=64, unique=True, default=_new_token, editable=False)
+    qr_kupon_token = models.CharField(max_length=64, unique=True, default=_new_token, editable=False)
+    dikirim_pada = models.DateTimeField(
+        null=True, blank=True, help_text="Waktu submit di form asal; jadi `created_at` RSVP."
+    )
+
+    class Meta:
+        verbose_name = "RSVP Tertunda"
+        verbose_name_plural = "RSVP Tertunda"
+        unique_together = [("event", "profile")]
+
+    def __str__(self):
+        return f"{self.profile} - {self.event} (tertunda)"

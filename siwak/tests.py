@@ -980,9 +980,12 @@ class PanelProfilTests(TestCase):
             self.client.post(reverse("siwak:panel_hapus", args=["profil", self.profil.pk])).status_code, 404
         )
         response = self._daftar("profil")
-        self.assertFalse(response.context["sumber_data"].punya_aksi())
+        sumber = response.context["sumber_data"]
+        # Tidak ada Ubah/Hapus; satu-satunya tombol baris adalah "Buat RSVP".
+        self.assertFalse(sumber.boleh_ubah or sumber.boleh_hapus)
+        self.assertEqual([a.nama_url for a in sumber.aksi_baris], ["siwak:panel_profil_rsvp"])
         self.assertNotContains(response, "panel_ubah")
-        self.assertNotContains(response, ">Aksi<")
+        self.assertNotContains(response, ">Hapus<")
 
     def test_the_dropdown_offers_mentee_and_mentor(self):
         response = self._daftar("profil")
@@ -1224,8 +1227,11 @@ class PanelRelasiTests(TestCase):
         for slug, profil in (("peserta", self.maba), ("mentor", mentor)):
             with self.subTest(slug=slug):
                 response = self.client.get(reverse("siwak:panel_daftar", args=[slug]))
+                # By type, not "first cell with a url": the mentor list also has
+                # an NPM editor with its own endpoint.
                 dropdown = next(
-                    s for s in response.context["baris"][0]["sel"] if "url" in s
+                    s for s in response.context["baris"][0]["sel"]
+                    if s["tipe"].startswith("pilih_kelompok")
                 )
                 self.assertEqual(
                     dropdown["url"], reverse("siwak:panel_set_kelompok", args=[profil.pk])
@@ -1719,7 +1725,7 @@ class PanelRsvpPencarianTests(TestCase):
         self.assertEqual(self._nama(response), ["Citra Lestari"])
 
     def test_the_summary_still_counts_every_participant_of_the_event(self):
-        """The three tiles describe the event, so a search must not shrink them."""
+        """The tiles describe the event, so a search must not shrink them."""
         self.budi.status_kehadiran = "hadir"
         self.budi.save()
 
@@ -1727,7 +1733,7 @@ class PanelRsvpPencarianTests(TestCase):
 
         self.assertEqual(
             response.context["ringkasan_rsvp"],
-            [("Total RSVP", 2), ("Sudah check-in", 1), ("Kupon ditukar", 0)],
+            [("Total RSVP", 2), ("Sudah check-in", 1), ("Kupon ditukar", 0), ("Menunggu login", 0)],
         )
 
     def test_an_empty_search_shows_everyone_again(self):
@@ -1832,7 +1838,7 @@ class PanelRsvpPeranTests(TestCase):
         )
         self.assertEqual(
             response.context["ringkasan_rsvp"],
-            [("Total RSVP", 6), ("Sudah check-in", 4), ("Kupon ditukar", 0)],
+            [("Total RSVP", 6), ("Sudah check-in", 4), ("Kupon ditukar", 0), ("Menunggu login", 0)],
         )
 
     def test_the_search_stays_inside_the_active_tab(self):
