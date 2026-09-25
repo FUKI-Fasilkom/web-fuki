@@ -10,16 +10,20 @@ hapus langsung ada tanpa menulis view atau template baru.
 from dataclasses import dataclass, field
 from typing import Callable
 
-from django.db.models import Count, Q
+from django.contrib.auth import get_user_model
+from django.db.models import Count, OuterRef, Q, Subquery
 from django.db.models.functions import Length
 from django.utils import formats
 
 from . import panel_forms as f
 from .models import (
     AssessmentAspect,
+    EventRSVP,
     GaleriFoto,
     KelompokMentoring,
     KetuaSiwak,
+    MentorFeedback,
+    MentoringAttendance,
     MentoringBenefit,
     MentoringSession,
     MentoringTujuan,
@@ -30,13 +34,16 @@ from .models import (
     Tugas,
 )
 
+User = get_user_model()
+
 
 @dataclass(frozen=True)
 class Kolom:
     """Satu kolom di tabel daftar.
 
     `tipe` menentukan cara sel digambar: "teks", "panjang" (dipotong),
-    "gambar", "bool" (centang/silang), "tanggal", "tag", "nomor" (urutan baris
+    "gambar", "bool" (centang/silang), "tanggal", "tag", "status_presensi"
+    (lencana Hadir/Izin/Tidak Hadir; nilainya pasangan (status, label)), "nomor" (urutan baris
     di daftar, ikut nomor halaman), "saklar_rsvp" (tombol buka/tutup RSVP),
     "pilih_kelompok" / "pilih_kelompok_mentor" (dropdown kelompok untuk mentee
     dan untuk mentor; keduanya menyimpan lewat satu alamat yang sama, bedanya
@@ -60,14 +67,33 @@ class AksiBaris:
     """Tombol tambahan di ujung satu baris daftar, mis. "Pertanyaan (3)".
 
     `label` menerima objek barisnya supaya tombolnya bisa menyebut jumlah, dan
-    `nama_url` dipanggil dengan pk objek itu. `bawa_kembali` menyisipkan alamat
-    daftar yang sedang dibuka (lengkap dengan pencarian dan urutannya) sebagai
-    `?next=`, supaya halaman tujuan bisa mengembalikan pengelola ke sana.
+    `nama_url` dipanggil dengan pk objek itu — atau dengan hasil `pk(objek)`
+    kalau tombolnya menuju objek lain, mis. mentee dari sebuah baris presensi.
+    `bawa_kembali` menyisipkan alamat daftar yang sedang dibuka (lengkap dengan
+    pencarian dan urutannya) sebagai `?next=`, supaya halaman tujuan bisa
+    mengembalikan pengelola ke sana.
     """
 
     label: Callable
     nama_url: str
+    pk: Callable = None
     bawa_kembali: bool = False
+
+
+@dataclass(frozen=True)
+class Saringan:
+    """Satu dropdown penyaring di atas tabel daftar, dibaca dari `?<kunci>=`.
+
+    `pilihan` dipanggil setiap kali halaman dibuka dan mengembalikan
+    [(nilai, label)]; `lookup` adalah field ORM yang dicocokkan dengan nilai
+    terpilih. Nilai yang tidak ada di pilihan diabaikan, jadi alamat yang
+    diketik asal-asalan tidak pernah sampai ke query sebagai teks bebas.
+    """
+
+    kunci: str
+    label: str
+    pilihan: Callable
+    lookup: str
 
 
 @dataclass(frozen=True)
@@ -95,6 +121,8 @@ class Sumber:
     boleh_hapus: bool = True
     # Tombol tambahan per baris, di samping Ubah dan Hapus.
     aksi_baris: tuple = ()
+    # Dropdown penyaring (kelompok, sesi, ...) di samping kotak cari.
+    saringan: tuple = ()
 
     def ambil_queryset(self):
         return self.queryset() if self.queryset else self.model.objects.all()
@@ -156,6 +184,17 @@ def _jumlah_mentee(kelompok):
     return sum(a.role == Profile.ROLE_MENTEE for a in kelompok.anggota.all())
 
 
+def _akses_pemindai(akun):
+    """Jenis QR yang boleh dipindai akun ini. Dibaca dari `user_permissions`
+    yang sudah di-prefetch, bukan `has_perm()` yang menembak query per baris."""
+    dimiliki = {izin.codename for izin in akun.user_permissions.all()}
+    label = [
+        label for kind, label in f.AkunPemindaiForm.AKSES
+        if f.AkunPemindaiForm.KODE_IZIN[kind] in dimiliki
+    ]
+    return ", ".join(label) or "—"
+
+
 def _saklar_rsvp(acara):
     """Dua hal yang dibutuhkan tombol RSVP: statusnya sekarang, dan nama
     acaranya untuk ditulis di kotak konfirmasi sebelum diubah."""
@@ -170,6 +209,36 @@ def _urut_nama_kelompok(awalan=""):
     tanpa perlu fungsi SQL khusus yang belum tentu ada di SQLite.
     """
     return (Length(f"{awalan}nama_kelompok"), f"{awalan}nama_kelompok")
+
+
+def pilihan_kelompok():
+    """[(pk, nama)] seluruh kelompok, urut I-1, I-2, …, I-10. Dipakai dropdown
+    penyaring di daftar panel dan di halaman khusus (RSVP, jawaban tugas)."""
+    return [
+        (k.pk, k.nama_kelompok)
+        for k in KelompokMentoring.objects.order_by(*_urut_nama_kelompok())
+    ]
+
+
+def _saring_kelompok(lookup):
+    return Saringan("kelompok", "Kelompok", pilihan_kelompok, lookup)
+
+
+def _saring_sesi(lookup):
+    return Saringan("sesi", "Sesi", lambda: MentoringSession.SESSION_CHOICES, lookup)
+
+
+def _feedback_terbaru():
+    """Isi feedback sesi terbaru untuk (sesi, mentee) satu baris presensi.
+
+    Subquery, bukan prefetch: feedback menempel ke pasangan sesi+mentee, bukan
+    ke baris presensinya, jadi tidak ada relasi yang bisa di-prefetch langsung.
+    """
+    return Subquery(
+        MentorFeedback.objects.filter(
+            session=OuterRef("session"), peserta=OuterRef("peserta")
+        ).order_by("-created_at").values("isi")[:1]
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -305,6 +374,9 @@ SUMBER = [
             Kolom("Role", lambda o: o.role, "pilih_role", urut="role"),
         ),
         pencarian=("nama_lengkap", "npm"),
+        # Tanpa penyaring kelompok: daftar ini tidak memuat kolom kelompok, dan
+        # dropdown yang langsung mengirim form sengaja tidak ada di halaman ini
+        # (lihat konfirmasi dropdown role). Kelompok disaring di Mentee/Mentor.
         kosong="Belum ada akun yang login.",
         # Mentor non-SSO sengaja tidak ikut: dia punya menunya sendiri, dan
         # dropdown role di sini bisa mengubahnya jadi mentee — yang langsung
@@ -336,7 +408,14 @@ SUMBER = [
             Kolom("Kelompok", lambda o: o.kelompok_id, "pilih_kelompok", urut="kelompok"),
             Kolom("Sudah login SSO", lambda o: o.user_id is not None, "bool"),
         ),
+        # "Buat RSVP" sama dengan di setiap daftar Profile lain dan tetap di
+        # depan. "Detail" membuka halaman yang memuat presensi, nilai, tugas,
+        # dan catatan privatnya — daftar ini hanya muat identitas dan kelompoknya.
+        aksi_baris=AKSI_RSVP_PROFIL + (
+            AksiBaris(lambda o: "Detail", "siwak:panel_mentee_detail"),
+        ),
         pencarian=("nama_lengkap", "npm"),
+        saringan=(_saring_kelompok("kelompok_id"),),
         kosong="Belum ada mentee. Pilih role Mentee untuk sebuah akun di daftar Profile.",
         queryset=lambda: Profile.objects.filter(
             role=Profile.ROLE_MENTEE
@@ -347,7 +426,6 @@ SUMBER = [
             "kelompok": _urut_nama_kelompok("kelompok__") + ("nama_lengkap",),
         },
         urut_awal="nama",
-        aksi_baris=AKSI_RSVP_PROFIL,
     ),
     Sumber(
         slug="mentor",
@@ -366,6 +444,7 @@ SUMBER = [
             Kolom("Sudah login SSO", lambda o: o.user_id is not None, "bool"),
         ),
         pencarian=("nama_lengkap", "npm"),
+        saringan=(_saring_kelompok("kelompok_id"),),
         kosong="Belum ada mentor yang terdaftar.",
         # Mentor non-SSO punya menunya sendiri. Kalau ikut di sini, dia bisa
         # disunting lewat MentorForm yang mewajibkan NPM — yang justru tidak
@@ -399,6 +478,7 @@ SUMBER = [
             Kolom("Akun aktif", lambda o: bool(o.user and o.user.is_active), "bool"),
         ),
         pencarian=("nama_lengkap", "user__username"),
+        saringan=(_saring_kelompok("kelompok_id"),),
         kosong="Belum ada mentor non-SSO.",
         queryset=lambda: Profile.objects.filter(
             role=Profile.ROLE_MENTOR, auth_source=Profile.SOURCE_LOKAL
@@ -427,6 +507,11 @@ SUMBER = [
             # kelompok tanpa link gampang ketahuan.
             Kolom("Link Grup WhatsApp", lambda o: o.link_grup, "isi_link", urut="link"),
             Kolom("Aktif", lambda o: o.is_active, "bool"),
+        ),
+        # Daftar ini hanya muat nama mentor dan jumlah mentee; halaman detailnya
+        # yang memuat seluruh anggota beserta rekap presensinya.
+        aksi_baris=(
+            AksiBaris(lambda o: "Detail", "siwak:panel_kelompok_detail"),
         ),
         pencarian=("nama_kelompok",),
         kosong="Belum ada kelompok mentoring.",
@@ -471,6 +556,36 @@ SUMBER = [
         kosong="Belum ada acara SIWAK.",
         queryset=lambda: SiwakEvent.objects.prefetch_related("rsvp_list"),
     ),
+    Sumber(
+        slug="panitia",
+        bagian="event",
+        label="Akun Panitia SIWAK",
+        label_jamak="Akun Panitia SIWAK",
+        deskripsi=(
+            "Akun panitia SIWAK untuk memindai QR peserta di hari acara — gatekeeper untuk "
+            "registrasi ulang, divisi konsumsi untuk kupon makan. Masuk lewat "
+            "“Login Akun Khusus” dan langsung mendarat di halaman pemindai "
+            "(/siwak/pindai/). Akun ini hanya bisa memindai: panel SIWAK dan "
+            "/admin/ tetap tertutup untuknya."
+        ),
+        model=User,
+        form=f.AkunPemindaiForm,
+        kolom=(
+            Kolom("Username", lambda o: o.username, utama=True, urut="username"),
+            Kolom("Boleh memindai", _akses_pemindai, "tag"),
+            Kolom("Akun aktif", lambda o: o.is_active, "bool"),
+        ),
+        pencarian=("username",),
+        kosong="Belum ada akun panitia SIWAK.",
+        # Hanya akun berawalan panitia. Itu juga yang menjaga halaman ubah dan
+        # hapus di sini tidak bisa dipakai menyunting akun lain — superuser,
+        # misalnya — cukup dengan mengganti pk di alamatnya.
+        queryset=lambda: User.objects.filter(
+            username__startswith=EventRSVP.USERNAME_PEMINDAI_PREFIX
+        ).prefetch_related("user_permissions"),
+        pengurutan={"username": ("username",)},
+        urut_awal="username",
+    ),
 
     # --- Bagian 5: Mentoring ---------------------------------------------------
     Sumber(
@@ -500,6 +615,11 @@ SUMBER = [
             Kolom("Catatan", lambda o: o.catatan or "—", "panjang"),
         ),
         pencarian=("kelompok__nama_kelompok",),
+        saringan=(
+            _saring_kelompok("kelompok_id"),
+            _saring_sesi("nomor"),
+            Saringan("aktif", "Status", lambda: [("1", "Aktif"), ("0", "Nonaktif")], "is_active"),
+        ),
         kosong="Sesi mentoring muncul otomatis begitu kelompok mentoring dibuat.",
         queryset=lambda: MentoringSession.objects.select_related("kelompok"),
         pengurutan={
@@ -508,6 +628,52 @@ SUMBER = [
             # per kelompok di dalamnya.
             "sesi": ("nomor",) + _urut_nama_kelompok("kelompok__"),
             "tanggal": ("tanggal", "nomor"),
+        },
+        urut_awal="kelompok",
+    ),
+    Sumber(
+        slug="presensi",
+        bagian="mentoring",
+        label="Presensi Mentoring",
+        label_jamak="Presensi & Feedback",
+        deskripsi=(
+            "Semua presensi yang diisi mentor di seluruh kelompok, beserta feedback sesi "
+            "terbarunya. Hanya untuk dipantau: presensi diisi mentor dari portalnya."
+        ),
+        model=MentoringAttendance,
+        form=None,
+        boleh_tambah=False,
+        boleh_ubah=False,
+        boleh_hapus=False,
+        kolom=(
+            Kolom("Mentee", lambda o: o.peserta.nama_lengkap, utama=True, urut="mentee"),
+            Kolom("Kelompok", lambda o: o.session.kelompok.nama_kelompok, urut="kelompok"),
+            Kolom("Sesi", lambda o: o.session.judul, urut="sesi"),
+            Kolom("Status", lambda o: (o.status, o.get_status_display()), "status_presensi"),
+            Kolom("Catatan", lambda o: o.catatan or "—", "panjang"),
+            Kolom("Feedback mentor", lambda o: _potong(o.feedback_terbaru) or "—", "panjang"),
+            Kolom("Dicatat oleh", lambda o: o.recorded_by.nama_lengkap if o.recorded_by else "—"),
+        ),
+        aksi_baris=(
+            AksiBaris(lambda o: "Detail mentee", "siwak:panel_mentee_detail", pk=lambda o: o.peserta_id),
+        ),
+        pencarian=("peserta__nama_lengkap", "peserta__npm"),
+        saringan=(
+            _saring_kelompok("session__kelompok_id"),
+            _saring_sesi("session__nomor"),
+            Saringan("status", "Status", lambda: MentoringAttendance.STATUS_CHOICES, "status"),
+        ),
+        kosong="Belum ada presensi yang diisi mentor.",
+        queryset=lambda: MentoringAttendance.objects.select_related(
+            "peserta", "session__kelompok", "recorded_by"
+        ).annotate(feedback_terbaru=_feedback_terbaru()),
+        pengurutan={
+            "mentee": ("peserta__nama_lengkap",),
+            "kelompok": _urut_nama_kelompok("session__kelompok__")
+            + ("session__nomor", "peserta__nama_lengkap"),
+            "sesi": ("session__nomor",)
+            + _urut_nama_kelompok("session__kelompok__")
+            + ("peserta__nama_lengkap",),
         },
         urut_awal="kelompok",
     ),
@@ -616,13 +782,13 @@ BAGIAN = [
     Bagian(
         slug="event",
         nama="SIWAK Events",
-        deskripsi="Acara SIWAK-NG dan pengaturan buka-tutup RSVP-nya.",
+        deskripsi="Acara SIWAK-NG, pengaturan buka-tutup RSVP-nya, dan akun panitia SIWAK untuk memindai QR.",
         ikon="tiket",
     ),
     Bagian(
         slug="mentoring",
         nama="Mentoring",
-        deskripsi="Sesi mentoring, aspek penilaian, dan tugas beserta pertanyaannya.",
+        deskripsi="Sesi mentoring, rekap presensi & feedback, aspek penilaian, dan tugas beserta pertanyaannya.",
         ikon="tugas",
     ),
 ]

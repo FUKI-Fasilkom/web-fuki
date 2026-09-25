@@ -63,6 +63,9 @@
           {% if user.is_authenticated and user.is_staff %}
           <a href="{% url 'siwak:panel_beranda' %}" class="block px-4 py-2 text-navy hover:bg-cream transition">Panel Admin</a>
           {% endif %}
+          {% if perms.siwak.pindai_registrasi or perms.siwak.pindai_kupon %}
+          <a href="{% url 'siwak:pindai_beranda' %}" class="block px-4 py-2 text-navy hover:bg-cream transition">Pemindai QR</a>
+          {% endif %}
         </div>
       </div>
       <a href="{% url 'hubungi_kami' %}" class="text-navy hover:text-navy-600 transition">Hubungi Kami</a>
@@ -120,6 +123,9 @@
     {% endif %}
     {% if user.is_authenticated and user.is_staff %}
     <a href="{% url 'siwak:panel_beranda' %}" class="block py-2 pl-3 text-navy hover:text-navy-600">Panel Admin</a>
+    {% endif %}
+    {% if perms.siwak.pindai_registrasi or perms.siwak.pindai_kupon %}
+    <a href="{% url 'siwak:pindai_beranda' %}" class="block py-2 pl-3 text-navy hover:text-navy-600">Pemindai QR</a>
     {% endif %}
     <a href="{% url 'hubungi_kami' %}" class="block py-2 text-navy hover:text-navy-600">Hubungi Kami</a>
     {% if user.is_authenticated %}

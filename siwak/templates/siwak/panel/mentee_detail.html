@@ -1,0 +1,206 @@
+{% extends 'siwak/panel/base.html' %}
+
+{% comment %}
+  Detail satu mentee untuk pengurus: semua yang diisi mentor tentang dia.
+  Seluruhnya hanya baca, termasuk catatan privat — catatan itu milik mentor
+  kelompoknya dan hanya disunting dari portal mentor (`siwak:mentee_catatan`
+  menolak pengurus).
+{% endcomment %}
+
+{% block panel %}
+<header class="mb-5 flex flex-wrap items-start justify-between gap-3">
+  <div class="min-w-0">
+    <h1 class="text-2xl font-bold text-navy sm:text-3xl">{{ mentee.nama_lengkap }}</h1>
+    <p class="mt-1 text-sm text-navy-400">
+      NPM {{ mentee.npm|default:"—" }}{% if mentee.jurusan %} · {{ mentee.get_jurusan_display }}{% endif %}{% if mentee.angkatan %} · Angkatan {{ mentee.angkatan }}{% endif %}
+      · {% if mentee.user_id %}sudah login SSO{% else %}belum login SSO{% endif %}
+    </p>
+    <p class="mt-1 text-sm text-navy-400">
+      {% if kelompok %}
+        <a href="{% url 'siwak:panel_kelompok_detail' kelompok.pk %}" class="font-semibold text-navy underline decoration-gold underline-offset-2">{{ kelompok.nama_kelompok }}</a>
+        · Mentor: {% for m in mentor %}{{ m.nama_lengkap }}{% if not forloop.last %}, {% endif %}{% empty %}belum ada{% endfor %}
+      {% else %}
+        Belum ditempatkan di kelompok.
+      {% endif %}
+    </p>
+  </div>
+  <a href="{% url 'siwak:panel_ubah' 'peserta' mentee.pk %}"
+     class="inline-flex min-h-[44px] items-center rounded-xl bg-navy px-5 text-sm font-bold text-white transition hover:bg-navy-700">
+    Ubah data mentee
+  </a>
+</header>
+
+<section class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4" aria-label="Ringkasan mentee">
+  <div class="rounded-2xl border-2 border-gold-light bg-white px-4 py-4">
+    <p class="text-2xl font-bold leading-none text-navy sm:text-3xl">{{ jumlah_hadir }}<span class="text-base font-semibold text-navy-400"> / {{ baris_sesi|length }}</span></p>
+    <p class="mt-1.5 text-[11px] font-semibold uppercase tracking-wide text-navy-400 sm:text-xs">Sesi hadir</p>
+  </div>
+  <div class="rounded-2xl border-2 border-gold-light bg-white px-4 py-4">
+    <p class="text-2xl font-bold leading-none text-navy sm:text-3xl">{{ rata_nilai|default:"—" }}</p>
+    <p class="mt-1.5 text-[11px] font-semibold uppercase tracking-wide text-navy-400 sm:text-xs">Rata-rata nilai</p>
+  </div>
+  <div class="rounded-2xl border-2 border-gold-light bg-white px-4 py-4">
+    <p class="text-2xl font-bold leading-none text-navy sm:text-3xl">{{ jumlah_terkumpul }}<span class="text-base font-semibold text-navy-400"> / {{ baris_tugas|length }}</span></p>
+    <p class="mt-1.5 text-[11px] font-semibold uppercase tracking-wide text-navy-400 sm:text-xs">Tugas dikumpulkan</p>
+  </div>
+  <div class="rounded-2xl border-2 border-gold-light bg-white px-4 py-4">
+    <p class="text-2xl font-bold leading-none text-navy sm:text-3xl">{{ jumlah_dinilai }}<span class="text-base font-semibold text-navy-400"> / {{ jumlah_terkumpul }}</span></p>
+    <p class="mt-1.5 text-[11px] font-semibold uppercase tracking-wide text-navy-400 sm:text-xs">Tugas dinilai</p>
+  </div>
+</section>
+
+<section id="catatan" class="mb-8 scroll-mt-24 rounded-2xl border-2 border-gold-light bg-white p-5 sm:p-6" aria-labelledby="judul-catatan">
+  <div class="flex flex-wrap items-baseline justify-between gap-2">
+    <h2 id="judul-catatan" class="text-lg font-bold text-navy">Catatan privat mentor</h2>
+    <span class="rounded-full bg-navy/5 px-2.5 py-1 text-[11px] font-semibold text-navy-400">Hanya baca</span>
+  </div>
+  <p class="mt-1 text-sm text-navy-400">
+    Ditulis dan hanya bisa diubah oleh mentor kelompok mentee ini, dari portal mentor. Tidak pernah terlihat oleh mentee.
+  </p>
+  {% if mentee.notes.strip %}
+  <p class="mt-4 whitespace-pre-line rounded-xl bg-cream-50 px-4 py-3 text-[15px] text-navy">{{ mentee.notes }}</p>
+  {% else %}
+  <p class="mt-4 rounded-xl border-2 border-dashed border-gold-light px-4 py-3 text-sm text-navy-400">
+    Belum ada catatan dari mentor.
+  </p>
+  {% endif %}
+</section>
+
+<section class="mb-8" aria-labelledby="judul-presensi">
+  <h2 id="judul-presensi" class="mb-3 text-lg font-bold text-navy">Presensi &amp; feedback sesi</h2>
+  {% if baris_sesi %}
+  <div class="overflow-x-auto rounded-2xl border-2 border-gold-light bg-white">
+    <table class="w-full text-left text-sm">
+      <thead class="bg-navy text-cream-300">
+        <tr>
+          <th scope="col" class="whitespace-nowrap px-3.5 py-3 text-xs font-bold uppercase tracking-wide">Sesi</th>
+          <th scope="col" class="whitespace-nowrap px-3.5 py-3 text-xs font-bold uppercase tracking-wide">Status</th>
+          <th scope="col" class="whitespace-nowrap px-3.5 py-3 text-xs font-bold uppercase tracking-wide">Catatan presensi</th>
+          <th scope="col" class="whitespace-nowrap px-3.5 py-3 text-xs font-bold uppercase tracking-wide">Feedback mentor</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in baris_sesi %}
+        <tr class="border-t border-gold-light/70 align-top even:bg-cream-50">
+          <td class="whitespace-nowrap px-3.5 py-3 text-navy">
+            <span class="font-semibold">{{ b.sesi.judul }}</span>
+            <span class="block text-xs text-navy-400">
+              {% if b.sesi.kelompok_id != mentee.kelompok_id %}{{ b.sesi.kelompok.nama_kelompok }} · {% endif %}{% if b.sesi.tanggal %}{{ b.sesi.tanggal|date:"j M Y" }}{% else %}tanpa tanggal{% endif %}
+            </span>
+          </td>
+          <td class="whitespace-nowrap px-3.5 py-3">
+            {% if b.presensi %}
+            {% include 'siwak/panel/_status_presensi.html' with status=b.presensi.status label=b.presensi.get_status_display %}
+            <span class="mt-1 block text-xs text-navy-400">oleh {{ b.presensi.recorded_by.nama_lengkap|default:"—" }}</span>
+            {% else %}<span class="text-navy-400">Belum dicatat</span>{% endif %}
+          </td>
+          <td class="px-3.5 py-3 text-navy">{{ b.presensi.catatan|default:"—" }}</td>
+          <td class="px-3.5 py-3 text-navy">
+            {% for fb in b.feedback %}
+            <p class="whitespace-pre-line{% if not forloop.first %} mt-2 border-t border-gold-light/70 pt-2{% endif %}">{{ fb.isi }}</p>
+            <p class="text-xs text-navy-400">{{ fb.mentor.nama_lengkap|default:"Mentor" }} · {{ fb.created_at|date:"j M Y, H:i" }}</p>
+            {% empty %}<span class="text-navy-400">—</span>{% endfor %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="rounded-2xl border-2 border-dashed border-gold-light bg-white px-4 py-5 text-sm text-navy-400">
+    Belum ada sesi — mentee ini belum ditempatkan di kelompok.
+  </p>
+  {% endif %}
+</section>
+
+<section class="mb-8" aria-labelledby="judul-nilai">
+  <h2 id="judul-nilai" class="mb-3 text-lg font-bold text-navy">Nilai per aspek</h2>
+  {% if baris_nilai %}
+  <div class="overflow-x-auto rounded-2xl border-2 border-gold-light bg-white">
+    <table class="w-full text-left text-sm">
+      <thead class="bg-navy text-cream-300">
+        <tr>
+          <th scope="col" class="whitespace-nowrap px-3.5 py-3 text-xs font-bold uppercase tracking-wide">Aspek</th>
+          <th scope="col" class="whitespace-nowrap px-3.5 py-3 text-center text-xs font-bold uppercase tracking-wide">Nilai</th>
+          <th scope="col" class="whitespace-nowrap px-3.5 py-3 text-xs font-bold uppercase tracking-wide">Catatan mentor</th>
+          <th scope="col" class="whitespace-nowrap px-3.5 py-3 text-xs font-bold uppercase tracking-wide">Dinilai oleh</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in baris_nilai %}
+        <tr class="border-t border-gold-light/70 align-top even:bg-cream-50">
+          <td class="whitespace-nowrap px-3.5 py-3 font-semibold text-navy">
+            {{ b.aspek.nama }}{% if not b.aspek.is_active %} <span class="text-xs font-normal text-navy-400">(nonaktif)</span>{% endif %}
+          </td>
+          <td class="whitespace-nowrap px-3.5 py-3 text-center font-bold text-navy">{% if b.nilai %}{{ b.nilai.score }}{% else %}—{% endif %}</td>
+          <td class="px-3.5 py-3 text-navy">{{ b.nilai.catatan|default:"—" }}</td>
+          <td class="whitespace-nowrap px-3.5 py-3 text-navy-400">
+            {% if b.nilai %}{{ b.nilai.assessed_by.nama_lengkap|default:"—" }} · {{ b.nilai.updated_at|date:"j M Y" }}{% else %}Belum dinilai{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="rounded-2xl border-2 border-dashed border-gold-light bg-white px-4 py-5 text-sm text-navy-400">
+    Belum ada aspek penilaian.
+  </p>
+  {% endif %}
+</section>
+
+<section aria-labelledby="judul-tugas">
+  <h2 id="judul-tugas" class="mb-3 text-lg font-bold text-navy">Tugas, nilai, dan feedback mentor</h2>
+  {% if baris_tugas %}
+  <div class="space-y-3">
+    {% for b in baris_tugas %}
+    <article class="rounded-2xl border-2 border-gold-light bg-white p-4 sm:p-5">
+      <div class="flex flex-wrap items-start justify-between gap-2">
+        <div class="min-w-0">
+          <h3 class="font-bold text-navy">{{ b.tugas.judul_tugas }}{% if not b.tugas.is_active %} <span class="text-xs font-normal text-navy-400">(nonaktif)</span>{% endif %}</h3>
+          <p class="text-xs text-navy-400">Deadline {{ b.tugas.deadline|date:"j M Y, H:i" }}</p>
+        </div>
+        {% if b.submission %}
+        <span class="inline-block rounded-full {% if b.submission.status == 'late' %}bg-red-50 text-red-700{% else %}bg-cream-300 text-navy{% endif %} px-2.5 py-1 text-[11px] font-bold">
+          {{ b.submission.get_status_display }} · {{ b.submission.submitted_at|date:"j M Y, H:i" }}
+        </span>
+        {% else %}
+        <span class="inline-block rounded-full bg-navy/5 px-2.5 py-1 text-[11px] font-semibold text-navy-400">Belum dikumpulkan</span>
+        {% endif %}
+      </div>
+
+      {% if b.submission %}
+      {% include 'siwak/mentor/_submission_answers.html' with submission=b.submission only %}
+
+      <div class="mt-3 rounded-xl bg-cream-50 px-4 py-3">
+        {% if b.review %}
+        <p class="text-sm text-navy"><span class="font-bold">Nilai {{ b.review.score }}</span> · {{ b.review.reviewer.nama_lengkap|default:"Mentor" }} · {{ b.review.updated_at|date:"j M Y, H:i" }}</p>
+        {% if b.review.feedback %}<p class="mt-1 whitespace-pre-line text-sm text-navy">{{ b.review.feedback }}</p>{% endif %}
+        {% else %}
+        <p class="text-sm text-navy-400">Belum dinilai mentor.</p>
+        {% endif %}
+        {% if b.riwayat|length > 1 %}
+        <details class="mt-2 text-sm">
+          <summary class="cursor-pointer font-semibold text-navy">Riwayat penilaian ({{ b.riwayat|length }})</summary>
+          <ul class="mt-2 space-y-2">
+            {% for r in b.riwayat %}
+            <li class="text-navy">
+              <span class="font-semibold">{{ r.score }}</span> · {{ r.reviewer.nama_lengkap|default:"Mentor" }} · {{ r.created_at|date:"j M Y, H:i" }}
+              {% if r.feedback %}<span class="block whitespace-pre-line text-navy-400">{{ r.feedback }}</span>{% endif %}
+            </li>
+            {% endfor %}
+          </ul>
+        </details>
+        {% endif %}
+      </div>
+      {% endif %}
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="rounded-2xl border-2 border-dashed border-gold-light bg-white px-4 py-5 text-sm text-navy-400">
+    Belum ada tugas mentoring.
+  </p>
+  {% endif %}
+</section>
+{% endblock %}

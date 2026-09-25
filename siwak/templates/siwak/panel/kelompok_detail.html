@@ -1,0 +1,177 @@
+{% extends 'siwak/panel/base.html' %}
+
+{% comment %}
+  Detail satu kelompok mentoring — hanya baca. Penempatan anggota tetap lewat
+  dropdown di daftar Mentee dan Mentor; tautan ke sana ada di keadaan kosong.
+{% endcomment %}
+
+{% block panel %}
+<header class="mb-5 flex flex-wrap items-start justify-between gap-3">
+  <div class="min-w-0">
+    <h1 class="text-2xl font-bold text-navy sm:text-3xl">{{ kelompok.nama_kelompok }}</h1>
+    <p class="mt-1 text-sm text-navy-400">
+      {{ baris|length }} / {{ kelompok.kapasitas }} mentee
+      · Kelompok {% if kelompok.is_active %}<span class="font-semibold text-navy">aktif</span>{% else %}<span class="font-semibold text-red-700">nonaktif</span>{% endif %}
+    </p>
+  </div>
+  <div class="flex flex-wrap gap-2">
+    {% if kelompok.link_grup %}
+    <a href="{{ kelompok.link_grup }}" target="_blank" rel="noopener"
+       class="inline-flex min-h-[44px] items-center rounded-xl border-2 border-navy px-5 text-sm font-bold text-navy transition hover:bg-cream-300">
+      Grup WhatsApp
+    </a>
+    {% endif %}
+    <a href="{% url 'siwak:panel_ubah' 'kelompok' kelompok.pk %}"
+       class="inline-flex min-h-[44px] items-center rounded-xl bg-navy px-5 text-sm font-bold text-white transition hover:bg-navy-700">
+      Ubah kelompok
+    </a>
+  </div>
+</header>
+
+<section class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4" aria-label="Ringkasan kelompok">
+  <div class="rounded-2xl border-2 border-gold-light bg-white px-4 py-4">
+    <p class="text-2xl font-bold leading-none text-navy sm:text-3xl">{{ mentor|length }}</p>
+    <p class="mt-1.5 text-[11px] font-semibold uppercase tracking-wide text-navy-400 sm:text-xs">Mentor</p>
+  </div>
+  <div class="rounded-2xl border-2 border-gold-light bg-white px-4 py-4">
+    <p class="text-2xl font-bold leading-none text-navy sm:text-3xl">{{ baris|length }}<span class="text-base font-semibold text-navy-400"> / {{ kelompok.kapasitas }}</span></p>
+    <p class="mt-1.5 text-[11px] font-semibold uppercase tracking-wide text-navy-400 sm:text-xs">Mentee</p>
+  </div>
+  <div class="rounded-2xl border-2 border-gold-light bg-white px-4 py-4">
+    <p class="text-2xl font-bold leading-none text-navy sm:text-3xl">{{ sesi_aktif }}<span class="text-base font-semibold text-navy-400"> / {{ pilihan_sesi|length }}</span></p>
+    <p class="mt-1.5 text-[11px] font-semibold uppercase tracking-wide text-navy-400 sm:text-xs">Sesi aktif</p>
+  </div>
+  <div class="rounded-2xl border-2 border-gold-light bg-white px-4 py-4">
+    <p class="text-2xl font-bold leading-none text-navy sm:text-3xl">{{ tugas_aktif }}</p>
+    <p class="mt-1.5 text-[11px] font-semibold uppercase tracking-wide text-navy-400 sm:text-xs">Tugas aktif</p>
+  </div>
+</section>
+
+<section class="mb-8" aria-labelledby="judul-mentor">
+  <h2 id="judul-mentor" class="mb-3 text-lg font-bold text-navy">Mentor</h2>
+  {% if mentor %}
+  <ul class="grid gap-3 sm:grid-cols-2">
+    {% for m in mentor %}
+    <li class="rounded-2xl border-2 border-gold-light bg-white px-4 py-3">
+      <p class="font-semibold text-navy">{{ m.nama_lengkap }}</p>
+      <p class="mt-0.5 text-sm text-navy-400">
+        {% if m.is_akun_lokal %}
+          Akun non-SSO · {{ m.user.username|default:"—" }}
+        {% else %}
+          NPM {{ m.npm|default:"—" }} · {% if m.user_id %}sudah login SSO{% else %}belum login SSO{% endif %}
+        {% endif %}
+      </p>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="rounded-2xl border-2 border-dashed border-gold-light bg-white px-4 py-5 text-sm text-navy-400">
+    Belum ada mentor yang memegang kelompok ini. Tempatkan lewat
+    <a href="{% url 'siwak:panel_daftar' 'mentor' %}" class="font-semibold text-navy underline">daftar Mentor</a>.
+  </p>
+  {% endif %}
+</section>
+
+<section aria-labelledby="judul-mentee">
+  <div class="mb-3 flex flex-wrap items-end justify-between gap-3">
+    <div class="min-w-0">
+      <h2 id="judul-mentee" class="text-lg font-bold text-navy">Mentee</h2>
+      <p class="mt-1 max-w-2xl text-sm leading-relaxed text-navy-400">
+        Presensi tiap sesi diisi mentor. Tugas = tugas aktif yang sudah dikumpulkan; Dinilai = yang
+        sudah diberi nilai mentor. Buka nama mentee untuk jawaban, feedback, dan nilai per aspeknya.
+      </p>
+    </div>
+    {% if pilihan_sesi %}
+    <form method="get" class="flex items-center gap-2">
+      <label for="saring-sesi" class="text-xs font-bold uppercase tracking-wide text-navy-400">Sesi</label>
+      <select id="saring-sesi" name="sesi" onchange="this.form.submit()"
+              class="min-h-[40px] rounded-xl border-2 border-gold-light bg-white px-3 text-sm font-semibold text-navy transition focus:border-gold focus:outline-none focus:ring-4 focus:ring-gold/25">
+        <option value="">Semua sesi</option>
+        {% for s in pilihan_sesi %}
+        <option value="{{ s.nomor }}" {% if s.nomor|stringformat:"d" == sesi_dipilih %}selected{% endif %}>{{ s.judul }}</option>
+        {% endfor %}
+      </select>
+      <noscript><button type="submit" class="rounded-xl bg-navy px-3 py-2 text-xs font-bold text-white">Terapkan</button></noscript>
+    </form>
+    {% endif %}
+  </div>
+
+  {% if baris %}
+  {% comment %}
+    Satu tabel yang bisa digeser di HP, bukan kartu: kisi presensi mentee × sesi
+    hanya terbaca kalau kolomnya tetap sejajar.
+  {% endcomment %}
+  <div class="overflow-x-auto rounded-2xl border-2 border-gold-light bg-white">
+    <table class="w-full text-left text-sm">
+      <thead class="bg-navy text-cream-300">
+        <tr>
+          <th scope="col" class="whitespace-nowrap px-3.5 py-3 text-xs font-bold uppercase tracking-wide">No</th>
+          <th scope="col" class="whitespace-nowrap px-3.5 py-3 text-xs font-bold uppercase tracking-wide">Nama</th>
+          <th scope="col" class="whitespace-nowrap px-3.5 py-3 text-xs font-bold uppercase tracking-wide">NPM</th>
+          <th scope="col" class="whitespace-nowrap px-3.5 py-3 text-xs font-bold uppercase tracking-wide">Jurusan</th>
+          {% for kol in kolom_sesi %}
+          <th scope="col" class="whitespace-nowrap px-3.5 py-3 text-center text-xs font-bold uppercase tracking-wide">
+            Sesi {{ kol.sesi.nomor }}
+            <span class="block text-[10px] font-semibold normal-case tracking-normal text-cream-300/70">
+              {% if kol.sesi.tanggal %}{{ kol.sesi.tanggal|date:"j M" }}{% else %}tanpa tanggal{% endif %}
+            </span>
+          </th>
+          {% endfor %}
+          <th scope="col" class="whitespace-nowrap px-3.5 py-3 text-center text-xs font-bold uppercase tracking-wide">Hadir</th>
+          <th scope="col" class="whitespace-nowrap px-3.5 py-3 text-center text-xs font-bold uppercase tracking-wide">Tugas</th>
+          <th scope="col" class="whitespace-nowrap px-3.5 py-3 text-center text-xs font-bold uppercase tracking-wide">Dinilai</th>
+          <th scope="col" class="whitespace-nowrap px-3.5 py-3 text-center text-xs font-bold uppercase tracking-wide">Rata-rata nilai</th>
+          <th scope="col" class="whitespace-nowrap px-3.5 py-3 text-xs font-bold uppercase tracking-wide">Catatan privat</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in baris %}
+        <tr class="border-t border-gold-light/70 align-middle even:bg-cream-50">
+          <td class="px-3.5 py-3 text-navy-400">{{ forloop.counter }}</td>
+          <td class="whitespace-nowrap px-3.5 py-3 font-semibold text-navy">
+            <a href="{% url 'siwak:panel_mentee_detail' b.profil.pk %}" class="underline decoration-gold underline-offset-2 transition hover:text-navy-700">{{ b.profil.nama_lengkap }}</a>
+          </td>
+          <td class="whitespace-nowrap px-3.5 py-3 text-navy">{{ b.profil.npm|default:"—" }}</td>
+          <td class="px-3.5 py-3 text-navy">{{ b.profil.get_jurusan_display|default:"—" }}</td>
+          {% for p in b.presensi %}
+          <td class="px-3.5 py-3 text-center">
+            {% include 'siwak/panel/_status_presensi.html' with status=p.status label=p.label %}
+          </td>
+          {% endfor %}
+          <td class="whitespace-nowrap px-3.5 py-3 text-center font-semibold text-navy">{{ b.hadir }} / {{ kolom_sesi|length }}</td>
+          <td class="whitespace-nowrap px-3.5 py-3 text-center text-navy">{{ b.tugas }} / {{ tugas_aktif }}</td>
+          <td class="whitespace-nowrap px-3.5 py-3 text-center text-navy">{{ b.dinilai }} / {{ b.tugas }}</td>
+          <td class="whitespace-nowrap px-3.5 py-3 text-center font-semibold text-navy">{{ b.rata_nilai|default:"—" }}</td>
+          <td class="px-3.5 py-3 text-navy-400">
+            {% if b.profil.notes %}<span class="block max-w-[28ch] text-navy" title="{{ b.profil.notes }}">{{ b.profil.notes|truncatechars:80 }}</span>{% else %}—{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      {% if kolom_sesi %}
+      <tfoot>
+        <tr class="border-t-2 border-gold-light bg-cream-50 text-xs font-bold text-navy">
+          <th scope="row" colspan="4" class="px-3.5 py-2.5 text-right uppercase tracking-wide text-navy-400">Hadir per sesi</th>
+          {% for kol in kolom_sesi %}
+          <td class="whitespace-nowrap px-3.5 py-2.5 text-center">{{ kol.hadir }} / {{ baris|length }}</td>
+          {% endfor %}
+          <td colspan="5"></td>
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
+  </div>
+  {% else %}
+  <div class="rounded-2xl border-2 border-dashed border-gold-light bg-white px-6 py-14 text-center">
+    <p class="text-base font-bold text-navy">Belum ada mentee di kelompok ini.</p>
+    <p class="mx-auto mt-1.5 max-w-md text-sm leading-relaxed text-navy-400">
+      Mentee ditempatkan lewat dropdown Kelompok di daftar Mentee.
+    </p>
+    <a href="{% url 'siwak:panel_daftar' 'peserta' %}"
+       class="mt-4 inline-flex min-h-[44px] items-center rounded-xl bg-navy px-5 text-sm font-bold text-white transition hover:bg-navy-700">
+      Buka daftar Mentee
+    </a>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

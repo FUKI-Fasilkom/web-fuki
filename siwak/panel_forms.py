@@ -8,6 +8,7 @@ ke model otomatis ikut bergaya benar tanpa disentuh lagi.
 
 from django import forms
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Permission
 from django.contrib.auth.password_validation import validate_password
 from django.db import transaction
 
@@ -265,6 +266,26 @@ class PesertaForm(PanelForm):
         self.fields["npm"].required = True
 
 
+def _periksa_password(form, data, *, akun_baru):
+    """Aturan password akun lokal buatan panel (mentor non-SSO, pemindai QR).
+
+    Wajib untuk akun baru; saat mengubah, kosong berarti password lama tetap.
+    Kalau diisi, harus sama dengan ulangannya dan lolos AUTH_PASSWORD_VALIDATORS.
+    """
+    password1 = data.get("password1") or ""
+    password2 = data.get("password2") or ""
+
+    if akun_baru and not password1:
+        form.add_error("password1", "Password wajib diisi untuk akun baru.")
+    elif password1 != password2:
+        form.add_error("password2", "Ulangan password tidak sama.")
+    elif password1:
+        try:
+            validate_password(password1)
+        except forms.ValidationError as exc:
+            form.add_error("password1", exc)
+
+
 class MentorLokalForm(PanelForm):
     """Mentor non-SSO: satu form yang mengurus Profile sekaligus akun loginnya.
 
@@ -341,19 +362,7 @@ class MentorLokalForm(PanelForm):
 
     def clean(self):
         data = super().clean()
-        password1 = data.get("password1") or ""
-        password2 = data.get("password2") or ""
-        akun_baru = not (self.instance.pk and self.instance.user_id)
-
-        if akun_baru and not password1:
-            self.add_error("password1", "Password wajib diisi untuk akun baru.")
-        elif password1 != password2:
-            self.add_error("password2", "Ulangan password tidak sama.")
-        elif password1:
-            try:
-                validate_password(password1)
-            except forms.ValidationError as exc:
-                self.add_error("password1", exc)
+        _periksa_password(self, data, akun_baru=not (self.instance.pk and self.instance.user_id))
         return data
 
     @transaction.atomic
@@ -386,6 +395,105 @@ class EventForm(PanelForm):
             "rsvp_dibuka": "Saat dimatikan, maba tidak bisa RSVP baru. Yang sudah RSVP tetap bisa membuka QR-nya.",
             "urutan": "Angka lebih kecil tampil lebih dulu di halaman SIWAK.",
         }
+
+
+class AkunPemindaiForm(PanelForm):
+    """Akun panitia SIWAK: login lokal untuk panitia yang memindai QR peserta.
+
+    Seperti `MentorLokalForm`, form ini mengurus akun login sungguhan
+    (`auth.User`), hanya saja tanpa Profile — pemindai bukan peserta mentoring.
+    Aksesnya murni izin Django di EventRSVP: gatekeeper cukup QR registrasi
+    ulang, divisi konsumsi cukup QR kupon makan. `is_staff` selalu dimatikan,
+    jadi panel SIWAK dan /admin/ tetap tertutup untuknya.
+    """
+
+    # Nilai pilihan = jenis QR (kunci EventRSVP.IZIN_PINDAI), bukan codename,
+    # supaya satu-satunya tempat nama izinnya ditulis tetap di model.
+    AKSES = [
+        ("registrasi", f"{EventRSVP.LABEL_PINDAI['registrasi']} (gatekeeper)"),
+        ("kupon", f"{EventRSVP.LABEL_PINDAI['kupon']} (konsumsi)"),
+    ]
+    KODE_IZIN = {
+        kind: izin.split(".", 1)[1] for kind, izin in EventRSVP.IZIN_PINDAI.items()
+    }
+
+    akses = forms.MultipleChoiceField(
+        label="Boleh memindai",
+        choices=AKSES,
+        widget=forms.CheckboxSelectMultiple,
+        help_text="Centang keduanya kalau satu akun dipakai di meja registrasi sekaligus konsumsi.",
+        error_messages={"required": "Pilih minimal satu jenis QR."},
+    )
+    password1 = forms.CharField(
+        label="Password",
+        widget=forms.PasswordInput(render_value=False),
+        required=False,
+        help_text="Saat mengubah data, kosongkan kalau password tidak perlu diganti.",
+    )
+    password2 = forms.CharField(
+        label="Ulangi password",
+        widget=forms.PasswordInput(render_value=False),
+        required=False,
+    )
+
+    field_order = ["username", "akses", "password1", "password2", "is_active"]
+
+    class Meta:
+        model = User
+        fields = ["username", "is_active"]
+        labels = {"username": "Username", "is_active": "Akun aktif"}
+        help_texts = {
+            "username": (
+                f"Dipakai panitia untuk masuk lewat “Login Akun Khusus”. Otomatis diawali "
+                f"“{EventRSVP.USERNAME_PEMINDAI_PREFIX}” supaya tidak pernah bentrok dengan akun SSO UI."
+            ),
+            "is_active": "Matikan untuk mencabut akses tanpa menghapus akunnya, mis. setelah acara selesai.",
+        }
+        error_messages = {"username": {"unique": "Username ini sudah dipakai akun lain."}}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance.pk:
+            dimiliki = set(self.instance.user_permissions.values_list("codename", flat=True))
+            self.fields["akses"].initial = [
+                kind for kind, kode in self.KODE_IZIN.items() if kode in dimiliki
+            ]
+
+    def clean_username(self):
+        # Keunikan dicek validasi model sesudah ini, terhadap nama yang sudah
+        # berawalan — bukan terhadap ketikan pengelola.
+        username = (self.cleaned_data["username"] or "").strip().lower()
+        prefix = EventRSVP.USERNAME_PEMINDAI_PREFIX
+        if not username.startswith(prefix):
+            username = f"{prefix}{username}"
+        if username == prefix:
+            raise forms.ValidationError("Username tidak boleh hanya berisi awalannya.")
+        return username
+
+    def clean(self):
+        data = super().clean()
+        _periksa_password(self, data, akun_baru=not self.instance.pk)
+        return data
+
+    @transaction.atomic
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        # Pemindai bukan pengurus. Ditulis ulang setiap simpan, bukan hanya
+        # saat dibuat, supaya akun ini tidak pernah bisa "naik" lewat form ini.
+        user.is_staff = False
+        user.is_superuser = False
+        if self.cleaned_data.get("password1"):
+            user.set_password(self.cleaned_data["password1"])
+        user.save()
+
+        izin = list(Permission.objects.filter(
+            content_type__app_label=EventRSVP._meta.app_label,
+            codename__in=self.KODE_IZIN.values(),
+        ))
+        dipilih = {self.KODE_IZIN[kind] for kind in self.cleaned_data["akses"]}
+        user.user_permissions.remove(*izin)
+        user.user_permissions.add(*[p for p in izin if p.codename in dipilih])
+        return user
 
 
 # ---------------------------------------------------------------------------

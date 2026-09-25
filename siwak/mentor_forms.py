@@ -5,6 +5,7 @@ from .models import (
     AssessmentAspect,
     MenteeAssessment,
     MentoringAttendance,
+    Profile,
 )
 
 
@@ -98,6 +99,41 @@ class MenteeAssessmentForm(forms.Form):
                     "Isi nilai terlebih dahulu sebelum menambahkan catatan.",
                 )
         return cleaned_data
+
+
+class CatatanMenteeForm(forms.ModelForm):
+    """Catatan privat satu mentee (`Profile.notes`).
+
+    Hanya dipakai halaman detail mentee di portal mentor, lewat
+    `mentor_views.mentee_catatan`; siapa yang boleh menyimpan diperiksa view itu.
+    Isiannya bergaya sama dengan "Feedback sesi" di halaman yang sama.
+    """
+
+    class Meta:
+        model = Profile
+        fields = ["notes"]
+        # Penjelasan siapa yang bisa membaca sudah ada di atas isiannya.
+        help_texts = {"notes": ""}
+        widgets = {
+            "notes": forms.Textarea(
+                attrs={
+                    "class": FIELD_CLASSES,
+                    "rows": 3,
+                    # Tampil setiap kali catatannya kosong — belum pernah diisi
+                    # maupun sesudah isinya dihapus.
+                    "placeholder": "Belum ada catatan. Tulis catatan privat tentang mentee ini",
+                }
+            ),
+        }
+
+    def save(self, commit=True):
+        # Hanya kolom `notes` yang ditulis. `ModelForm.save()` biasa menulis ulang
+        # seluruh baris Profile dari instance yang dimuat view, jadi kelompok atau
+        # role yang diubah pengurus di sela-selanya akan dikembalikan ke nilai lama.
+        profil = super().save(commit=False)
+        if commit:
+            profil.save(update_fields=["notes"])
+        return profil
 
 
 class AssignmentReviewForm(forms.ModelForm):
