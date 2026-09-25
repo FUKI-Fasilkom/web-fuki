@@ -137,6 +137,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # Halaman 403 "Akses Ditolak" SIWAK untuk user yang salah peran (siwak/akses.py).
+    'siwak.akses.AksesDitolakMiddleware',
 ]
 
 ROOT_URLCONF = 'web_fuki.urls'

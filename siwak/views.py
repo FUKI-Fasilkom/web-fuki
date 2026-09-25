@@ -10,12 +10,14 @@ from django.contrib.auth.views import redirect_to_login
 from django.core import signing
 from django.core.files.uploadedfile import UploadedFile
 from django.db import transaction
+from django.db.models import Count
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
+from .akses import AksesDitolak, bagian_utama
 from .forms import CariKelompokForm, RSVPForm, TugasAnswerForm
 from .models import (
     EventRSVP,
@@ -48,7 +50,8 @@ def pemindai_required(view_func):
     which produces a redirect loop on the login page. This mirrors Django's own
     `staff_member_required` instead: anonymous users are sent straight to the
     "Login Akun Khusus" form (the admin login would refuse a non-staff scanner
-    account), logged-in users without any scan permission get a clean 403.
+    account), logged-in users without any scan permission get the 403
+    "Akses Ditolak" page (see akses.py) pointing to their own part of SIWAK.
     Which QR kind a user may scan is checked inside qr_verify, once the signed
     payload says the kind.
     """
@@ -56,7 +59,7 @@ def pemindai_required(view_func):
     def _wrapped(request, *args, **kwargs):
         if request.user.is_authenticated:
             if not boleh_memindai(request.user):
-                return HttpResponseForbidden()
+                raise AksesDitolak("pemindai")
             return view_func(request, *args, **kwargs)
         return redirect_to_login(request.get_full_path(), reverse("siwak:login_khusus"))
 
@@ -137,8 +140,10 @@ def kelompok_search(request):
 def mentee_required(view_func):
     """Guard halaman Tugas Mentoring: harus login DAN berperan Mentee.
 
-    Selain itu (anonim, role NULL, mentor, dst.) dikembalikan ke /siwak dengan
-    notifikasi, bukan ke login/403, supaya user tahu harus menghubungi CP.
+    User yang sudah punya bagiannya sendiri (mentor, pengurus, pemindai QR)
+    mendapat halaman 403 "Akses Ditolak" yang menunjuk ke bagian itu. Sisanya
+    (anonim, role NULL) dikembalikan ke /siwak dengan notifikasi, bukan ke
+    login/403, supaya user tahu harus menghubungi CP.
     """
     @wraps(view_func)
     def _wrapped(request, *args, **kwargs):
@@ -148,6 +153,8 @@ def mentee_required(view_func):
             ).exists()
             if is_mentee:
                 return view_func(request, *args, **kwargs)
+            if bagian_utama(request.user):
+                raise AksesDitolak("mentee")
         messages.error(request, "Anda harus menjadi Mentee, hubungi CP SIWAK")
         return redirect("siwak:landing")
 
@@ -564,9 +571,13 @@ def pindai_beranda(request):
     hanya mengizinkan kamera di HTTPS. Pemindaiannya dilakukan kamera HP, yang
     membuka link QR peserta di browser bawaan — halaman ini menjelaskan itu,
     dan menyebut jenis QR yang boleh dipindai akun ini.
+
+    Di bawahnya daftar acara seperti "SIWAK Events" di panel, tapi hanya
+    dengan tombol RSVP: panitia tidak mengubah, menghapus, atau membuka-tutup
+    RSVP acara — itu tetap urusan pengurus.
     """
     return render(request, "siwak/pindai.html", {
         "jenis": [EventRSVP.LABEL_PINDAI[k] for k in jenis_pindai(request.user)],
-        "events": SiwakEvent.objects.all(),
+        "events": SiwakEvent.objects.annotate(jumlah_rsvp=Count("rsvp_list")),
         "back_url": reverse("siwak:landing"),
     })

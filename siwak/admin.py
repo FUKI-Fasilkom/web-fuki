@@ -202,6 +202,9 @@ class ProfileAdmin(admin.ModelAdmin):
     list_filter = ["role", "jurusan", "angkatan", "kelompok"]
     autocomplete_fields = ["kelompok"]
     list_select_related = ["kelompok", "user"]
+    # Catatan privat milik mentor kelompoknya: pengurus hanya membaca, di sini
+    # maupun di panel (lihat services.mentor.boleh_ubah_catatan).
+    readonly_fields = ["notes"]
 
 
 @admin.register(RSVPTertunda)

@@ -4,10 +4,11 @@
 
   Parameter: rsvp, medan ("kehadiran"/"kupon"), pilihan (daftar pasangan
   nilai-label dari model), sekarang (nilai terpilih), aktif_saat (nilai yang
-  berarti "sudah terjadi", dipakai untuk warnanya), aria.
+  berarti "sudah terjadi", dipakai untuk warnanya), aria. Tujuan simpannya
+  `rute_status` dari konteks halaman: panel pengurus atau halaman panitia.
 {% endcomment %}
 
-<form method="post" action="{% url 'siwak:panel_rsvp_status' rsvp.pk %}" class="flex items-center gap-1.5">
+<form method="post" action="{% url rute_status rsvp.pk %}" class="flex items-center gap-1.5">
   {% csrf_token %}
   <input type="hidden" name="medan" value="{{ medan }}" />
   <input type="hidden" name="next" value="{{ url_kembali }}" />

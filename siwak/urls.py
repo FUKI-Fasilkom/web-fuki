@@ -61,6 +61,9 @@ urlpatterns = [
     path("rsvp/<int:id>/", views.rsvp_event, name="rsvp"),
     path("qr/<str:signed>/", views.qr_verify, name="qr_verify"),
     path("pindai/", views.pindai_beranda, name="pindai_beranda"),
+    # Daftar RSVP untuk panitia: lihat peserta dan betulkan status QR secara manual.
+    path("pindai/acara/<int:pk>/rsvp/", panel_views.pindai_rsvp, name="pindai_rsvp"),
+    path("pindai/rsvp/<int:pk>/status/", panel_views.pindai_rsvp_status, name="pindai_rsvp_status"),
 
     # 8 — Panel pengelola SIWAK (khusus pengurus)
     path("admin/", panel_views.panel_beranda, name="panel_beranda"),

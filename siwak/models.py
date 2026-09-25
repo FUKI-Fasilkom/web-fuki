@@ -104,10 +104,11 @@ class Profile(models.Model):
         verbose_name="Kelompok",
         help_text="Mentee: kelompok tempat dia jadi peserta. Mentor: kelompok yang dia pegang.",
     )
-    # Catatan privat tentang mentee ini. Hanya pengurus dan mentor kelompoknya
-    # yang boleh membaca dan menyuntingnya (lihat services.mentor.
-    # boleh_akses_catatan) — mentee itu sendiri tidak pernah melihatnya, jadi
-    # jangan pernah menampilkannya di halaman yang terbuka untuk mentee.
+    # Catatan privat tentang mentee ini. Hanya mentor kelompoknya yang boleh
+    # menyuntingnya; pengurus dan mentor itu yang boleh membacanya (lihat
+    # services.mentor.boleh_ubah_catatan / boleh_baca_catatan). Mentee itu
+    # sendiri tidak pernah melihatnya, jadi jangan pernah menampilkannya di
+    # halaman yang terbuka untuk mentee.
     notes = models.TextField(
         blank=True,
         default="",
@@ -752,10 +753,11 @@ class EventRSVP(models.Model):
         "registrasi": "QR registrasi ulang",
         "kupon": "QR kupon makan",
     }
-    # Awalan username akun pemindai buatan panel. Fungsinya sama dengan
-    # Profile.USERNAME_LOKAL_PREFIX: CAS mencocokkan User lewat username, jadi
-    # awalan ini yang menjauhkan akun pemindai dari login SSO orang lain.
-    USERNAME_PEMINDAI_PREFIX = "pindai-"
+    # Awalan username akun panitia SIWAK (pemindai QR) buatan panel. Fungsinya
+    # sama dengan Profile.USERNAME_LOKAL_PREFIX: CAS mencocokkan User lewat
+    # username, jadi awalan ini yang menjauhkan akun panitia dari login SSO
+    # orang lain.
+    USERNAME_PEMINDAI_PREFIX = "panitia-"
 
     event = models.ForeignKey(SiwakEvent, on_delete=models.CASCADE, related_name="rsvp_list")
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="event_rsvps")

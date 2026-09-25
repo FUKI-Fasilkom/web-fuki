@@ -129,6 +129,28 @@
     {% endif %}
     {% endif %}
 
+    {% comment %}
+      Jalan pulang yang jelas, bukan hanya panah kecil di header: panitia yang
+      baru selesai memindai biasanya kembali ke halaman pemindai, atau membuka
+      daftar RSVP acaranya untuk membetulkan status yang terlewat. Semua yang
+      sampai di halaman ini lolos `pemindai_required`, jadi keduanya terbuka.
+    {% endcomment %}
+    <nav aria-label="Navigasi pemindai" class="mx-auto mt-8 flex max-w-3xl flex-wrap items-center justify-center gap-3">
+      <a href="{{ back_url }}"
+         class="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-navy px-6 text-sm font-semibold text-white shadow transition hover:bg-navy-700">
+        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+        </svg>
+        Kembali ke Pemindai QR
+      </a>
+      {% if rsvp %}
+      <a href="{% url 'siwak:pindai_rsvp' rsvp.event_id %}"
+         class="inline-flex min-h-[44px] items-center rounded-xl border-2 border-navy px-6 text-sm font-semibold text-navy transition hover:bg-cream-300">
+        Lihat RSVP {{ rsvp.event.judul }}
+      </a>
+      {% endif %}
+    </nav>
+
   </div>
 </section>
 {% endblock %}

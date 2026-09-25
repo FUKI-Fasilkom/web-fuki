@@ -398,7 +398,7 @@ class EventForm(PanelForm):
 
 
 class AkunPemindaiForm(PanelForm):
-    """Akun pemindai QR: login lokal untuk panitia yang memindai QR peserta.
+    """Akun panitia SIWAK: login lokal untuk panitia yang memindai QR peserta.
 
     Seperti `MentorLokalForm`, form ini mengurus akun login sungguhan
     (`auth.User`), hanya saja tanpa Profile — pemindai bukan peserta mentoring.

@@ -14,14 +14,14 @@
        class="inline-flex min-h-[44px] items-center rounded-xl border-2 border-navy px-5 text-sm font-bold text-navy transition hover:bg-cream-300">
       Susun pertanyaan
     </a>
-    <a href="{% url 'siwak:panel_jawaban_csv' tugas.pk %}{% if kata %}?q={{ kata|urlencode }}{% endif %}"
+    <a href="{% url 'siwak:panel_jawaban_csv' tugas.pk %}{% if kueri_unduh %}?{{ kueri_unduh }}{% endif %}"
        class="inline-flex min-h-[44px] items-center rounded-xl bg-navy px-5 text-sm font-bold text-white transition hover:bg-navy-700">
       Unduh CSV
     </a>
   </div>
 </header>
 
-<div class="mb-5 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+<div class="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5">
   <div class="rounded-2xl border-2 border-gold-light bg-white px-4 py-4">
     <p class="text-2xl font-bold leading-none text-navy sm:text-3xl">{{ jumlah_semua }}</p>
     <p class="mt-1.5 text-[11px] font-semibold uppercase tracking-wide text-navy-400 sm:text-xs">Total Pengumpulan</p>
@@ -29,6 +29,10 @@
   <div class="rounded-2xl border-2 border-gold-light bg-white px-4 py-4">
     <p class="text-2xl font-bold leading-none text-navy sm:text-3xl">{{ jumlah_terlambat }}</p>
     <p class="mt-1.5 text-[11px] font-semibold uppercase tracking-wide text-navy-400 sm:text-xs">Terlambat</p>
+  </div>
+  <div class="rounded-2xl border-2 border-gold-light bg-white px-4 py-4">
+    <p class="text-2xl font-bold leading-none text-navy sm:text-3xl">{{ jumlah_dinilai }}<span class="text-base font-semibold text-navy-400"> / {{ jumlah_semua }}</span></p>
+    <p class="mt-1.5 text-[11px] font-semibold uppercase tracking-wide text-navy-400 sm:text-xs">Sudah Dinilai Mentor</p>
   </div>
   <div class="rounded-2xl border-2 border-gold-light bg-white px-4 py-4">
     <p class="text-2xl font-bold leading-none text-navy sm:text-3xl">{{ pertanyaan|length }}</p>
@@ -45,13 +49,23 @@
   seperti daftar RSVP, supaya hasil yang tersaring bisa dikirim ke pengurus lain.
 {% endcomment %}
 <form method="get" class="mb-4 flex flex-wrap gap-2" role="search">
+  {% if pilihan_kelompok %}
+  <label for="saring-kelompok" class="sr-only">Kelompok</label>
+  <select id="saring-kelompok" name="kelompok" onchange="this.form.submit()"
+          class="min-h-[44px] w-full rounded-xl border-2 border-gold-light bg-white px-3 text-sm font-semibold text-navy transition focus:border-gold focus:outline-none focus:ring-4 focus:ring-gold/25 sm:w-auto">
+    <option value="">Semua kelompok</option>
+    {% for nilai, label in pilihan_kelompok %}
+    <option value="{{ nilai }}" {% if nilai == kelompok_dipilih %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  {% endif %}
   <input type="search" name="q" value="{{ kata }}" placeholder="Cari nama atau NPM…"
          class="min-h-[44px] w-full flex-1 rounded-xl border-2 border-gold-light bg-white px-4 text-[15px] text-navy placeholder-navy-400/60 transition focus:border-gold focus:outline-none focus:ring-4 focus:ring-gold/25 sm:w-auto" />
   <button type="submit"
           class="min-h-[44px] rounded-xl bg-navy px-5 text-sm font-bold text-white transition hover:bg-navy-700">
     Cari
   </button>
-  {% if kata %}
+  {% if kata or kelompok_dipilih %}
   <a href="{% url 'siwak:panel_jawaban' tugas.pk %}"
      class="inline-flex min-h-[44px] items-center rounded-xl border-2 border-navy px-5 text-sm font-bold text-navy transition hover:bg-cream-300">
     Bersihkan
@@ -66,8 +80,13 @@
     <summary class="flex cursor-pointer flex-wrap items-center gap-3 px-4 py-3.5">
       <span class="min-w-0 flex-1">
         <span class="block truncate text-[15px] font-semibold text-navy">{{ item.nama }}</span>
-        <span class="block text-xs text-navy-400">{{ item.npm }}</span>
+        <span class="block text-xs text-navy-400">{{ item.npm }}{% if item.kelompok %} · {{ item.kelompok }}{% endif %}</span>
       </span>
+      {% if item.review %}
+      <span class="rounded-full bg-navy px-2.5 py-1 text-[11px] font-bold text-white">Nilai {{ item.review.score }}</span>
+      {% else %}
+      <span class="rounded-full bg-navy/5 px-2.5 py-1 text-[11px] font-semibold text-navy-400">Belum dinilai</span>
+      {% endif %}
       {% if item.obj.status == 'late' %}
       <span class="rounded-full bg-navy/5 px-2.5 py-1 text-[11px] font-bold text-red-700">Terlambat</span>
       {% else %}
@@ -99,6 +118,23 @@
         Tugas ini belum punya pertanyaan, jadi tidak ada yang bisa dikumpulkan.
       </p>
       {% endfor %}
+
+      {% comment %}
+        Latar navy, bukan krem: penilaian mentor harus langsung terbedakan dari
+        soal dan jawaban mentee di atasnya.
+      {% endcomment %}
+      <div class="rounded-xl bg-navy px-4 py-3.5 text-white">
+        <p class="text-xs font-bold uppercase tracking-wide text-gold">Penilaian mentor</p>
+        {% if item.review %}
+        <p class="mt-1.5 text-sm text-cream-300"><span class="text-base font-bold text-white">Nilai {{ item.review.score }}</span> · {{ item.review.reviewer.nama_lengkap|default:"Mentor" }} · {{ item.review.updated_at|date:"j M Y, H:i" }}</p>
+        {% if item.review.feedback %}<p class="mt-1.5 whitespace-pre-line text-sm text-white">{{ item.review.feedback }}</p>{% endif %}
+        {% else %}
+        <p class="mt-1.5 text-sm text-cream-300">Belum dinilai mentor.</p>
+        {% endif %}
+        {% if item.profil and item.profil.role == 'mentee' %}
+        <a href="{% url 'siwak:panel_mentee_detail' item.profil.pk %}" class="mt-2.5 inline-block text-sm font-semibold text-white underline decoration-gold underline-offset-2 transition hover:text-gold">Detail mentee</a>
+        {% endif %}
+      </div>
     </div>
   </details>
   {% endfor %}
@@ -109,10 +145,12 @@
 {% else %}
 <div class="rounded-2xl border-2 border-dashed border-gold-light bg-white px-6 py-14 text-center">
   <p class="text-base font-bold text-navy">
-    {% if kata %}Tidak ada hasil untuk &ldquo;{{ kata }}&rdquo;.{% else %}Belum ada yang mengumpulkan tugas ini.{% endif %}
+    {% if kata %}Tidak ada hasil untuk &ldquo;{{ kata }}&rdquo;{% if kelompok_dipilih %} di kelompok ini{% endif %}.
+    {% elif kelompok_dipilih %}Belum ada mentee kelompok ini yang mengumpulkan tugas ini.
+    {% else %}Belum ada yang mengumpulkan tugas ini.{% endif %}
   </p>
   <p class="mx-auto mt-1.5 max-w-md text-sm leading-relaxed text-navy-400">
-    {% if kata %}Coba kata kunci lain, atau bersihkan pencarian.
+    {% if kata or kelompok_dipilih %}Coba kata kunci atau kelompok lain, atau bersihkan saringannya.
     {% else %}Jawaban maba akan muncul di sini begitu mereka mengumpulkan.{% endif %}
   </p>
 </div>

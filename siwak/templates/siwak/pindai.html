@@ -57,18 +57,32 @@
       </p>
     </div>
 
+    {% comment %}
+      Sama dengan daftar "SIWAK Events" di panel, tapi hanya tombol RSVP:
+      mengubah, menghapus, dan membuka-tutup RSVP acara tetap urusan pengurus.
+    {% endcomment %}
     <div>
-      <h2 class="text-lg font-bold text-navy">Acara SIWAK</h2>
+      <h2 class="text-lg font-bold text-navy">SIWAK Events</h2>
+      <p class="mt-1 text-sm leading-relaxed text-navy-400">
+        Buka RSVP sebuah acara untuk melihat pesertanya dan membetulkan status QR yang terlewat dipindai.
+      </p>
       {% if events %}
       <ul class="mt-3 space-y-3">
         {% for event in events %}
-        <li>
-          <a href="{% url 'siwak:event_detail' event.pk %}"
-             class="block rounded-[12px] border border-[#D1D1D1] bg-white px-5 py-4 transition hover:border-gold">
-            <span class="block font-semibold text-navy">{{ event.judul }}</span>
-            <span class="mt-0.5 block text-sm text-navy-400">
+        <li class="flex flex-wrap items-center gap-4 rounded-[12px] border border-[#D1D1D1] bg-white px-5 py-4">
+          {% if event.gambar %}
+          <img src="{{ event.gambar.url }}" alt=""
+               class="h-11 w-16 shrink-0 rounded-lg border border-gold-light object-cover" loading="lazy" />
+          {% endif %}
+          <div class="min-w-0 flex-1">
+            <p class="font-semibold text-navy">{{ event.judul }}</p>
+            <p class="mt-0.5 text-sm text-navy-400">
               {% if event.tanggal %}{{ event.tanggal|date:"j F Y" }}{% else %}Tanggal belum diisi{% endif %}{% if event.lokasi %} · {{ event.lokasi }}{% endif %}
-            </span>
+            </p>
+          </div>
+          <a href="{% url 'siwak:pindai_rsvp' event.pk %}"
+             class="inline-flex min-h-[44px] items-center rounded-xl border-2 border-gold px-5 text-sm font-bold text-navy transition hover:bg-cream-300">
+            RSVP ({{ event.jumlah_rsvp }})
           </a>
         </li>
         {% endfor %}

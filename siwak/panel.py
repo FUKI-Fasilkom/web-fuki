@@ -42,7 +42,8 @@ class Kolom:
     """Satu kolom di tabel daftar.
 
     `tipe` menentukan cara sel digambar: "teks", "panjang" (dipotong),
-    "gambar", "bool" (centang/silang), "tanggal", "tag", "nomor" (urutan baris
+    "gambar", "bool" (centang/silang), "tanggal", "tag", "status_presensi"
+    (lencana Hadir/Izin/Tidak Hadir; nilainya pasangan (status, label)), "nomor" (urutan baris
     di daftar, ikut nomor halaman), "saklar_rsvp" (tombol buka/tutup RSVP),
     "pilih_kelompok" / "pilih_kelompok_mentor" (dropdown kelompok untuk mentee
     dan untuk mentor; keduanya menyimpan lewat satu alamat yang sama, bedanya
@@ -210,7 +211,9 @@ def _urut_nama_kelompok(awalan=""):
     return (Length(f"{awalan}nama_kelompok"), f"{awalan}nama_kelompok")
 
 
-def _pilihan_kelompok():
+def pilihan_kelompok():
+    """[(pk, nama)] seluruh kelompok, urut I-1, I-2, …, I-10. Dipakai dropdown
+    penyaring di daftar panel dan di halaman khusus (RSVP, jawaban tugas)."""
     return [
         (k.pk, k.nama_kelompok)
         for k in KelompokMentoring.objects.order_by(*_urut_nama_kelompok())
@@ -218,7 +221,7 @@ def _pilihan_kelompok():
 
 
 def _saring_kelompok(lookup):
-    return Saringan("kelompok", "Kelompok", _pilihan_kelompok, lookup)
+    return Saringan("kelompok", "Kelompok", pilihan_kelompok, lookup)
 
 
 def _saring_sesi(lookup):
@@ -371,6 +374,9 @@ SUMBER = [
             Kolom("Role", lambda o: o.role, "pilih_role", urut="role"),
         ),
         pencarian=("nama_lengkap", "npm"),
+        # Tanpa penyaring kelompok: daftar ini tidak memuat kolom kelompok, dan
+        # dropdown yang langsung mengirim form sengaja tidak ada di halaman ini
+        # (lihat konfirmasi dropdown role). Kelompok disaring di Mentee/Mentor.
         kosong="Belum ada akun yang login.",
         # Mentor non-SSO sengaja tidak ikut: dia punya menunya sendiri, dan
         # dropdown role di sini bisa mengubahnya jadi mentee — yang langsung
@@ -438,6 +444,7 @@ SUMBER = [
             Kolom("Sudah login SSO", lambda o: o.user_id is not None, "bool"),
         ),
         pencarian=("nama_lengkap", "npm"),
+        saringan=(_saring_kelompok("kelompok_id"),),
         kosong="Belum ada mentor yang terdaftar.",
         # Mentor non-SSO punya menunya sendiri. Kalau ikut di sini, dia bisa
         # disunting lewat MentorForm yang mewajibkan NPM — yang justru tidak
@@ -471,6 +478,7 @@ SUMBER = [
             Kolom("Akun aktif", lambda o: bool(o.user and o.user.is_active), "bool"),
         ),
         pencarian=("nama_lengkap", "user__username"),
+        saringan=(_saring_kelompok("kelompok_id"),),
         kosong="Belum ada mentor non-SSO.",
         queryset=lambda: Profile.objects.filter(
             role=Profile.ROLE_MENTOR, auth_source=Profile.SOURCE_LOKAL
@@ -549,12 +557,12 @@ SUMBER = [
         queryset=lambda: SiwakEvent.objects.prefetch_related("rsvp_list"),
     ),
     Sumber(
-        slug="pemindai",
+        slug="panitia",
         bagian="event",
-        label="Akun Pemindai QR",
-        label_jamak="Akun Pemindai QR",
+        label="Akun Panitia SIWAK",
+        label_jamak="Akun Panitia SIWAK",
         deskripsi=(
-            "Akun panitia untuk memindai QR peserta di hari acara — gatekeeper untuk "
+            "Akun panitia SIWAK untuk memindai QR peserta di hari acara — gatekeeper untuk "
             "registrasi ulang, divisi konsumsi untuk kupon makan. Masuk lewat "
             "“Login Akun Khusus” dan langsung mendarat di halaman pemindai "
             "(/siwak/pindai/). Akun ini hanya bisa memindai: panel SIWAK dan "
@@ -568,8 +576,8 @@ SUMBER = [
             Kolom("Akun aktif", lambda o: o.is_active, "bool"),
         ),
         pencarian=("username",),
-        kosong="Belum ada akun pemindai QR.",
-        # Hanya akun berawalan pemindai. Itu juga yang menjaga halaman ubah dan
+        kosong="Belum ada akun panitia SIWAK.",
+        # Hanya akun berawalan panitia. Itu juga yang menjaga halaman ubah dan
         # hapus di sini tidak bisa dipakai menyunting akun lain — superuser,
         # misalnya — cukup dengan mengganti pk di alamatnya.
         queryset=lambda: User.objects.filter(
@@ -641,7 +649,7 @@ SUMBER = [
             Kolom("Mentee", lambda o: o.peserta.nama_lengkap, utama=True, urut="mentee"),
             Kolom("Kelompok", lambda o: o.session.kelompok.nama_kelompok, urut="kelompok"),
             Kolom("Sesi", lambda o: o.session.judul, urut="sesi"),
-            Kolom("Status", lambda o: o.get_status_display(), "tag"),
+            Kolom("Status", lambda o: (o.status, o.get_status_display()), "status_presensi"),
             Kolom("Catatan", lambda o: o.catatan or "—", "panjang"),
             Kolom("Feedback mentor", lambda o: _potong(o.feedback_terbaru) or "—", "panjang"),
             Kolom("Dicatat oleh", lambda o: o.recorded_by.nama_lengkap if o.recorded_by else "—"),
@@ -774,7 +782,7 @@ BAGIAN = [
     Bagian(
         slug="event",
         nama="SIWAK Events",
-        deskripsi="Acara SIWAK-NG, pengaturan buka-tutup RSVP-nya, dan akun pemindai QR panitia.",
+        deskripsi="Acara SIWAK-NG, pengaturan buka-tutup RSVP-nya, dan akun panitia SIWAK untuk memindai QR.",
         ikon="tiket",
     ),
     Bagian(

@@ -28,21 +28,26 @@
     </section>
 
     {% comment %}
-      Catatan privat: hanya pengurus dan mentor kelompok ini. Halaman ini
-      memang tertutup untuk selain mentor kelompoknya, tapi `boleh_catatan`
-      tetap diperiksa supaya bagian ini tidak ikut terbawa kalau templatnya
-      suatu saat dipakai di tempat lain.
+      Catatan privat: hanya mentor kelompok ini yang menyunting; pengurus
+      membacanya di panel. Halaman ini memang tertutup untuk selain mentor
+      kelompoknya, tapi `boleh_catatan` tetap diperiksa supaya bagian ini tidak
+      ikut terbawa kalau templatnya suatu saat dipakai di tempat lain. Isiannya
+      bergaya sama dengan "Feedback sesi" (CatatanMenteeForm).
     {% endcomment %}
     {% if boleh_catatan %}
     <section id="catatan" data-clarity-mask="True" class="mt-8 scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-      <p class="text-sm font-semibold text-gold-dark">Hanya untuk mentor kelompok ini dan pengurus</p>
+      <p class="text-sm font-semibold text-gold-dark">Hanya untuk mentor kelompok ini</p>
       <h2 class="mt-1 text-2xl font-bold text-navy">Catatan Privat</h2>
-      <p class="mt-2 text-sm text-slate-500">Mentee tidak bisa melihat catatan ini.</p>
+      <p class="mt-2 text-sm text-slate-500">Mentee tidak bisa melihat catatan ini. Pengurus SIWAK bisa membacanya, tapi tidak bisa mengubahnya.</p>
       <form method="post" action="{% url 'siwak:mentee_catatan' participant.pk %}" class="mt-5 space-y-3">
         {% csrf_token %}
         <input type="hidden" name="next" value="{{ request.get_full_path }}#catatan">
-        <label class="sr-only" for="{{ catatan_form.notes.id_for_label }}">Catatan privat {{ participant.nama_lengkap }}</label>
-        {{ catatan_form.notes }}
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="{{ catatan_form.notes.id_for_label }}">Catatan untuk {{ participant.nama_lengkap }}</label>
+          {{ catatan_form.notes }}
+          {% for error in catatan_form.notes.errors %}<p class="mt-1 text-xs text-red-600">{{ error }}</p>{% endfor %}
+          <p class="mt-1 text-xs text-slate-400">Kosongkan lalu simpan untuk menghapus catatan.</p>
+        </div>
         <button type="submit" class="w-full rounded-xl bg-navy px-6 py-3 font-bold text-white hover:bg-navy-700 sm:w-auto">Simpan Catatan</button>
       </form>
     </section>
