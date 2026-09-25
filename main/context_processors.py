@@ -31,10 +31,17 @@ def seo(request):
 
 
 def monitoring(request):
-    # Satu aturan berbasis awalan alamat, bukan blok yang ditimpa per templat:
-    # halaman internal baru di bawah awalan yang sama otomatis ikut tanpa
-    # Clarity, tanpa harus ingat menimpa apa pun. Lihat
-    # CLARITY_EXCLUDED_PREFIXES di settings.py.
+    # Clarity merekam sesi, termasuk teks halaman, jadi hanya untuk tamu
+    # (belum login) di production. Siapa pun yang sudah login bisa melihat data
+    # mahasiswa lain atau datanya sendiri, dan staging/lokal tidak perlu direkam.
+    # CLARITY_EXCLUDED_PREFIXES tetap dicek sebagai jaring kedua. `path_info`,
+    # bukan `path`, supaya awalan tetap cocok kalau situs dipasang di bawah
+    # SCRIPT_NAME.
+    user = getattr(request, 'user', None)
     return {
-        'CLARITY_AKTIF': not request.path.startswith(settings.CLARITY_EXCLUDED_PREFIXES),
+        'CLARITY_AKTIF': (
+            settings.DEPLOY_ENV == 'production'
+            and not (user is not None and user.is_authenticated)
+            and not request.path_info.startswith(settings.CLARITY_EXCLUDED_PREFIXES)
+        ),
     }

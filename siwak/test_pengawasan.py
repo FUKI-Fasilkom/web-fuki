@@ -10,10 +10,12 @@ import datetime
 import re
 
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import Permission
-from django.test import TestCase
+from django.contrib.auth.models import AnonymousUser, Permission
+from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
+
+from main.context_processors import monitoring
 
 from .mentor_forms import FIELD_CLASSES, CatatanMenteeForm
 from .models import (
@@ -663,17 +665,54 @@ class PanelSaringanTests(TestCase):
         self.assertIn("Ani", baris[0])
 
 
+@override_settings(DEPLOY_ENV="production")
 class ClarityTests(TestCase):
-    """Microsoft Clarity records sessions, page text included: it belongs on
-    public pages only, never on internal pages showing other students' names
-    and NPMs."""
+    """Microsoft Clarity records sessions, page text included: only for guests
+    who are not logged in, only in production, and never on internal pages."""
 
     TAG = "clarity.ms/tag/"
 
-    def test_public_pages_load_clarity(self):
-        for url in ("/", reverse("siwak:landing"), reverse("siwak:kelompok_search"), reverse("siwak:login")):
+    def _publik(self):
+        return ("/", reverse("siwak:landing"), reverse("siwak:kelompok_search"), reverse("siwak:login"))
+
+    def test_guests_on_public_pages_in_production_get_clarity(self):
+        for url in self._publik():
             with self.subTest(url=url):
                 self.assertContains(self.client.get(url), self.TAG)
+
+    def test_non_production_never_loads_clarity(self):
+        for env in ("staging", "development"):
+            with self.settings(DEPLOY_ENV=env):
+                for url in self._publik():
+                    with self.subTest(env=env, url=url):
+                        self.assertNotContains(self.client.get(url), self.TAG)
+
+    def test_logged_in_users_never_load_clarity_even_on_public_pages(self):
+        mentee = _profil("2500000009", "Mentee Z", Profile.ROLE_MENTEE)
+        # Tanpa halaman login: user yang sudah masuk langsung diteruskan dari sana.
+        publik = [url for url in self._publik() if url != reverse("siwak:login")]
+        for akun in (mentee.user, User.objects.create_user(username="pengurus", is_staff=True)):
+            self.client.force_login(akun)
+            for url in publik:
+                with self.subTest(akun=akun.username, url=url):
+                    self.assertNotContains(self.client.get(url), self.TAG)
+
+    def test_excluded_prefixes_still_hold_for_guests(self):
+        """Second safety net behind the login rule, checked on path_info so a
+        site mounted under a SCRIPT_NAME cannot slip past it."""
+        rf = RequestFactory()
+
+        def aktif(path, **extra):
+            request = rf.get(path, **extra)
+            request.user = AnonymousUser()
+            return monitoring(request)["CLARITY_AKTIF"]
+
+        for path in ("/siwak/admin/", "/siwak/mentor/", "/siwak/qr/abc/", "/siwak/pindai/"):
+            with self.subTest(path=path):
+                self.assertFalse(aktif(path))
+        self.assertTrue(aktif("/siwak/"))
+        # request.path would be "/fuki/siwak/admin/" here and miss the prefix.
+        self.assertFalse(aktif("/siwak/admin/", SCRIPT_NAME="/fuki"))
 
     def test_internal_pages_do_not_load_clarity(self):
         kelompok = KelompokMentoring.objects.create(nama_kelompok="Kelompok A")

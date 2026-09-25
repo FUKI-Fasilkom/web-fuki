@@ -12,11 +12,11 @@
   <meta name="google-site-verification" content="{{ GOOGLE_SITE_VERIFICATION }}" />
 
   {% comment %}
-    Microsoft Clarity (heatmap & rekaman sesi). Hanya di halaman untuk umum:
-    halaman internal yang menampilkan nama dan NPM mahasiswa lain (panel,
-    portal mentor, pindai QR) tidak memuatnya — lihat CLARITY_EXCLUDED_PREFIXES
-    di settings.py. `data-clarity-mask="True"` pada catatan privat mentee tetap
-    dipasang sebagai lapis kedua.
+    Microsoft Clarity (heatmap & rekaman sesi). Hanya untuk tamu yang belum
+    login, hanya di production, dan tidak pernah di halaman internal (panel,
+    portal mentor, pindai QR) — aturannya di main/context_processors.monitoring.
+    `data-clarity-mask="True"` pada catatan privat mentee tetap dipasang sebagai
+    lapis berikutnya.
   {% endcomment %}
   {% if CLARITY_AKTIF %}
   <script type="text/javascript">

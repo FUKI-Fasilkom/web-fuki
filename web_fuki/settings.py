@@ -17,6 +17,10 @@ import dj_database_url
 import requests
 import sentry_sdk
 from dotenv import load_dotenv
+from sentry_sdk.scrubber import DEFAULT_DENYLIST, EventScrubber
+
+from main.monitoring import bersihkan_event
+
 load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -135,6 +139,8 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    # Sentry user context = user id only (main/monitoring.py); needs request.user.
+    'main.monitoring.SentryUserMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     # Halaman 403 "Akses Ditolak" SIWAK untuk user yang salah peran (siwak/akses.py).
@@ -360,28 +366,52 @@ LOGGING = {
 # ---------------------------------------------------------------------------
 # Monitoring — Sentry & Microsoft Clarity
 # ---------------------------------------------------------------------------
-# Sentry environment tag. Staging and production are already told apart by the
-# SITE_URL that deploy.yml writes into app.env, so no new pipeline variable is
-# needed; an explicit DJANGO_ENV still wins if one is ever set. DEBUG is only on
-# for local development.
-SENTRY_ENVIRONMENT = os.getenv("DJANGO_ENV") or (
+# Deployment environment, shared by Sentry (environment tag) and Clarity (only
+# in production). Staging and production are already told apart by the SITE_URL
+# that deploy.yml writes into app.env, so no new pipeline variable is needed; an
+# explicit DJANGO_ENV still wins if one is ever set. DEBUG is only on for local
+# development.
+DEPLOY_ENV = os.getenv("DJANGO_ENV") or (
     "staging" if "staging" in SITE_URL
     else "development" if DEBUG
     else "production"
 )
 
 # Error tracking plus a sample of performance traces; the Django integration is
-# enabled automatically because Django is installed. Skipped under
-# `manage.py test`: the suite deliberately triggers 403s, 404s and errors, and
-# without this guard every local test run would send events and traces to the
-# same Sentry project as production.
-if not RUNNING_TESTS:
-    sentry_sdk.init(
-        dsn="https://cb9cca9e8889db66cedc56d94d2ee33e@o4512145721458688.ingest.us.sentry.io/4512145755602944",
-        send_default_pii=True,
-        traces_sample_rate=0.2,
-        environment=SENTRY_ENVIRONMENT,
-    )
+# enabled automatically because Django is installed. Kept as a dict so tests can
+# check the privacy settings without Sentry being switched on.
+#
+# Privacy: no default PII (IP, cookies, raw headers), no request bodies (mentee
+# notes, task answers), and no stack-frame local variables — a key denylist
+# cannot catch a student's name or NPM inside a model's __str__ (Profile prints
+# as "Nama (NPM)"), so locals are not sent at all. The recursive key-based
+# scrubber covers what is left (headers, extras, breadcrumbs, spans); `signed`
+# is qr_verify's name for the QR token. The scrubber never looks at URLs, so
+# main.monitoring.bersihkan_event redacts the QR token path and the CAS
+# `?ticket=` there. The only user context sent is the numeric user id
+# (main.monitoring.SentryUserMiddleware).
+SENTRY_OPTIONS = {
+    "dsn": "https://cb9cca9e8889db66cedc56d94d2ee33e@o4512145721458688.ingest.us.sentry.io/4512145755602944",
+    "send_default_pii": False,
+    "max_request_body_size": "never",
+    "include_local_variables": False,
+    "event_scrubber": EventScrubber(
+        recursive=True,
+        denylist=DEFAULT_DENYLIST
+        + ["notes", "catatan", "feedback", "isi", "jawaban", "npm", "qr", "ticket", "signed"],
+    ),
+    "before_send": bersihkan_event,
+    "before_send_transaction": bersihkan_event,
+    "traces_sample_rate": 0.2,
+    "environment": DEPLOY_ENV,
+}
+
+# Off for local development (DEBUG) and under `manage.py test`: the suite
+# deliberately triggers 403s, 404s and errors, and without this guard every
+# local run would send events and traces to the same project as production.
+SENTRY_AKTIF = not (DEBUG or RUNNING_TESTS)
+if SENTRY_AKTIF:
+    sentry_sdk.init(**SENTRY_OPTIONS)
 
 # Microsoft Clarity records sessions, page text included, so it is kept off the
 # internal pages that show other students' names and NPMs. Any URL under one of
