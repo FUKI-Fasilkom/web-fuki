@@ -7,23 +7,28 @@ pernah oleh mentee sendiri, mentee lain, mentor kelompok lain, atau pengunjung.
 """
 
 import datetime
+import re
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Permission
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
+from .mentor_forms import CatatanMenteeForm
 from .models import (
     Answer,
     AssessmentAspect,
     AssignmentReview,
     AssignmentReviewHistory,
+    EventRSVP,
     KelompokMentoring,
     MenteeAssessment,
     MentorFeedback,
     MentoringAttendance,
     Profile,
     Question,
+    SiwakEvent,
     Tugas,
     TugasSubmission,
 )
@@ -161,6 +166,73 @@ class CatatanMenteeTests(TestCase):
             fetch_redirect_response=False,
         )
 
+    def test_no_page_shows_it_to_anyone_outside_staff_and_the_groups_mentor(self):
+        """Sapu semua halaman yang bisa dibuka mentee, mentor, dan pengunjung."""
+        tugas = Tugas.objects.create(
+            judul_tugas="Refleksi", deskripsi="d", deadline=timezone.now() + datetime.timedelta(days=1)
+        )
+        pemindai = User.objects.create_user(username="pindai-gate")
+        pemindai.user_permissions.add(Permission.objects.get(codename="pindai_registrasi"))
+        halaman = [
+            reverse("siwak:landing"),
+            reverse("siwak:tugas_list"),
+            reverse("siwak:tugas_detail", args=[tugas.pk]),
+            reverse("siwak:mentee_feedback_history"),
+            reverse("siwak:mentor_dashboard"),
+            reverse("siwak:mentor_mentee_detail", args=[self.mentee_a.pk]),
+            reverse("siwak:mentor_attendance"),
+            reverse("siwak:mentor_assessments"),
+            reverse("siwak:mentor_task_reviews"),
+            reverse("siwak:panel_mentee_detail", args=[self.mentee_a.pk]),
+            reverse("siwak:panel_kelompok_detail", args=[self.kelompok_a.pk]),
+            reverse("siwak:pindai_beranda"),
+        ]
+        for user in (None, self.mentee_a.user, self.teman_a.user, self.mentor_b.user, pemindai):
+            self.client.logout()
+            if user:
+                self.client.force_login(user)
+            for url in halaman:
+                with self.subTest(user=user and user.username, url=url):
+                    self.assertNotIn(CATATAN, self.client.get(url).content.decode())
+
+    def test_it_is_escaped_wherever_it_is_shown(self):
+        self.mentee_a.notes = "<script>alert(1)</script>"
+        self.mentee_a.save(update_fields=["notes"])
+
+        self.client.force_login(self.staf)
+        for url in (
+            reverse("siwak:panel_mentee_detail", args=[self.mentee_a.pk]),
+            reverse("siwak:panel_kelompok_detail", args=[self.kelompok_a.pk]),
+        ):
+            self.assertNotContains(self.client.get(url), "<script>alert(1)</script>")
+        self.client.force_login(self.mentor_a.user)
+        self.assertNotContains(
+            self.client.get(reverse("siwak:mentor_mentee_detail", args=[self.mentee_a.pk])),
+            "<script>alert(1)</script>",
+        )
+
+    def test_the_old_mentor_loses_access_once_the_mentee_moves_group(self):
+        self.mentee_a.kelompok = self.kelompok_b
+        self.mentee_a.save(update_fields=["kelompok"])
+        self.client.force_login(self.mentor_a.user)
+
+        self.assertEqual(self._simpan().status_code, 403)
+        self.assertEqual(self._catatan(), CATATAN)
+
+    def test_saving_it_never_undoes_a_group_change_made_meanwhile(self):
+        """Mentor membuka halaman, pengurus memindah kelompok, lalu mentor menyimpan
+        catatan: yang ditulis hanya `notes`, bukan seluruh baris yang sudah basi."""
+        basi = Profile.objects.get(pk=self.mentee_a.pk)
+        Profile.objects.filter(pk=self.mentee_a.pk).update(kelompok=self.kelompok_b)
+
+        form = CatatanMenteeForm({"notes": "Catatan baru"}, instance=basi)
+        self.assertTrue(form.is_valid())
+        form.save()
+
+        self.mentee_a.refresh_from_db()
+        self.assertEqual(self.mentee_a.notes, "Catatan baru")
+        self.assertEqual(self.mentee_a.kelompok_id, self.kelompok_b.pk)
+
 
 class PengawasanAdminTests(TestCase):
     """Staff can inspect everything mentors recorded, per mentee and per group."""
@@ -276,6 +348,63 @@ class PengawasanAdminTests(TestCase):
             self.client.get(reverse("siwak:panel_tambah", args=["presensi"])).status_code, 404
         )
 
+    def test_the_mentee_page_shows_feedback_from_every_mentor_even_without_attendance(self):
+        """Kelompok boleh dipegang dua mentor; feedback tanpa presensi tetap data mentor."""
+        kedua = _profil("2100000071", "Kak Budi", Profile.ROLE_MENTOR, self.kelompok)
+        sesi2 = self.kelompok.mentoring_sessions.get(nomor=2)
+        MentorFeedback.objects.create(session=sesi2, peserta=self.mentee, mentor=self.mentor, isi="Dari Ahmad.")
+        MentorFeedback.objects.create(session=sesi2, peserta=self.mentee, mentor=kedua, isi="Dari Budi.")
+        self.client.force_login(self.staf)
+
+        response = self.client.get(self.url)
+
+        self.assertContains(response, "Dari Ahmad.")
+        self.assertContains(response, "Dari Budi.")
+
+    def test_the_mentee_page_works_before_login_and_placement(self):
+        belum = Profile.objects.create(nama_lengkap="Belum Login", npm="2500000079", role=Profile.ROLE_MENTEE)
+        self.client.force_login(self.staf)
+
+        response = self.client.get(reverse("siwak:panel_mentee_detail", args=[belum.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Belum ditempatkan di kelompok.")
+
+    def test_the_task_answers_page_shows_the_mentors_grade_and_feedback(self):
+        self.client.force_login(self.staf)
+
+        response = self.client.get(reverse("siwak:panel_jawaban", args=[self.tugas.pk]))
+
+        self.assertContains(response, "Nilai 92")
+        self.assertContains(response, "Refleksi yang jujur.")
+        self.assertContains(response, "Kelompok 7")
+        self.assertContains(response, f'href="{self.url}"')
+        self.assertEqual(response.context["jumlah_dinilai"], 1)
+
+    def test_the_task_answers_export_carries_the_group_grade_and_feedback(self):
+        self.client.force_login(self.staf)
+
+        response = self.client.get(reverse("siwak:panel_jawaban_csv", args=[self.tugas.pk]))
+
+        kepala, baris = response.content.decode().splitlines()
+        self.assertTrue(kepala.startswith("Nama,NPM,Kelompok,Status,Waktu Kumpul,"))
+        self.assertTrue(kepala.endswith("Nilai Mentor,Feedback Mentor,Dinilai Oleh"))
+        self.assertIn("Kelompok 7", baris)
+        self.assertTrue(baris.endswith("92,Refleksi yang jujur.,Kak Ahmad"))
+
+    def test_the_group_page_counts_active_sessions_out_of_all_of_them_when_narrowed(self):
+        """Menyaring kisi ke satu sesi tidak boleh mengubah "Sesi aktif 2 / 4" jadi "2 / 1"."""
+        self.kelompok.mentoring_sessions.filter(nomor__in=[1, 2]).update(is_active=True)
+        self.client.force_login(self.staf)
+
+        response = self.client.get(
+            reverse("siwak:panel_kelompok_detail", args=[self.kelompok.pk]), {"sesi": "3"}
+        )
+
+        html = response.content.decode()
+        kartu = re.search(r"(\d+)<span[^>]*> / (\d+)</span></p>\s*<p[^>]*>Sesi aktif", html)
+        self.assertEqual(kartu.groups(), ("2", "4"))
+
 
 class PanelSaringanTests(TestCase):
     """The kelompok / sesi dropdown filters on the panel lists."""
@@ -355,3 +484,75 @@ class PanelSaringanTests(TestCase):
         self.assertEqual([k["sesi"].nomor for k in response.context["kolom_sesi"]], [2])
         (ani,) = response.context["baris"]
         self.assertEqual([p["status"] for p in ani["presensi"]], ["izin"])
+
+    def test_the_mentor_lists_filter_by_group(self):
+        mentor_a = _profil("2100000001", "Mentor A", Profile.ROLE_MENTOR, self.kelompok_a)
+        _profil("2100000002", "Mentor B", Profile.ROLE_MENTOR, self.kelompok_b)
+        lokal_a = Profile.objects.create(
+            user=User.objects.create_user(username="mentor-lokal-a"), nama_lengkap="Lokal A",
+            role=Profile.ROLE_MENTOR, auth_source=Profile.SOURCE_LOKAL, kelompok=self.kelompok_a,
+        )
+        Profile.objects.create(
+            user=User.objects.create_user(username="mentor-lokal-b"), nama_lengkap="Lokal B",
+            role=Profile.ROLE_MENTOR, auth_source=Profile.SOURCE_LOKAL, kelompok=self.kelompok_b,
+        )
+        a = str(self.kelompok_a.pk)
+
+        _, baris = self._daftar("mentor", kelompok=a)
+        self.assertEqual(baris, [mentor_a])
+        _, baris = self._daftar("mentor_lokal", kelompok=a)
+        self.assertEqual(baris, [lokal_a])
+
+    def test_the_rsvp_page_filters_by_group_alongside_role_and_search(self):
+        acara = SiwakEvent.objects.create(judul="Main Event")
+        for profil in (self.ani, self.budi):
+            EventRSVP.objects.create(event=acara, user=profil.user, status_kehadiran="hadir")
+        a = str(self.kelompok_a.pk)
+        url = reverse("siwak:panel_rsvp", args=[acara.pk])
+
+        response = self.client.get(url, {"kelompok": a, "role": "mentee"})
+
+        self.assertEqual([r.user_id for r in response.context["halaman"].object_list], [self.ani.user_id])
+        # Ringkasan dan tab tetap menghitung seluruh acara, bukan hasil saringan.
+        self.assertEqual(dict(response.context["ringkasan_rsvp"])["Total RSVP"], 2)
+        self.assertTrue(all(f"kelompok={a}" in t["url"] for t in response.context["tab_peran"]))
+        self.assertIn(f"kelompok={a}", response.context["kueri"])
+        self.assertContains(response, f'<option value="{a}" selected>Kelompok A</option>', html=True)
+
+        # Nilai asal-asalan diabaikan, bukan dikirim ke query.
+        response = self.client.get(url, {"kelompok": "abc"})
+        self.assertEqual(response.context["halaman"].paginator.count, 2)
+
+    def test_the_rsvp_export_follows_the_group_and_names_it(self):
+        acara = SiwakEvent.objects.create(judul="Main Event")
+        for profil in (self.ani, self.budi):
+            EventRSVP.objects.create(event=acara, user=profil.user)
+
+        response = self.client.get(
+            reverse("siwak:panel_rsvp_csv", args=[acara.pk]), {"kelompok": self.kelompok_b.pk}
+        )
+
+        kepala, *baris = response.content.decode().splitlines()
+        self.assertIn("Kelompok", kepala.split(","))
+        self.assertEqual(len(baris), 1)
+        self.assertIn("Budi", baris[0])
+        self.assertIn("Kelompok B", baris[0])
+
+    def test_the_task_answers_page_and_export_filter_by_group(self):
+        tugas = Tugas.objects.create(
+            judul_tugas="Refleksi", deskripsi="d", deadline=timezone.now() + datetime.timedelta(days=1)
+        )
+        for profil in (self.ani, self.budi):
+            TugasSubmission.objects.create(tugas=tugas, user=profil.user)
+        a = str(self.kelompok_a.pk)
+
+        response = self.client.get(reverse("siwak:panel_jawaban", args=[tugas.pk]), {"kelompok": a})
+
+        self.assertEqual([b["nama"] for b in response.context["baris"]], ["Ani"])
+        self.assertIn(f"kelompok={a}", response.context["kueri_unduh"])
+        self.assertContains(response, f'<option value="{a}" selected>Kelompok A</option>', html=True)
+
+        response = self.client.get(reverse("siwak:panel_jawaban_csv", args=[tugas.pk]), {"kelompok": a})
+        _, *baris = response.content.decode().splitlines()
+        self.assertEqual(len(baris), 1)
+        self.assertIn("Ani", baris[0])

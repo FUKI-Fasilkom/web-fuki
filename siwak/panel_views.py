@@ -55,6 +55,7 @@ from .panel import (
     PETA_SUMBER,
     daftar_kelompok,
     daftar_role,
+    pilihan_kelompok,
     sumber_bagian,
 )
 from .panel_forms import InfoSiwakForm, PertanyaanForm, PilihanForm, RsvpProfilForm
@@ -206,6 +207,15 @@ def _saring(qs, sumber, request):
             "terpilih": nilai,
         })
     return qs, dropdown, aktif
+
+
+def _kelompok_terpilih(request):
+    """Penyaring `?kelompok=` untuk halaman khusus di luar `Sumber` (RSVP,
+    jawaban tugas). Aturannya sama dengan `_saring`: nilai yang bukan pk
+    kelompok yang ada diabaikan. Mengembalikan (pk terpilih atau "", [(pk, nama)])."""
+    pilihan = [(str(pk), nama) for pk, nama in pilihan_kelompok()]
+    nilai = (request.GET.get("kelompok") or "").strip()
+    return (nilai if nilai in dict(pilihan) else ""), pilihan
 
 
 def _angka(nilai):
@@ -1032,14 +1042,16 @@ def _peran_rsvp(request):
     return peran if peran in dict(Profile.ROLE_CHOICES) else ""
 
 
-def _rsvp_queryset(event, kata="", peran=""):
+def _rsvp_queryset(event, kata="", peran="", kelompok=""):
     qs = (
         EventRSVP.objects.filter(event=event)
-        .select_related("user__profil")
+        .select_related("user__profil__kelompok")
         .order_by("user__profil__nama_lengkap", "user__username")
     )
     if peran:
         qs = qs.filter(user__profil__role=peran)
+    if kelompok:
+        qs = qs.filter(user__profil__kelompok_id=kelompok)
     if kata:
         saringan = Q()
         for nama_field in CARI_RSVP:
@@ -1075,10 +1087,11 @@ def panel_rsvp(request, pk):
     event = get_object_or_404(SiwakEvent, pk=pk)
     kata = (request.GET.get("q") or "").strip()
     peran = _peran_rsvp(request)
-    daftar = _rsvp_queryset(event, kata, peran)
+    kelompok, pilihan_kelompok_rsvp = _kelompok_terpilih(request)
+    daftar = _rsvp_queryset(event, kata, peran, kelompok)
 
     # Ringkasan di atas tabel sengaja dihitung dari seluruh peserta acara, bukan
-    # dari hasil pencarian atau tab peran: angka "Sudah check-in" yang ikut
+    # dari hasil pencarian, tab peran, atau kelompok: angka "Sudah check-in" yang ikut
     # menyusut saat panitia mengetik satu nama akan terbaca seperti data yang
     # hilang. Angka per peran punya tempatnya sendiri, di tab saringannya.
     angka = _hitung_rsvp(event)
@@ -1086,13 +1099,13 @@ def panel_rsvp(request, pk):
     # jadi tidak ada di `angka` dan tidak ikut "Total RSVP" maupun tab peran.
     menunggu = RSVPTertunda.objects.filter(event=event).count()
 
-    # Berpindah tab tetap membawa pencarian yang sedang aktif, dan sebaliknya
-    # (lihat input tersembunyi di form cari), supaya dua saringan ini bisa
-    # dipakai bersamaan.
+    # Berpindah tab tetap membawa pencarian dan kelompok yang sedang aktif, dan
+    # sebaliknya (lihat input tersembunyi di form cari), supaya ketiga saringan
+    # ini bisa dipakai bersamaan.
     tab_peran = []
     for nilai, label in TAB_PERAN_RSVP:
         kunci = nilai or "semua"
-        params = {k: v for k, v in (("q", kata), ("role", nilai)) if v}
+        params = {k: v for k, v in (("q", kata), ("role", nilai), ("kelompok", kelompok)) if v}
         tab_peran.append({
             "nilai": nilai,
             "label": label,
@@ -1120,10 +1133,15 @@ def panel_rsvp(request, pk):
         label_peran=dict(TAB_PERAN_RSVP)[peran],
         tab_peran=tab_peran,
         tanpa_peran=angka["semua"] - angka["mentor"] - angka["mentee"],
+        kelompok_dipilih=kelompok,
+        label_kelompok=dict(pilihan_kelompok_rsvp).get(kelompok, ""),
+        pilihan_kelompok=pilihan_kelompok_rsvp,
         # Kotak cari disembunyikan kalau acaranya memang belum punya peserta:
         # mencari di daftar kosong hanya menambah pertanyaan.
         ada_rsvp=angka["semua"] > 0,
-        kueri=urlencode({k: v for k, v in (("q", kata), ("role", peran)) if v}),
+        kueri=urlencode(
+            {k: v for k, v in (("q", kata), ("role", peran), ("kelompok", kelompok)) if v}
+        ),
         url_kembali=request.get_full_path(),
         pilihan_kehadiran=EventRSVP.KEHADIRAN_STATUS_CHOICES,
         pilihan_kupon=EventRSVP.QR_CHOICES,
@@ -1140,24 +1158,28 @@ def panel_rsvp(request, pk):
 @staf_required
 def panel_rsvp_csv(request, pk):
     event = get_object_or_404(SiwakEvent, pk=pk)
-    # Unduhan mengikuti pencarian dan tab peran yang sedang aktif. Kalau tidak,
-    # tombol unduh akan memberi berkas yang isinya berbeda dari yang sedang
-    # dilihat panitia.
+    # Unduhan mengikuti pencarian, tab peran, dan kelompok yang sedang aktif.
+    # Kalau tidak, tombol unduh akan memberi berkas yang isinya berbeda dari yang
+    # sedang dilihat panitia.
     kata = (request.GET.get("q") or "").strip()
     peran = _peran_rsvp(request)
+    kelompok, _ = _kelompok_terpilih(request)
 
     respons = HttpResponse(content_type="text/csv; charset=utf-8")
     aman = "".join(c if c.isalnum() else "-" for c in event.judul).strip("-").lower()
     respons["Content-Disposition"] = f'attachment; filename="rsvp-{aman or event.pk}.csv"'
 
     penulis = csv.writer(respons)
-    penulis.writerow(["Nama", "NPM", "Peran", "Kehadiran", "Alasan izin", "QR Kehadiran", "QR Kupon"])
-    for rsvp in _rsvp_queryset(event, kata, peran):
+    penulis.writerow([
+        "Nama", "NPM", "Peran", "Kelompok", "Kehadiran", "Alasan izin", "QR Kehadiran", "QR Kupon",
+    ])
+    for rsvp in _rsvp_queryset(event, kata, peran, kelompok):
         profil = getattr(rsvp.user, "profil", None)
         penulis.writerow([
             profil.nama_lengkap if profil else rsvp.user.username,
             profil.npm if profil else "",
             profil.get_role_display() if profil and profil.role else "",
+            profil.kelompok.nama_kelompok if profil and profil.kelompok else "",
             rsvp.get_kehadiran_display(),
             rsvp.alasan_izin,
             rsvp.get_status_kehadiran_display(),
@@ -1492,12 +1514,16 @@ CARI_JAWABAN = (
 )
 
 
-def _jawaban_queryset(tugas, kata=""):
+def _jawaban_queryset(tugas, kata="", kelompok=""):
+    # `mentor_review` ikut diambil: nilai dan feedback mentor tampil di samping
+    # jawabannya, supaya pengurus tidak perlu membuka detail mentee satu per satu.
     qs = (
-        tugas.submissions.select_related("user__profil")
+        tugas.submissions.select_related("user__profil__kelompok", "mentor_review__reviewer")
         .prefetch_related("answers__question", "answers__selected_choice")
         .order_by("user__profil__nama_lengkap", "user__username")
     )
+    if kelompok:
+        qs = qs.filter(user__profil__kelompok_id=kelompok)
     if kata:
         saring = Q()
         for nama_field in CARI_JAWABAN:
@@ -1534,8 +1560,9 @@ def panel_jawaban(request, pk):
     tugas = _tugas_atau_404(pk)
     pertanyaan = list(_pertanyaan_terurut(tugas))
     kata = (request.GET.get("q") or "").strip()
+    kelompok, pilihan = _kelompok_terpilih(request)
 
-    halaman = Paginator(_jawaban_queryset(tugas, kata), PER_HALAMAN).get_page(
+    halaman = Paginator(_jawaban_queryset(tugas, kata, kelompok), PER_HALAMAN).get_page(
         request.GET.get("page")
     )
     baris = []
@@ -1544,8 +1571,11 @@ def panel_jawaban(request, pk):
         pasangan = _pasangkan_jawaban(pengumpulan, pertanyaan)
         baris.append({
             "obj": pengumpulan,
+            "profil": profil,
             "nama": profil.nama_lengkap if profil else pengumpulan.user.username,
             "npm": profil.npm if profil else "—",
+            "kelompok": profil.kelompok.nama_kelompok if profil and profil.kelompok else "",
+            "review": getattr(pengumpulan, "mentor_review", None),
             "jawaban": pasangan,
             "jumlah_terisi": sum(1 for p in pasangan if p["isi"]),
         })
@@ -1562,18 +1592,25 @@ def panel_jawaban(request, pk):
         baris=baris,
         halaman=halaman,
         kata=kata,
+        kelompok_dipilih=kelompok,
+        pilihan_kelompok=pilihan,
         kueri=urlencode({k: v for k, v in request.GET.items() if k != "page" and v}),
+        # Kueri untuk tombol Unduh CSV: saringan yang sama, tanpa nomor halaman.
+        kueri_unduh=urlencode({k: v for k, v in (("q", kata), ("kelompok", kelompok)) if v}),
         jumlah_semua=semua.count(),
         jumlah_terlambat=semua.filter(status="late").count(),
+        jumlah_dinilai=semua.filter(mentor_review__isnull=False).count(),
     ))
 
 
 @staf_required
 def panel_jawaban_csv(request, pk):
-    """Unduhan mengikuti pencarian yang sedang aktif, sama seperti ekspor RSVP."""
+    """Unduhan mengikuti pencarian dan kelompok yang sedang aktif, sama seperti
+    ekspor RSVP, lengkap dengan nilai dan feedback mentornya."""
     tugas = _tugas_atau_404(pk)
     pertanyaan = list(_pertanyaan_terurut(tugas))
     kata = (request.GET.get("q") or "").strip()
+    kelompok, _ = _kelompok_terpilih(request)
 
     respons = HttpResponse(content_type="text/csv")
     nama_berkas = slugify(tugas.judul_tugas) or "tugas"
@@ -1581,18 +1618,27 @@ def panel_jawaban_csv(request, pk):
 
     penulis = csv.writer(respons)
     penulis.writerow(
-        ["Nama", "NPM", "Status", "Waktu Kumpul"] + [s.pertanyaan for s in pertanyaan]
+        ["Nama", "NPM", "Kelompok", "Status", "Waktu Kumpul"]
+        + [s.pertanyaan for s in pertanyaan]
+        + ["Nilai Mentor", "Feedback Mentor", "Dinilai Oleh"]
     )
-    for pengumpulan in _jawaban_queryset(tugas, kata):
+    for pengumpulan in _jawaban_queryset(tugas, kata, kelompok):
         profil = getattr(pengumpulan.user, "profil", None)
+        review = getattr(pengumpulan, "mentor_review", None)
         peta = {j.question_id: j for j in pengumpulan.answers.all()}
         penulis.writerow(
             [
                 profil.nama_lengkap if profil else pengumpulan.user.username,
                 profil.npm if profil else "",
+                profil.kelompok.nama_kelompok if profil and profil.kelompok else "",
                 pengumpulan.get_status_display(),
                 timezone.localtime(pengumpulan.submitted_at).strftime("%Y-%m-%d %H:%M"),
             ]
             + [_isi_jawaban(peta[s.pk]) if s.pk in peta else "" for s in pertanyaan]
+            + [
+                review.score if review else "",
+                review.feedback if review else "",
+                review.reviewer.nama_lengkap if review and review.reviewer else "",
+            ]
         )
     return respons

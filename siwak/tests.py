@@ -2677,6 +2677,32 @@ class PanelAkunPemindaiTests(TestCase):
         self.assertContains(response, "QR registrasi ulang (gatekeeper)")
         self.assertContains(response, "QR kupon makan (konsumsi)")
 
+    def test_a_deactivated_scanner_cannot_log_in(self):
+        """Mematikan "Akun aktif" sesudah acara benar-benar mencabut aksesnya."""
+        self.client.post(reverse("siwak:panel_tambah", args=["pemindai"]), {
+            "username": "gate",
+            "akses": ["registrasi"],
+            "password1": PASSWORD_PEMINDAI,
+            "password2": PASSWORD_PEMINDAI,
+        })
+        self.assertFalse(User.objects.get(username="pindai-gate").is_active)
+        self.client.logout()
+
+        response = self.client.post(
+            reverse("siwak:login_khusus"),
+            {"username": "pindai-gate", "password": PASSWORD_PEMINDAI},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.wsgi_request.user.is_authenticated)
+
+    def test_a_username_too_long_once_prefixed_is_a_form_error(self):
+        """150 karakter lolos isian form, tapi jadi 157 setelah diberi awalan."""
+        response = self._tambah(username="a" * 150)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(User.objects.filter(username__startswith="pindai-a").exists())
+
 
 class EventRSVPModelTests(TestCase):
     """Model invariants for the new hadir / belum_hadir enum."""

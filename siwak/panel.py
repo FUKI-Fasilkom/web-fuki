@@ -210,7 +210,9 @@ def _urut_nama_kelompok(awalan=""):
     return (Length(f"{awalan}nama_kelompok"), f"{awalan}nama_kelompok")
 
 
-def _pilihan_kelompok():
+def pilihan_kelompok():
+    """[(pk, nama)] seluruh kelompok, urut I-1, I-2, …, I-10. Dipakai dropdown
+    penyaring di daftar panel dan di halaman khusus (RSVP, jawaban tugas)."""
     return [
         (k.pk, k.nama_kelompok)
         for k in KelompokMentoring.objects.order_by(*_urut_nama_kelompok())
@@ -218,7 +220,7 @@ def _pilihan_kelompok():
 
 
 def _saring_kelompok(lookup):
-    return Saringan("kelompok", "Kelompok", _pilihan_kelompok, lookup)
+    return Saringan("kelompok", "Kelompok", pilihan_kelompok, lookup)
 
 
 def _saring_sesi(lookup):
@@ -371,6 +373,9 @@ SUMBER = [
             Kolom("Role", lambda o: o.role, "pilih_role", urut="role"),
         ),
         pencarian=("nama_lengkap", "npm"),
+        # Tanpa penyaring kelompok: daftar ini tidak memuat kolom kelompok, dan
+        # dropdown yang langsung mengirim form sengaja tidak ada di halaman ini
+        # (lihat konfirmasi dropdown role). Kelompok disaring di Mentee/Mentor.
         kosong="Belum ada akun yang login.",
         # Mentor non-SSO sengaja tidak ikut: dia punya menunya sendiri, dan
         # dropdown role di sini bisa mengubahnya jadi mentee — yang langsung
@@ -438,6 +443,7 @@ SUMBER = [
             Kolom("Sudah login SSO", lambda o: o.user_id is not None, "bool"),
         ),
         pencarian=("nama_lengkap", "npm"),
+        saringan=(_saring_kelompok("kelompok_id"),),
         kosong="Belum ada mentor yang terdaftar.",
         # Mentor non-SSO punya menunya sendiri. Kalau ikut di sini, dia bisa
         # disunting lewat MentorForm yang mewajibkan NPM — yang justru tidak
@@ -471,6 +477,7 @@ SUMBER = [
             Kolom("Akun aktif", lambda o: bool(o.user and o.user.is_active), "bool"),
         ),
         pencarian=("nama_lengkap", "user__username"),
+        saringan=(_saring_kelompok("kelompok_id"),),
         kosong="Belum ada mentor non-SSO.",
         queryset=lambda: Profile.objects.filter(
             role=Profile.ROLE_MENTOR, auth_source=Profile.SOURCE_LOKAL

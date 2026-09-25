@@ -13,7 +13,7 @@
   <div class="flex flex-wrap gap-2">
     <a href="{% url 'siwak:panel_rsvp_csv' event.pk %}{% if kueri %}?{{ kueri }}{% endif %}"
        class="inline-flex min-h-[44px] items-center rounded-xl border-2 border-navy px-5 text-sm font-bold text-navy transition hover:bg-cream-300">
-      Unduh CSV{% if kata %} hasil cari{% elif peran %} {{ label_peran }}{% endif %}
+      Unduh CSV{% if kata %} hasil cari{% elif kelompok_dipilih %} {{ label_kelompok }}{% elif peran %} {{ label_peran }}{% endif %}
     </a>
     <a href="{% url 'siwak:panel_ubah' 'event' event.pk %}"
        class="inline-flex min-h-[44px] items-center rounded-xl bg-navy px-5 text-sm font-bold text-white transition hover:bg-navy-700">
@@ -71,18 +71,29 @@
   Pencarian di sini memakai alamat halaman (bukan penyaring di sisi peramban)
   supaya hasilnya bisa dikirim ke panitia lain, dan supaya dropdown status di
   tiap baris bisa kembali ke hasil yang sama lewat `next`. Tab peran yang
-  sedang aktif ikut terbawa lewat input tersembunyi.
+  sedang aktif ikut terbawa lewat input tersembunyi. Dropdown kelompok
+  menyaring daftarnya saja; tab dan ringkasan tetap menghitung seluruh acara.
 {% endcomment %}
 {% if ada_rsvp %}
 <form method="get" class="mb-4 flex flex-wrap gap-2" role="search">
   {% if peran %}<input type="hidden" name="role" value="{{ peran }}" />{% endif %}
+  {% if pilihan_kelompok %}
+  <label for="saring-kelompok" class="sr-only">Kelompok</label>
+  <select id="saring-kelompok" name="kelompok" onchange="this.form.submit()"
+          class="min-h-[44px] w-full rounded-xl border-2 border-gold-light bg-white px-3 text-sm font-semibold text-navy transition focus:border-gold focus:outline-none focus:ring-4 focus:ring-gold/25 sm:w-auto">
+    <option value="">Semua kelompok</option>
+    {% for nilai, label in pilihan_kelompok %}
+    <option value="{{ nilai }}" {% if nilai == kelompok_dipilih %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  {% endif %}
   <input type="search" name="q" value="{{ kata }}" placeholder="Cari nama atau NPM peserta…"
          class="min-h-[44px] w-full flex-1 rounded-xl border-2 border-gold-light bg-white px-4 text-[15px] text-navy placeholder-navy-400/60 transition focus:border-gold focus:outline-none focus:ring-4 focus:ring-gold/25 sm:w-auto" />
   <button type="submit"
           class="min-h-[44px] rounded-xl bg-navy px-5 text-sm font-bold text-white transition hover:bg-navy-700">
     Cari
   </button>
-  {% if kata %}
+  {% if kata or kelompok_dipilih %}
   <a href="{% url 'siwak:panel_rsvp' event.pk %}{% if peran %}?role={{ peran }}{% endif %}"
      class="inline-flex min-h-[44px] items-center rounded-xl border-2 border-navy px-5 text-sm font-bold text-navy transition hover:bg-cream-300">
     Bersihkan
@@ -164,10 +175,10 @@
 
 {% else %}
 <div class="rounded-2xl border-2 border-dashed border-gold-light bg-white px-6 py-14 text-center">
-  {% if kata %}
-  <p class="text-base font-bold text-navy">Tidak ada {% if peran %}{{ label_peran|lower }}{% else %}peserta{% endif %} yang cocok dengan “{{ kata }}”.</p>
+  {% if kata or kelompok_dipilih %}
+  <p class="text-base font-bold text-navy">Tidak ada {% if peran %}{{ label_peran|lower }}{% else %}peserta{% endif %}{% if kelompok_dipilih %} dari {{ label_kelompok }}{% endif %}{% if kata %} yang cocok dengan “{{ kata }}”{% endif %}.</p>
   <p class="mx-auto mt-1.5 max-w-md text-sm leading-relaxed text-navy-400">
-    Coba potongan namanya saja, atau NPM-nya.
+    {% if kata %}Coba potongan namanya saja, atau NPM-nya.{% else %}Peserta kelompok lain tetap ada tanpa saringan kelompok.{% endif %}
   </p>
   <a href="{% url 'siwak:panel_rsvp' event.pk %}"
      class="mt-4 inline-flex min-h-[44px] items-center rounded-xl bg-navy px-5 text-sm font-bold text-white transition hover:bg-navy-700">

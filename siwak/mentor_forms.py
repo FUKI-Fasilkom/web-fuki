@@ -112,6 +112,15 @@ class CatatanMenteeForm(forms.ModelForm):
     class Meta:
         model = Profile
         fields = ["notes"]
+
+    def save(self, commit=True):
+        # Hanya kolom `notes` yang ditulis. `ModelForm.save()` biasa menulis ulang
+        # seluruh baris Profile dari instance yang dimuat view, jadi kelompok atau
+        # role yang diubah pengurus di sela-selanya akan dikembalikan ke nilai lama.
+        profil = super().save(commit=False)
+        if commit:
+            profil.save(update_fields=["notes"])
+        return profil
         widgets = {
             "notes": forms.Textarea(
                 attrs={
