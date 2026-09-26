@@ -673,7 +673,7 @@ class ClarityTests(TestCase):
     TAG = "clarity.ms/tag/"
 
     def _publik(self):
-        return ("/", reverse("siwak:landing"), reverse("siwak:kelompok_search"), reverse("siwak:login"))
+        return ("/", reverse("siwak:landing"), reverse("siwak:kelompok_search"))
 
     def test_guests_on_public_pages_in_production_get_clarity(self):
         for url in self._publik():
@@ -689,11 +689,9 @@ class ClarityTests(TestCase):
 
     def test_logged_in_users_never_load_clarity_even_on_public_pages(self):
         mentee = _profil("2500000009", "Mentee Z", Profile.ROLE_MENTEE)
-        # Tanpa halaman login: user yang sudah masuk langsung diteruskan dari sana.
-        publik = [url for url in self._publik() if url != reverse("siwak:login")]
         for akun in (mentee.user, User.objects.create_user(username="pengurus", is_staff=True)):
             self.client.force_login(akun)
-            for url in publik:
+            for url in self._publik():
                 with self.subTest(akun=akun.username, url=url):
                     self.assertNotContains(self.client.get(url), self.TAG)
 
@@ -707,12 +705,29 @@ class ClarityTests(TestCase):
             request.user = AnonymousUser()
             return monitoring(request)["CLARITY_AKTIF"]
 
-        for path in ("/siwak/admin/", "/siwak/mentor/", "/siwak/qr/abc/", "/siwak/pindai/"):
+        for path in (
+            "/siwak/admin/", "/siwak/mentor/", "/siwak/qr/abc/", "/siwak/pindai/",
+            "/siwak/login/", "/siwak/login/khusus/",
+        ):
             with self.subTest(path=path):
                 self.assertFalse(aktif(path))
         self.assertTrue(aktif("/siwak/"))
         # request.path would be "/fuki/siwak/admin/" here and miss the prefix.
         self.assertFalse(aktif("/siwak/admin/", SCRIPT_NAME="/fuki"))
+
+    def test_a_guest_opening_a_qr_link_never_hands_the_token_to_clarity(self):
+        """Tamu (HP panitia yang belum login, atau mentee yang memindai QR-nya
+        sendiri) dialihkan ke halaman login dengan ?next=/siwak/qr/<token>/.
+        Token itu berlaku 30 hari; Clarity merekam URL halaman."""
+        mentee = _profil("2500000001", "Mentee A", Profile.ROLE_MENTEE)
+        rsvp = EventRSVP.objects.create(event=SiwakEvent.objects.create(judul="Acara"), user=mentee.user)
+        signed = sign_payload("kupon", rsvp.qr_kupon_token)
+
+        response = self.client.get(reverse("siwak:qr_verify", args=[signed]), follow=True)
+
+        self.assertTrue(response.redirect_chain[-1][0].startswith(reverse("siwak:login_khusus")))
+        self.assertContains(response, signed)  # ada di halaman: next + tautan SSO
+        self.assertNotContains(response, self.TAG)
 
     def test_internal_pages_do_not_load_clarity(self):
         kelompok = KelompokMentoring.objects.create(nama_kelompok="Kelompok A")

@@ -112,6 +112,51 @@ class SentryPrivasiTests(SimpleTestCase):
         self.assertTrue(frames)
         self.assertFalse([f for f in frames if "vars" in f])
 
+    def test_qr_tokens_and_cas_tickets_are_redacted_wherever_the_url_ends_up(self):
+        """Bukan hanya request.url: halaman QR POST ke dirinya sendiri (Referer),
+        tautan SSO di halaman login meng-encode `?next=`, dan Sentry mencatat
+        query permintaan keluar ke SSO UI (`ticket` + `service`) di span dan
+        breadcrumb."""
+        token = "eyJraW5kIjoia3Vwb24ifQ:1vXyZa:AbC-dEf_123"
+        encode = token.replace(":", "%3A")
+        encode_dua_kali = token.replace(":", "%253A")
+        query_keluar = (
+            "ticket=ST-1-AbC-cas&service=https%3A%2F%2Ffuki.cs.ui.ac.id%2Fsiwak%2Fsso-login%2F"
+            f"%3Fnext%3D%252Fsiwak%252Fqr%252F{encode_dua_kali}%252F"
+        )
+        event = {
+            "request": {
+                "query_string": f"ticket=ST-1-AbC-cas&next=%2Fsiwak%2Fqr%2F{encode}%2F",
+                "headers": {"Referer": f"https://fuki.cs.ui.ac.id/siwak/qr/{token}/"},
+            },
+            "breadcrumbs": {"values": [
+                {"data": {"http.query": query_keluar}},
+                {"message": f"login dari /siwak/login/khusus/?next=/siwak/qr/{token}/"},
+            ]},
+            "spans": [{"data": {"http.query": query_keluar}}],
+        }
+
+        bersih = bersihkan_event(event, None)
+
+        self.assertEqual(bersih["request"]["query_string"], "ticket=[Filtered]&next=%2Fsiwak%2Fqr%2F[Filtered]%2F")
+        self.assertEqual(bersih["request"]["headers"]["Referer"], "https://fuki.cs.ui.ac.id/siwak/qr/[Filtered]/")
+        self.assertEqual(
+            bersih["spans"][0]["data"]["http.query"],
+            "ticket=[Filtered]&service=https%3A%2F%2Ffuki.cs.ui.ac.id%2Fsiwak%2Fsso-login%2F"
+            "%3Fnext%3D%252Fsiwak%252Fqr%252F[Filtered]%252F",
+        )
+        for rahasia in ("ST-1-AbC-cas", "AbC-dEf_123", "eyJraW5k"):
+            with self.subTest(rahasia=rahasia):
+                self.assertNotIn(rahasia, str(bersih))
+
+    def test_redaction_leaves_ordinary_urls_alone(self):
+        event = {"request": {
+            "url": "https://fuki.cs.ui.ac.id/siwak/kelompok/",
+            "query_string": "next=/siwak/tugas/3/&tickets=2",
+            "headers": {"Referer": "https://fuki.cs.ui.ac.id/siwak/qrcode/"},
+        }}
+        self.assertEqual(bersihkan_event(event, None), event)
+
     def test_the_only_user_context_is_the_user_id(self):
         def lewat_middleware(user):
             request = RequestFactory().get("/")

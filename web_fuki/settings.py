@@ -386,9 +386,11 @@ DEPLOY_ENV = os.getenv("DJANGO_ENV") or (
 # cannot catch a student's name or NPM inside a model's __str__ (Profile prints
 # as "Nama (NPM)"), so locals are not sent at all. The recursive key-based
 # scrubber covers what is left (headers, extras, breadcrumbs, spans); `signed`
-# is qr_verify's name for the QR token. The scrubber never looks at URLs, so
-# main.monitoring.bersihkan_event redacts the QR token path and the CAS
-# `?ticket=` there. The only user context sent is the numeric user id
+# is qr_verify's name for the QR token. The scrubber only matches key names and
+# never reads text, so main.monitoring.bersihkan_event redacts the QR token path
+# and the CAS `ticket` in every string of the event: URLs, the Referer header,
+# the URL-encoded `?next=`, and the query of outgoing requests to SSO UI in
+# spans and breadcrumbs. The only user context sent is the numeric user id
 # (main.monitoring.SentryUserMiddleware).
 SENTRY_OPTIONS = {
     "dsn": "https://cb9cca9e8889db66cedc56d94d2ee33e@o4512145721458688.ingest.us.sentry.io/4512145755602944",
@@ -423,4 +425,7 @@ CLARITY_EXCLUDED_PREFIXES = (
     "/siwak/mentor/",  # portal mentor: daftar & detail mentee
     "/siwak/qr/",      # konfirmasi scan QR: nama + NPM peserta
     "/siwak/pindai/",  # halaman awal akun pemindai
+    # Tamu yang membuka tautan QR dialihkan ke sini dengan
+    # ?next=/siwak/qr/<token>/, dan Clarity merekam URL halaman.
+    "/siwak/login/",
 )
