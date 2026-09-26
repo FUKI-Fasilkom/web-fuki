@@ -16,11 +16,9 @@ isinya sama dengan daftar RSVP panel (`_konteks_rsvp`, `_ubah_status_rsvp`).
 """
 
 import csv
-from functools import wraps
 from urllib.parse import urlencode
 
 from django.contrib import messages
-from django.contrib.auth.views import redirect_to_login
 from django.core.paginator import Paginator
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
@@ -30,11 +28,10 @@ from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
-from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.text import slugify
 from django.views.decorators.http import require_POST
 
-from .akses import AksesDitolak
+from .akses import pemindai_required, staf_required
 from .models import (
     AssessmentAspect,
     AssignmentReview,
@@ -66,7 +63,7 @@ from .panel import (
 from .panel_forms import InfoSiwakForm, PertanyaanForm, PilihanForm, RsvpProfilForm
 from .services.pemindai import boleh_memindai
 from .services.rsvp import buat_rsvp, klaim_rsvp_tertunda
-from .views import pemindai_required
+from .utils import cari_teks, kembali, kueri_tanpa_halaman, nama_akun, next_aman
 
 PER_HALAMAN = 25
 
@@ -74,26 +71,6 @@ PER_HALAMAN = 25
 # Dipakai untuk menentukan daftar pilihan apa yang perlu ikut dikirim ke templat.
 TIPE_BUTUH_KELOMPOK = {"pilih_kelompok", "pilih_kelompok_mentor"}
 TIPE_BUTUH_ROLE = {"pilih_role"}
-
-
-def staf_required(view_func):
-    """Hanya untuk pengurus. Mengikuti pola `pemindai_required` di views.py:
-    yang belum login diarahkan ke login admin, yang sudah login tapi bukan staf
-    mendapat halaman 403 "Akses Ditolak" (lihat `akses.py`) — bukan dilempar
-    balik ke halaman login berulang-ulang.
-
-    Akun pemindai QR sengaja selalu `is_staff=False` (lihat AkunPemindaiForm),
-    jadi decorator inilah yang menutup seluruh panel untuknya."""
-
-    @wraps(view_func)
-    def _wrapped(request, *args, **kwargs):
-        if request.user.is_authenticated:
-            if not request.user.is_staff:
-                raise AksesDitolak("admin")
-            return view_func(request, *args, **kwargs)
-        return redirect_to_login(request.get_full_path(), reverse("admin:login"))
-
-    return _wrapped
 
 
 # ---------------------------------------------------------------------------
@@ -128,7 +105,7 @@ def _menu(bagian_aktif="", sumber_aktif="", khusus_aktif=""):
     return menu
 
 
-def _kerangka(request, *, judul, bagian="", sumber="", khusus="", remah=(), **ekstra):
+def _kerangka(*, judul, bagian="", sumber="", khusus="", remah=(), **ekstra):
     konteks = {
         "judul_panel": judul,
         "menu": _menu(bagian, sumber, khusus),
@@ -137,6 +114,12 @@ def _kerangka(request, *, judul, bagian="", sumber="", khusus="", remah=(), **ek
     }
     konteks.update(ekstra)
     return konteks
+
+
+def _remah_bagian(slug):
+    """Remah roti pertama setiap halaman panel: bagian tempat halaman itu tinggal."""
+    bagian = PETA_BAGIAN[slug]
+    return (bagian.nama, reverse("siwak:panel_bagian", args=[slug]))
 
 
 def _sumber_atau_404(slug):
@@ -231,17 +214,6 @@ def _angka(nilai):
     return int(nilai) if nilai.isdigit() else None
 
 
-def _kembali(request, cadangan):
-    """Kembali ke halaman daftar yang tadi dibuka — lengkap dengan pencarian,
-    urutan, dan nomor halamannya — bukan ke halaman pertama."""
-    tujuan = request.POST.get("next") or ""
-    if tujuan and url_has_allowed_host_and_scheme(
-        tujuan, allowed_hosts={request.get_host()}, require_https=request.is_secure()
-    ):
-        return redirect(tujuan)
-    return redirect(cadangan)
-
-
 # ---------------------------------------------------------------------------
 # Pengurutan daftar
 # ---------------------------------------------------------------------------
@@ -310,7 +282,6 @@ def panel_beranda(request):
     ]
 
     return render(request, "siwak/panel/beranda.html", _kerangka(
-        request,
         judul="Panel Pengelola SIWAK-NG",
         kartu=kartu,
         ringkasan=ringkasan,
@@ -344,7 +315,6 @@ def panel_bagian(request, bagian):
         })
 
     return render(request, "siwak/panel/bagian.html", _kerangka(
-        request,
         judul=data.nama,
         bagian=bagian,
         remah=[(data.nama, "")],
@@ -360,15 +330,9 @@ def panel_bagian(request, bagian):
 @staf_required
 def panel_daftar(request, slug):
     sumber = _sumber_atau_404(slug)
-    bagian = PETA_BAGIAN[sumber.bagian]
 
-    qs = sumber.ambil_queryset()
     kata = (request.GET.get("q") or "").strip()
-    if kata and sumber.pencarian:
-        filter_cari = Q()
-        for nama_field in sumber.pencarian:
-            filter_cari |= Q(**{f"{nama_field}__icontains": kata})
-        qs = qs.filter(filter_cari)
+    qs = cari_teks(sumber.ambil_queryset(), sumber.pencarian, kata)
     qs, saringan, ada_saringan = _saring(qs, sumber, request)
 
     qs, kunci_urut, turun = _urutkan(qs, sumber, request)
@@ -411,11 +375,10 @@ def panel_daftar(request, slug):
         ekstra["daftar_role"] = daftar_role()
 
     return render(request, "siwak/panel/daftar.html", _kerangka(
-        request,
         judul=sumber.label_jamak,
         bagian=sumber.bagian,
         sumber=sumber.slug,
-        remah=[(bagian.nama, reverse("siwak:panel_bagian", args=[bagian.slug])), (sumber.label_jamak, "")],
+        remah=[_remah_bagian(sumber.bagian), (sumber.label_jamak, "")],
         sumber_data=sumber,
         kepala=kepala,
         baris=baris,
@@ -429,7 +392,7 @@ def panel_daftar(request, slug):
         # Dikirim ke setiap form dropdown supaya sesudah menyimpan, pengelola
         # kembali ke halaman, pencarian, dan urutan yang sama.
         url_kembali=request.get_full_path(),
-        kueri=urlencode({k: v for k, v in request.GET.items() if k != "page" and v}),
+        kueri=kueri_tanpa_halaman(request),
         url_tambah=(
             reverse("siwak:panel_tambah", args=[sumber.slug]) if sumber.boleh_tambah else ""
         ),
@@ -438,7 +401,6 @@ def panel_daftar(request, slug):
 
 
 def _simpan(request, sumber, instance=None):
-    bagian = PETA_BAGIAN[sumber.bagian]
     ubah = instance is not None
 
     if request.method == "POST":
@@ -456,12 +418,11 @@ def _simpan(request, sumber, instance=None):
 
     judul = f"Ubah {sumber.label}" if ubah else f"Tambah {sumber.label}"
     return render(request, "siwak/panel/form.html", _kerangka(
-        request,
         judul=judul,
         bagian=sumber.bagian,
         sumber=sumber.slug,
         remah=[
-            (bagian.nama, reverse("siwak:panel_bagian", args=[bagian.slug])),
+            _remah_bagian(sumber.bagian),
             (sumber.label_jamak, reverse("siwak:panel_daftar", args=[sumber.slug])),
             (judul, ""),
         ],
@@ -539,13 +500,13 @@ def panel_set_kelompok(request, pk):
             request,
             f"{profil.nama_lengkap} belum punya role, jadi belum bisa ditempatkan di kelompok.",
         )
-        return _kembali(request, reverse("siwak:panel_daftar", args=["profil"]))
+        return kembali(request, reverse("siwak:panel_daftar", args=["profil"]))
 
     pilihan = _angka(request.POST.get("kelompok"))
     kelompok = KelompokMentoring.objects.filter(pk=pilihan).first() if pilihan else None
     if pilihan and kelompok is None:
         messages.error(request, "Kelompok yang dipilih sudah tidak ada.")
-        return _kembali(request, cadangan)
+        return kembali(request, cadangan)
 
     if profil.kelompok_id != (kelompok.pk if kelompok else None):
         profil.kelompok = kelompok
@@ -561,7 +522,7 @@ def panel_set_kelompok(request, pk):
                 else f"{profil.nama_lengkap} dikeluarkan dari kelompoknya."
             )
         messages.success(request, pesan)
-    return _kembali(request, cadangan)
+    return kembali(request, cadangan)
 
 
 @staf_required
@@ -582,7 +543,7 @@ def panel_set_role(request, pk):
     role = (request.POST.get("role") or "").strip() or None
     if role is not None and role not in dict(Profile.ROLE_CHOICES):
         messages.error(request, "Role yang dipilih tidak dikenal.")
-        return _kembali(request, cadangan)
+        return kembali(request, cadangan)
 
     if profil.role != role:
         lepas = profil.kelompok_id is not None
@@ -596,7 +557,7 @@ def panel_set_role(request, pk):
         if lepas:
             pesan += " Kelompok sebelumnya dilepas."
         messages.success(request, pesan)
-    return _kembali(request, cadangan)
+    return kembali(request, cadangan)
 
 
 @staf_required
@@ -619,7 +580,7 @@ def panel_set_link(request, pk):
             request,
             f"Link grup {kelompok.nama_kelompok} tidak disimpan: {galat.messages[0]}",
         )
-        return _kembali(request, cadangan)
+        return kembali(request, cadangan)
 
     if link != kelompok.link_grup:
         kelompok.link_grup = link
@@ -629,7 +590,7 @@ def panel_set_link(request, pk):
             f"Link grup {kelompok.nama_kelompok} diperbarui." if link
             else f"Link grup {kelompok.nama_kelompok} dihapus.",
         )
-    return _kembali(request, cadangan)
+    return kembali(request, cadangan)
 
 
 @staf_required
@@ -672,7 +633,7 @@ def panel_set_npm(request, pk):
 
     if galat:
         messages.error(request, f"NPM {profil.nama_lengkap} tidak disimpan: {galat}")
-    return _kembali(request, cadangan)
+    return kembali(request, cadangan)
 
 
 @staf_required
@@ -688,11 +649,7 @@ def panel_profil_rsvp(request, pk):
     """
     profil = get_object_or_404(Profile.objects.select_related("user", "kelompok"), pk=pk)
     cadangan = reverse("siwak:panel_daftar", args=["profil"])
-    kembali = request.POST.get("next") or request.GET.get("next") or ""
-    if not url_has_allowed_host_and_scheme(
-        kembali, allowed_hosts={request.get_host()}, require_https=request.is_secure()
-    ):
-        kembali = ""
+    asal = next_aman(request)
 
     # Profil tanpa akun hanya bisa diklaim lewat NPM-nya saat login SSO. Tanpa NPM,
     # RSVP tertunda tidak akan pernah menemukan pemiliknya.
@@ -702,7 +659,7 @@ def panel_profil_rsvp(request, pk):
             f"{profil.nama_lengkap} belum punya akun login maupun NPM, jadi RSVP-nya "
             "tidak akan tersambung. Isi NPM-nya dulu.",
         )
-        return redirect(kembali or cadangan)
+        return redirect(asal or cadangan)
 
     if profil.user_id:
         # Sisa RSVP tertunda (akun ditautkan tanpa lewat login SSO) dijadikan RSVP dulu.
@@ -724,7 +681,7 @@ def panel_profil_rsvp(request, pk):
         elif profil.user_id:
             buat_rsvp(event=event, user=profil.user, kehadiran=kehadiran, alasan_izin=alasan)
             messages.success(request, f"RSVP {profil.nama_lengkap} untuk {event.judul} dibuat.")
-            return _kembali(request, cadangan)
+            return kembali(request, cadangan)
         elif tertunda is None:
             RSVPTertunda.objects.create(
                 event=event, profile=profil, kehadiran=kehadiran, alasan_izin=alasan
@@ -734,7 +691,7 @@ def panel_profil_rsvp(request, pk):
                 f"RSVP {profil.nama_lengkap} untuk {event.judul} dibuat. Belum punya akun login, "
                 "jadi RSVP-nya aktif otomatis begitu dia login SSO.",
             )
-            return _kembali(request, cadangan)
+            return kembali(request, cadangan)
         else:
             # Sudah pernah dibuatkan dan orangnya belum login: jawabannya boleh
             # dikoreksi, token QR-nya tetap supaya tidak ada QR yang berubah.
@@ -743,7 +700,7 @@ def panel_profil_rsvp(request, pk):
             messages.success(
                 request, f"RSVP {profil.nama_lengkap} untuk {event.judul} diperbarui."
             )
-            return _kembali(request, cadangan)
+            return kembali(request, cadangan)
 
     # Keadaan RSVP orang ini di setiap acara, supaya pengelola tahu sebelum menyimpan.
     sudah = {}
@@ -761,22 +718,20 @@ def panel_profil_rsvp(request, pk):
         acara.append({"event": event, "keadaan": keadaan})
 
     sumber_asal = PETA_SUMBER["profil"]
-    bagian = PETA_BAGIAN[sumber_asal.bagian]
     return render(request, "siwak/panel/profil_rsvp.html", _kerangka(
-        request,
         judul=f"Buat RSVP · {profil.nama_lengkap}",
         bagian=sumber_asal.bagian,
         sumber="profil",
         remah=[
-            (bagian.nama, reverse("siwak:panel_bagian", args=[bagian.slug])),
-            (sumber_asal.label_jamak, kembali or cadangan),
+            _remah_bagian(sumber_asal.bagian),
+            (sumber_asal.label_jamak, asal or cadangan),
             ("Buat RSVP", ""),
         ],
         profil=profil,
         form=form,
         acara=acara,
-        url_kembali=kembali,
-        url_batal=kembali or cadangan,
+        url_kembali=asal,
+        url_batal=asal or cadangan,
     ))
 
 
@@ -860,14 +815,12 @@ def panel_kelompok_detail(request, pk):
         for s in sesi
     ]
 
-    bagian = PETA_BAGIAN["kelompok"]
     return render(request, "siwak/panel/kelompok_detail.html", _kerangka(
-        request,
         judul=kelompok.nama_kelompok,
         bagian="kelompok",
         sumber="kelompok",
         remah=[
-            (bagian.nama, reverse("siwak:panel_bagian", args=[bagian.slug])),
+            _remah_bagian("kelompok"),
             ("Kelompok Mentoring", reverse("siwak:panel_daftar", args=["kelompok"])),
             (kelompok.nama_kelompok, ""),
         ],
@@ -959,14 +912,12 @@ def panel_mentee_detail(request, pk):
             "riwayat": list(submission.mentor_review_history.all()) if submission else [],
         })
 
-    bagian = PETA_BAGIAN["kelompok"]
     return render(request, "siwak/panel/mentee_detail.html", _kerangka(
-        request,
         judul=mentee.nama_lengkap,
         bagian="kelompok",
         sumber="peserta",
         remah=[
-            (bagian.nama, reverse("siwak:panel_bagian", args=[bagian.slug])),
+            _remah_bagian("kelompok"),
             ("Mentee", reverse("siwak:panel_daftar", args=["peserta"])),
             (mentee.nama_lengkap, ""),
         ],
@@ -1003,13 +954,11 @@ def panel_info(request):
     else:
         form = InfoSiwakForm(instance=info)
 
-    bagian = PETA_BAGIAN["info"]
     return render(request, "siwak/panel/info.html", _kerangka(
-        request,
         judul="Konten Halaman Utama",
         bagian="info",
         khusus="panel_info",
-        remah=[(bagian.nama, reverse("siwak:panel_bagian", args=["info"])), ("Konten Halaman Utama", "")],
+        remah=[_remah_bagian("info"), ("Konten Halaman Utama", "")],
         form=form,
         info=info,
     ))
@@ -1019,9 +968,9 @@ def panel_info(request):
 # Halaman khusus 2 — RSVP per acara
 # ---------------------------------------------------------------------------
 
-# Nama diambil dari profil maba, tapi peserta yang belum punya profil tetap
-# harus bisa dicari, jadi username ikut dicocokkan.
-CARI_RSVP = (
+# Nama diambil dari profil, tapi akun yang belum punya profil tetap harus bisa
+# dicari, jadi username ikut dicocokkan. Dipakai daftar RSVP dan jawaban tugas.
+CARI_PESERTA = (
     "user__profil__nama_lengkap",
     "user__profil__npm",
     "user__username",
@@ -1057,12 +1006,7 @@ def _rsvp_queryset(event, kata="", peran="", kelompok=""):
         qs = qs.filter(user__profil__role=peran)
     if kelompok:
         qs = qs.filter(user__profil__kelompok_id=kelompok)
-    if kata:
-        saringan = Q()
-        for nama_field in CARI_RSVP:
-            saringan |= Q(**{f"{nama_field}__icontains": kata})
-        qs = qs.filter(saringan)
-    return qs
+    return cari_teks(qs, CARI_PESERTA, kata)
 
 
 def _hitung_rsvp(event):
@@ -1155,14 +1099,12 @@ def _konteks_rsvp(request, event):
 @staf_required
 def panel_rsvp(request, pk):
     event = get_object_or_404(SiwakEvent, pk=pk)
-    bagian = PETA_BAGIAN["event"]
     return render(request, "siwak/panel/rsvp.html", _kerangka(
-        request,
         judul=f"RSVP · {event.judul}",
         bagian="event",
         sumber="event",
         remah=[
-            (bagian.nama, reverse("siwak:panel_bagian", args=["event"])),
+            _remah_bagian("event"),
             ("SIWAK Events", reverse("siwak:panel_daftar", args=["event"])),
             ("RSVP", ""),
         ],
@@ -1216,7 +1158,7 @@ def panel_rsvp_csv(request, pk):
     for rsvp in _rsvp_queryset(event, kata, peran, kelompok):
         profil = getattr(rsvp.user, "profil", None)
         penulis.writerow([
-            profil.nama_lengkap if profil else rsvp.user.username,
+            nama_akun(rsvp.user),
             profil.npm if profil else "",
             profil.get_role_display() if profil and profil.role else "",
             profil.kelompok.nama_kelompok if profil and profil.kelompok else "",
@@ -1228,16 +1170,9 @@ def panel_rsvp_csv(request, pk):
     return respons
 
 
-# Dua kolom QR yang bisa disunting dari daftar RSVP. Nilainya:
-# (nama field status, nama field cap waktu, pilihan, nilai yang "sudah terjadi").
-MEDAN_RSVP = {
-    "kehadiran": ("status_kehadiran", "checked_in_at", EventRSVP.KEHADIRAN_STATUS_CHOICES, "hadir"),
-    "kupon": ("status_kupon", "redeemed_at", EventRSVP.QR_CHOICES, "redeemed"),
-}
-
-
-# Jenis QR (kunci EventRSVP.IZIN_PINDAI) yang izinnya dibutuhkan panitia untuk
-# menyunting tiap kolom status dari /siwak/pindai/.
+# Kolom status yang bisa disunting dari daftar RSVP (`medan` di form-nya) ->
+# jenis QR (kunci EventRSVP.JENIS_QR), yang juga menentukan izin panitia
+# yang dibutuhkan untuk menyuntingnya dari /siwak/pindai/.
 JENIS_QR_MEDAN = {"kehadiran": "registrasi", "kupon": "kupon"}
 
 
@@ -1263,35 +1198,21 @@ def pindai_rsvp_status(request, pk):
 
 def _ubah_status_rsvp(request, rsvp, cadangan):
     """Ubah status QR Kehadiran / QR Kupon satu peserta langsung dari daftarnya.
-
-    Cap waktunya ikut diurus supaya baris ini tetap sama bentuknya dengan hasil
-    pindai QR: status yang dinaikkan mendapat waktu sekarang kalau belum punya,
-    status yang diturunkan kehilangan cap waktunya. Tanpa itu akan ada baris
-    yang tertulis "belum hadir" tapi masih menyimpan jam check-in.
-    """
-    medan = MEDAN_RSVP.get(request.POST.get("medan") or "")
-    if medan is None:
+    Cap waktunya diurus `EventRSVP.ubah_status_qr`, sama seperti hasil pindai QR."""
+    kind = JENIS_QR_MEDAN.get(request.POST.get("medan") or "")
+    if kind is None:
         messages.error(request, "Kolom status yang diminta tidak dikenal.")
-        return _kembali(request, cadangan)
+        return kembali(request, cadangan)
 
-    nama_status, nama_waktu, pilihan, nilai_terjadi = medan
+    pilihan = dict(EventRSVP.JENIS_QR[kind].pilihan_status)
     nilai = request.POST.get("nilai") or ""
-    if nilai not in dict(pilihan):
+    if nilai not in pilihan:
         messages.error(request, "Status yang dipilih tidak dikenal.")
-        return _kembali(request, cadangan)
+        return kembali(request, cadangan)
 
-    setattr(rsvp, nama_status, nilai)
-    if nilai == nilai_terjadi:
-        if getattr(rsvp, nama_waktu) is None:
-            setattr(rsvp, nama_waktu, timezone.now())
-    else:
-        setattr(rsvp, nama_waktu, None)
-    rsvp.save(update_fields=[nama_status, nama_waktu])
-
-    profil = getattr(rsvp.user, "profil", None)
-    nama = profil.nama_lengkap if profil else rsvp.user.username
-    messages.success(request, f"{nama} · {dict(pilihan)[nilai]}.")
-    return _kembali(request, cadangan)
+    rsvp.ubah_status_qr(kind, nilai)
+    messages.success(request, f"{nama_akun(rsvp.user)} · {pilihan[nilai]}.")
+    return kembali(request, cadangan)
 
 
 @staf_required
@@ -1305,11 +1226,10 @@ def panel_rsvp_hapus(request, pk):
     rsvp = get_object_or_404(EventRSVP.objects.select_related("user__profil"), pk=pk)
     cadangan = reverse("siwak:panel_rsvp", args=[rsvp.event_id])
 
-    profil = getattr(rsvp.user, "profil", None)
-    nama = profil.nama_lengkap if profil else rsvp.user.username
+    nama = nama_akun(rsvp.user)
     rsvp.delete()
     messages.success(request, f"RSVP {nama} berhasil dihapus.")
-    return _kembali(request, cadangan)
+    return kembali(request, cadangan)
 
 
 @staf_required
@@ -1328,7 +1248,7 @@ def panel_rsvp_toggle(request, pk):
         request,
         f"RSVP “{event.judul}” sekarang {'dibuka' if event.rsvp_dibuka else 'ditutup'}.",
     )
-    return _kembali(request, reverse("siwak:panel_daftar", args=["event"]))
+    return kembali(request, reverse("siwak:panel_daftar", args=["event"]))
 
 
 @staf_required
@@ -1351,7 +1271,7 @@ def panel_sesi_aktif(request, pk):
         f"{sesi.kelompok.nama_kelompok} — {sesi.judul} sekarang "
         f"{'aktif' if aktif else 'nonaktif'}.",
     )
-    return _kembali(request, reverse("siwak:panel_daftar", args=["sesi"]))
+    return kembali(request, reverse("siwak:panel_daftar", args=["sesi"]))
 
 
 # ---------------------------------------------------------------------------
@@ -1368,10 +1288,6 @@ PilihanFormSet = inlineformset_factory(
 )
 
 TIPE_PILIHAN_GANDA = "choice"
-
-
-def _tugas_atau_404(pk):
-    return get_object_or_404(Tugas, pk=pk)
 
 
 def _pertanyaan_terurut(tugas):
@@ -1392,9 +1308,8 @@ def _rapikan_urutan(tugas):
 
 
 def _remah_pertanyaan(tugas, judul=""):
-    bagian = PETA_BAGIAN["mentoring"]
     remah = [
-        (bagian.nama, reverse("siwak:panel_bagian", args=[bagian.slug])),
+        _remah_bagian("mentoring"),
         ("Tugas", reverse("siwak:panel_daftar", args=["tugas"])),
     ]
     if judul:
@@ -1408,7 +1323,7 @@ def _remah_pertanyaan(tugas, judul=""):
 @staf_required
 def panel_pertanyaan(request, pk):
     """Daftar pertanyaan satu tugas, lengkap dengan pratinjaunya."""
-    tugas = _tugas_atau_404(pk)
+    tugas = get_object_or_404(Tugas, pk=pk)
     _rapikan_urutan(tugas)
     daftar = list(_pertanyaan_terurut(tugas).prefetch_related("choices"))
     terakhir = len(daftar) - 1
@@ -1426,7 +1341,6 @@ def panel_pertanyaan(request, pk):
     ]
 
     return render(request, "siwak/panel/pertanyaan.html", _kerangka(
-        request,
         judul=f"Pertanyaan — {tugas.judul_tugas}",
         bagian="mentoring",
         sumber="tugas",
@@ -1497,7 +1411,6 @@ def _simpan_pertanyaan(request, tugas, instance=None):
 
     judul = "Ubah Pertanyaan" if ubah else "Tambah Pertanyaan"
     return render(request, "siwak/panel/pertanyaan_form.html", _kerangka(
-        request,
         judul=judul,
         bagian="mentoring",
         sumber="tugas",
@@ -1515,7 +1428,7 @@ def _simpan_pertanyaan(request, tugas, instance=None):
 
 @staf_required
 def panel_pertanyaan_tambah(request, pk):
-    return _simpan_pertanyaan(request, _tugas_atau_404(pk))
+    return _simpan_pertanyaan(request, get_object_or_404(Tugas, pk=pk))
 
 
 @staf_required
@@ -1558,7 +1471,7 @@ def panel_pertanyaan_urut(request, pk):
             Question.objects.filter(pk=soal.pk).update(urutan=tetangga.urutan)
             Question.objects.filter(pk=tetangga.pk).update(urutan=soal.urutan)
 
-    return _kembali(request, reverse("siwak:panel_pertanyaan", args=[tugas.pk]))
+    return kembali(request, reverse("siwak:panel_pertanyaan", args=[tugas.pk]))
 
 
 # ---------------------------------------------------------------------------
@@ -1566,13 +1479,6 @@ def panel_pertanyaan_urut(request, pk):
 # Jawaban adalah kiriman maba; panel ini untuk memeriksa dan mengunduhnya,
 # bukan untuk menyuntingnya. Karena itu tidak ada view ubah maupun hapus.
 # ---------------------------------------------------------------------------
-
-CARI_JAWABAN = (
-    "user__profil__nama_lengkap",
-    "user__profil__npm",
-    "user__username",
-)
-
 
 def _jawaban_queryset(tugas, kata="", kelompok=""):
     # `mentor_review` ikut diambil: nilai dan feedback mentor tampil di samping
@@ -1584,21 +1490,7 @@ def _jawaban_queryset(tugas, kata="", kelompok=""):
     )
     if kelompok:
         qs = qs.filter(user__profil__kelompok_id=kelompok)
-    if kata:
-        saring = Q()
-        for nama_field in CARI_JAWABAN:
-            saring |= Q(**{f"{nama_field}__icontains": kata})
-        qs = qs.filter(saring)
-    return qs
-
-
-def _isi_jawaban(jawaban):
-    """Satu jawaban jadi tulisan siap tampil, apa pun tipenya."""
-    if jawaban.selected_choice_id:
-        return jawaban.selected_choice.teks
-    if jawaban.file_answer:
-        return jawaban.file_answer.name.split("/")[-1]
-    return jawaban.text_answer
+    return cari_teks(qs, CARI_PESERTA, kata)
 
 
 def _pasangkan_jawaban(pengumpulan, pertanyaan):
@@ -1610,14 +1502,14 @@ def _pasangkan_jawaban(pengumpulan, pertanyaan):
         baris.append({
             "pertanyaan": soal,
             "jawaban": jawaban,
-            "isi": _isi_jawaban(jawaban) if jawaban else "",
+            "isi": jawaban.isi_teks if jawaban else "",
         })
     return baris
 
 
 @staf_required
 def panel_jawaban(request, pk):
-    tugas = _tugas_atau_404(pk)
+    tugas = get_object_or_404(Tugas, pk=pk)
     pertanyaan = list(_pertanyaan_terurut(tugas))
     kata = (request.GET.get("q") or "").strip()
     kelompok, pilihan = _kelompok_terpilih(request)
@@ -1632,7 +1524,7 @@ def panel_jawaban(request, pk):
         baris.append({
             "obj": pengumpulan,
             "profil": profil,
-            "nama": profil.nama_lengkap if profil else pengumpulan.user.username,
+            "nama": nama_akun(pengumpulan.user),
             "npm": profil.npm if profil else "—",
             "kelompok": profil.kelompok.nama_kelompok if profil and profil.kelompok else "",
             "review": getattr(pengumpulan, "mentor_review", None),
@@ -1642,7 +1534,6 @@ def panel_jawaban(request, pk):
 
     semua = tugas.submissions.all()
     return render(request, "siwak/panel/jawaban.html", _kerangka(
-        request,
         judul=f"Jawaban — {tugas.judul_tugas}",
         bagian="mentoring",
         sumber="tugas",
@@ -1654,7 +1545,7 @@ def panel_jawaban(request, pk):
         kata=kata,
         kelompok_dipilih=kelompok,
         pilihan_kelompok=pilihan,
-        kueri=urlencode({k: v for k, v in request.GET.items() if k != "page" and v}),
+        kueri=kueri_tanpa_halaman(request),
         # Kueri untuk tombol Unduh CSV: saringan yang sama, tanpa nomor halaman.
         kueri_unduh=urlencode({k: v for k, v in (("q", kata), ("kelompok", kelompok)) if v}),
         jumlah_semua=semua.count(),
@@ -1667,7 +1558,7 @@ def panel_jawaban(request, pk):
 def panel_jawaban_csv(request, pk):
     """Unduhan mengikuti pencarian dan kelompok yang sedang aktif, sama seperti
     ekspor RSVP, lengkap dengan nilai dan feedback mentornya."""
-    tugas = _tugas_atau_404(pk)
+    tugas = get_object_or_404(Tugas, pk=pk)
     pertanyaan = list(_pertanyaan_terurut(tugas))
     kata = (request.GET.get("q") or "").strip()
     kelompok, _ = _kelompok_terpilih(request)
@@ -1688,13 +1579,13 @@ def panel_jawaban_csv(request, pk):
         peta = {j.question_id: j for j in pengumpulan.answers.all()}
         penulis.writerow(
             [
-                profil.nama_lengkap if profil else pengumpulan.user.username,
+                nama_akun(pengumpulan.user),
                 profil.npm if profil else "",
                 profil.kelompok.nama_kelompok if profil and profil.kelompok else "",
                 pengumpulan.get_status_display(),
                 timezone.localtime(pengumpulan.submitted_at).strftime("%Y-%m-%d %H:%M"),
             ]
-            + [_isi_jawaban(peta[s.pk]) if s.pk in peta else "" for s in pertanyaan]
+            + [peta[s.pk].isi_teks if s.pk in peta else "" for s in pertanyaan]
             + [
                 review.score if review else "",
                 review.feedback if review else "",

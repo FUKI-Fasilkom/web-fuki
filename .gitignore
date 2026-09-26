@@ -142,3 +142,6 @@ staticfiles/
 
 # data fungsionaris
 /data
+
+# Claude Code local worktrees
+.claude/worktrees/

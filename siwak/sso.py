@@ -1,39 +1,29 @@
-"""Authentication helper for the SIWAK section (PRD 7 - Authentication).
+"""Login SSO UI (CAS) untuk SIWAK (PRD 7 - Authentication).
 
-PRD 7 says login is "Menggunakan SSO UI" (Universitas Indonesia's central CAS
-SSO at https://sso.ui.ac.id/cas2/). Wiring up the *real* SSO UI requires two
-things this environment cannot provide on its own:
+`django-cas-ng` menangani protokol CAS ke https://sso.ui.ac.id/cas2/ (lihat
+blok autentikasi di settings.py). Modul ini berisi bagian yang khas SSO UI:
 
-  1. The FUKI website registered as an official "service" with UI's SSO/PPSI
-     team (they whitelist the callback URL).
-  2. A CAS client library talking to that server (e.g. `django-cas-ng`).
+  * parser serviceValidate yang toleran terhadap respons SSO UI;
+  * `handle_cas_login`, penerima sinyal `cas_user_authenticated` yang
+    menyinkronkan `Profile` dari atribut CAS (npm, nama, kd_org);
+  * `role_landing_url` dan `RoleRedirectLoginView`, tujuan sesudah login.
 
-So this module implements the same shape a real CAS login would have — a
-"login" entrypoint that resolves to a Django `User` + `Profile`, after
-which every other authorized feature (tugas, RSVP, QR) works identically —
-but the entrypoint itself is a simple NPM + Nama + Jurusan form instead of a
-redirect to sso.ui.ac.id. That keeps the swap to real SSO a small, isolated
-change instead of a rewrite. See the bottom of this file for that swap.
+Pintu login kedua (Akun Khusus, username + password) ada di auth_views.py.
 """
 
-from django.contrib.auth import get_user_model
+from cas import CASClientV2
 from django.conf import settings
 from django.contrib import messages
 from django.db import transaction
+from django.dispatch import receiver
 from django.shortcuts import resolve_url
+from django_cas_ng.signals import cas_user_authenticated
 from django_cas_ng.views import LoginView
+from lxml import etree
 
 from .akses import bagian_utama, url_bagian
 from .models import EventRSVP, Profile
 from .services.rsvp import klaim_rsvp_tertunda
-
-
-from django.dispatch import receiver
-from django_cas_ng.signals import cas_user_authenticated
-from cas import CASClientV2
-from lxml import etree
-
-User = get_user_model()
 
 
 # ---------------------------------------------------------------------------
@@ -107,7 +97,8 @@ def _apply_ui_sso_xml_patch():
 
 _apply_ui_sso_xml_patch()
 
-# TODO: verifikasi mapping ini dengan mapping yang asli. assume the program mapping is true
+# Kode program studi (awal `kd_org` dari SSO UI) -> JURUSAN_CHOICES.
+# TODO: verifikasi mapping ini dengan mapping resmi SSO UI.
 KD_ORG_PROGRAM_MAP = {
     "01": "IK",
     "02": "IK-IUP",
@@ -140,7 +131,6 @@ def handle_cas_login(sender, user, username, attributes, **kwargs):
     npm = get_attribute(attributes, "npm")
     nama_lengkap = get_attribute(attributes, "nama")
     kd_org = get_attribute(attributes, "kd_org")
-    angkatan = f"20{npm[:2]}" if len(npm) >= 2 and npm[:2].isdigit() else ""
 
     if not npm:
         raise ValueError("SSO tidak memberikan NPM")
@@ -154,6 +144,9 @@ def handle_cas_login(sender, user, username, attributes, **kwargs):
 
     if not jurusan:
         raise ValueError(f"Kode program tidak dikenal: {program_code}")
+
+    # Dua digit pertama NPM adalah tahun masuk.
+    angkatan = f"20{npm[:2]}" if len(npm) >= 2 and npm[:2].isdigit() else ""
 
     sync_profile(
         user=user,
@@ -249,30 +242,10 @@ class RoleRedirectLoginView(LoginView):
 
 
 def get_attribute(attributes, key):
+    """Satu atribut CAS sebagai string; atribut bernilai banyak diambil yang pertama."""
     value = attributes.get(key, "")
 
     if isinstance(value, (list, tuple)):
         return value[0].strip() if value else ""
 
     return str(value).strip()
-
-
-
-# ---------------------------------------------------------------------------
-# Swapping in real SSO UI later:
-#
-# 1. `pip install django-cas-ng` and add `django_cas_ng` to INSTALLED_APPS.
-# 2. In settings.py:
-#        CAS_SERVER_URL = "https://sso.ui.ac.id/cas2/"
-#        AUTHENTICATION_BACKENDS = [
-#            "django_cas_ng.backends.CASBackend",
-#            "django.contrib.auth.backends.ModelBackend",
-#        ]
-# 3. Add to urls.py:
-#        path("siwak/sso-login/", cas_views.LoginView.as_view(), name="cas_ng_login"),
-#        path("siwak/sso-logout/", cas_views.LogoutView.as_view(), name="cas_ng_logout"),
-# 4. Replace the body of `MabaLoginView` in siwak/views.py with a redirect to
-#    `cas_ng_login`, and connect the `django_cas_ng.signals.cas_user_authenticated`
-#    signal to a receiver that calls the same get_or_create logic above using
-#    the NPM/nama/jurusan attributes UI's CAS response provides.
-# ---------------------------------------------------------------------------

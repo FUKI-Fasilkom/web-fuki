@@ -2,22 +2,19 @@ import calendar as pycal
 import logging
 import re
 import unicodedata
-from functools import wraps
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.views import redirect_to_login
 from django.core import signing
 from django.core.files.uploadedfile import UploadedFile
 from django.db import transaction
 from django.db.models import Count
-from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
-from .akses import AksesDitolak, bagian_utama
+from .akses import AksesDitolak, mentee_required, pemindai_required
 from .forms import CariKelompokForm, RSVPForm, TugasAnswerForm
 from .models import (
     EventRSVP,
@@ -40,30 +37,9 @@ from .services.qrcode_service import (
     registrasi_qr_data_uri,
     unsign_payload,
 )
+from .signals import delete_unused_tugas_file
 
-
-def pemindai_required(view_func):
-    """Scanner-only decorator: superusers and scanner accounts (qr_verify, /pindai/).
-
-    django.contrib.auth's `user_passes_test` (Django 6) redirects *every* user
-    who fails the test to the login URL — even already-logged-in non-scanners —
-    which produces a redirect loop on the login page. This mirrors Django's own
-    `staff_member_required` instead: anonymous users are sent straight to the
-    "Login Akun Khusus" form (the admin login would refuse a non-staff scanner
-    account), logged-in users without any scan permission get the 403
-    "Akses Ditolak" page (see akses.py) pointing to their own part of SIWAK.
-    Which QR kind a user may scan is checked inside qr_verify, once the signed
-    payload says the kind.
-    """
-    @wraps(view_func)
-    def _wrapped(request, *args, **kwargs):
-        if request.user.is_authenticated:
-            if not boleh_memindai(request.user):
-                raise AksesDitolak("pemindai")
-            return view_func(request, *args, **kwargs)
-        return redirect_to_login(request.get_full_path(), reverse("siwak:login_khusus"))
-
-    return _wrapped
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -136,30 +112,6 @@ def kelompok_search(request):
 # ---------------------------------------------------------------------------
 # 5.1 — Slot Pengumpulan Tugas SIWAK
 # ---------------------------------------------------------------------------
-
-def mentee_required(view_func):
-    """Guard halaman Tugas Mentoring: harus login DAN berperan Mentee.
-
-    User yang sudah punya bagiannya sendiri (mentor, pengurus, pemindai QR)
-    mendapat halaman 403 "Akses Ditolak" yang menunjuk ke bagian itu. Sisanya
-    (anonim, role NULL) dikembalikan ke /siwak dengan notifikasi, bukan ke
-    login/403, supaya user tahu harus menghubungi CP.
-    """
-    @wraps(view_func)
-    def _wrapped(request, *args, **kwargs):
-        if request.user.is_authenticated:
-            is_mentee = Profile.objects.filter(
-                user=request.user, role=Profile.ROLE_MENTEE
-            ).exists()
-            if is_mentee:
-                return view_func(request, *args, **kwargs)
-            if bagian_utama(request.user):
-                raise AksesDitolak("mentee")
-        messages.error(request, "Anda harus menjadi Mentee, hubungi CP SIWAK")
-        return redirect("siwak:landing")
-
-    return _wrapped
-
 
 # Palet penanda tugas di kalender, selaras tema SIWAK (navy/emas) dan cukup kontras dengan teks putih.
 CALENDAR_COLORS = [
@@ -276,7 +228,8 @@ def tugas_detail(request, pk):
             # SELECT ... FOR UPDATE pada sisi outer join. Diambil lazy saat rename.
             profile = profiles.first()
             if not profile:
-                return HttpResponseForbidden("Hanya mentee yang dapat mengumpulkan tugas.")
+                # Role-nya dicabut di sela pengecekan decorator dan kunci ini.
+                raise AksesDitolak("mentee")
 
             submission = tugas.submission_for(request.user)
             is_past_deadline = timezone.now() > tugas.deadline
@@ -311,12 +264,11 @@ def tugas_detail(request, pk):
                     return redirect("siwak:tugas_detail", pk=pk)
     except Exception:
         # Storage tidak ikut rollback DB. Bersihkan hanya upload baru yang gagal.
-        from .signals import delete_unused_tugas_file
         for storage, name in uploaded_files:
             try:
                 delete_unused_tugas_file(storage, name, "default")
             except Exception:
-                logging.getLogger(__name__).exception("Gagal membersihkan upload tugas %s", name)
+                logger.exception("Gagal membersihkan upload tugas %s", name)
         raise
 
     # Jawaban terurut per pertanyaan: dipakai tampilan read-only setelah deadline
@@ -393,20 +345,16 @@ def _save_tugas_upload(instance, field_name, uploaded_files):
 
 @login_required
 def rsvp_event(request, id):
-    # 404 hanya kalau event benar-benar tidak ada/dihapus (tanpa login: tetap 404).
-    # Kalau event ada tapi RSVP-nya sudah ditutup, tampilkan halaman "RSVP ditutup"
-    # (kecuali user sudah pernah RSVP — mereka tetap bisa melihat QR-nya).
+    # Event yang RSVP-nya sudah ditutup menampilkan halaman "RSVP ditutup",
+    # kecuali user sudah pernah RSVP — mereka tetap bisa melihat QR-nya.
     event = get_object_or_404(SiwakEvent, id=id)
-    if not request.user.is_authenticated:
-        return redirect_to_login(request.get_full_path())
     rsvp = EventRSVP.objects.filter(event=event, user=request.user).first()
     if not event.rsvp_dibuka and not rsvp:
-        context = {
+        return render(request, "siwak/rsvp.html", {
             "event": event,
             "rsvp_ditutup": True,
             "back_url": reverse("siwak:landing"),
-        }
-        return render(request, "siwak/rsvp.html", context)
+        })
 
     form = RSVPForm(user=request.user)
     if request.method == "POST" and not rsvp:
@@ -438,7 +386,7 @@ def _find_rsvp(kind: str, token: str, lock: bool = False):
     `lock=True` re-selects the row with ``SELECT ... FOR UPDATE`` so concurrent
     scans serialize instead of both succeeding (TOCTOU check-in / kupon).
     """
-    field = "qr_registrasi_token" if kind == "registrasi" else "qr_kupon_token"
+    field = EventRSVP.JENIS_QR[kind].field_token
     qs = EventRSVP.objects.filter(**{field: token}).select_related("user", "event")
     if lock:
         qs = qs.select_for_update()
@@ -461,105 +409,55 @@ def qr_verify(request, signed):
     ``SELECT ... FOR UPDATE`` on the RSVP row, so two concurrent scans can't
     both succeed (TOCTOU).
     """
-    error = None
-    rsvp = None
-    kind = None
-    already = False
+    # Yang sampai di sini selalu boleh memindai, jadi "kembali" berarti kembali
+    # ke halaman pemindai, siap untuk QR berikutnya.
+    context = {"back_url": reverse("siwak:pindai_beranda")}
 
     try:
         payload = unsign_payload(signed)
-        kind = payload["kind"]
-        token = payload["token"]
-
     except signing.SignatureExpired:
-        error = "QR sudah kedaluwarsa."
-
+        context["error"] = "QR sudah kedaluwarsa."
+        return render(request, "siwak/qr_verify.html", context)
     except signing.BadSignature:
-        error = "QR tidak valid atau rusak."
+        context["error"] = "QR tidak valid atau rusak."
+        return render(request, "siwak/qr_verify.html", context)
+    kind, token = payload["kind"], payload["token"]
 
-    if not error and not boleh_memindai(request.user, kind):
+    if not boleh_memindai(request.user, kind):
         # Halaman galat yang sama dengan QR rusak, bukan 403 polos: panitia di
         # meja registrasi yang salah menerima QR kupon perlu tahu apa yang
         # terjadi, bukan hanya melihat "Forbidden".
         bisa = " dan ".join(EventRSVP.LABEL_PINDAI[k] for k in jenis_pindai(request.user))
-        return render(request, "siwak/qr_verify.html", {
-            "error_judul": "Akses Ditolak",
-            "error": (
-                f"Ini {EventRSVP.LABEL_PINDAI.get(kind, 'QR jenis lain')}. "
-                f"Akun ini hanya bisa memindai {bisa}."
-            ),
-            "back_url": reverse("siwak:pindai_beranda"),
-        }, status=403)
+        context["error_judul"] = "Akses Ditolak"
+        context["error"] = (
+            f"Ini {EventRSVP.LABEL_PINDAI.get(kind, 'QR jenis lain')}. "
+            f"Akun ini hanya bisa memindai {bisa}."
+        )
+        return render(request, "siwak/qr_verify.html", context, status=403)
 
-    if not error and request.method == "POST":
-        # Mutation path: lock the row so concurrent scans serialize.
-        with transaction.atomic():
-            rsvp = _find_rsvp(kind, token, lock=True)
-
-            if not rsvp:
-                error = "Data RSVP tidak ditemukan."
-
-            elif kind == "registrasi":
-                already = rsvp.status_kehadiran == "hadir"
-
-                if not already:
-                    if rsvp.kehadiran != "hadir":
-                        error = "Check-in ditolak: kehadiran RSVP peserta bukan 'hadir'."
-                    else:
-                        rsvp.status_kehadiran = "hadir"
-                        rsvp.checked_in_at = timezone.now()
-
-                        rsvp.save(
-                            update_fields=[
-                                "status_kehadiran",
-                                "checked_in_at",
-                            ]
-                        )
-
-            elif kind == "kupon":
-                already = rsvp.status_kupon == "redeemed"
-
-                if not already:
-                    rsvp.status_kupon = "redeemed"
-                    rsvp.redeemed_at = timezone.now()
-
-                    rsvp.save(
-                        update_fields=[
-                            "status_kupon",
-                            "redeemed_at",
-                        ]
-                    )
-
-    elif not error:
-        # Read-only preview: resolve the row so the page can show a confirm step.
-        rsvp = _find_rsvp(kind, token)
-
-        if not rsvp:
+    error = None
+    already = False
+    with transaction.atomic():
+        # POST mengubah status, jadi barisnya dikunci supaya pindaian yang
+        # bersamaan berjalan bergantian.
+        rsvp = _find_rsvp(kind, token, lock=request.method == "POST")
+        if rsvp is None:
             error = "Data RSVP tidak ditemukan."
-
         else:
-            already = (
-                rsvp.status_kehadiran == "hadir"
-                if kind == "registrasi"
-                else rsvp.status_kupon == "redeemed"
-            )
+            already = rsvp.qr_terpakai(kind)
+            if request.method == "POST" and not already:
+                if kind == "registrasi" and rsvp.kehadiran != "hadir":
+                    error = "Check-in ditolak: kehadiran RSVP peserta bukan 'hadir'."
+                else:
+                    rsvp.ubah_status_qr(kind, EventRSVP.JENIS_QR[kind].status_terpakai)
 
-    context = {
+    context.update({
         "error": error,
         "rsvp": rsvp,
         "kind": kind,
         "already": already,
-        "confirm": (
-            request.method == "GET"
-            and rsvp is not None
-            and not error
-            and not already
-        ),
-        # Yang sampai di sini selalu boleh memindai, jadi "kembali" berarti
-        # kembali ke halaman pemindai, siap untuk QR berikutnya.
-        "back_url": reverse("siwak:pindai_beranda"),
-    }
-
+        "confirm": request.method == "GET" and rsvp is not None and not already,
+    })
     return render(request, "siwak/qr_verify.html", context)
 
 

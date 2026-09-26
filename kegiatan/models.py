@@ -2,7 +2,6 @@ from django.db import models
 from django.urls import reverse
 
 
-# Create your models here.
 class Kegiatan(models.Model):
     # Label harus sama persis dengan tab filter di beranda.
     KATEGORI_CHOICES = [

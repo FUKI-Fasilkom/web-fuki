@@ -118,19 +118,6 @@ class JurusanChoiceTests(TestCase):
         self.assertLessEqual(set(KD_ORG_PROGRAM_MAP.values()), supported_departments)
 
 
-class JurusanChoiceTests(TestCase):
-    """Pilihan jurusan aktif harus konsisten di model, form, dan mapping SSO."""
-
-    def test_si_iup_is_not_available_in_model(self):
-        self.assertNotIn("SI-IUP", dict(JURUSAN_CHOICES))
-
-    def test_sso_mapping_only_uses_supported_departments(self):
-        supported_departments = {value for value, _label in JURUSAN_CHOICES}
-
-        self.assertNotIn("SI-IUP", KD_ORG_PROGRAM_MAP.values())
-        self.assertLessEqual(set(KD_ORG_PROGRAM_MAP.values()), supported_departments)
-
-
 class SyncProfileTests(TestCase):
     """Verify synchronization between Django users and their Profile."""
 
@@ -2076,6 +2063,7 @@ class RSVPViewTests(TestCase):
         response = self.client.get(reverse("siwak:rsvp", args=[self.closed_event.id]))
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, "RSVP Telah Ditutup")
+        self.assertEqual(response.context["rsvp"], rsvp)
         self.assertContains(response, "QR RSVP")
         self.assertContains(response, "data:image/png;base64,")
 
