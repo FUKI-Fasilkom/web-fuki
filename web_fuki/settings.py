@@ -249,7 +249,11 @@ STORAGES = {
 # Unit tests must never use production media storage, even when the developer's
 # .env contains AWS_STORAGE_BUCKET_NAME.  InMemoryStorage keeps uploads local
 # to the test process and avoids both network calls and leftover media files.
-if "test" in sys.argv[1:]:
+# Tetap disimpan sebagai nama: bagian lain settings (mis. monitoring) ikut
+# membacanya. Menghapusnya tidak menimbulkan konflik merge, hanya NameError
+# saat settings dimuat.
+RUNNING_TESTS = "test" in sys.argv[1:]
+if RUNNING_TESTS:
     STORAGES["default"] = {
         "BACKEND": "django.core.files.storage.InMemoryStorage",
     }
