@@ -45,7 +45,7 @@
   </div>
   <div class="rounded-2xl border-2 border-gold-light bg-white px-4 py-4">
     <p class="text-2xl font-bold leading-none text-navy sm:text-3xl">{{ jumlah_dinilai }}<span class="text-base font-semibold text-navy-400"> / {{ jumlah_terkumpul }}</span></p>
-    <p class="mt-1.5 text-[11px] font-semibold uppercase tracking-wide text-navy-400 sm:text-xs">Tugas dinilai</p>
+    <p class="mt-1.5 text-[11px] font-semibold uppercase tracking-wide text-navy-400 sm:text-xs">Tugas diberi feedback</p>
   </div>
 </section>
 
@@ -150,7 +150,7 @@
 </section>
 
 <section aria-labelledby="judul-tugas">
-  <h2 id="judul-tugas" class="mb-3 text-lg font-bold text-navy">Tugas, nilai, dan feedback mentor</h2>
+  <h2 id="judul-tugas" class="mb-3 text-lg font-bold text-navy">Tugas dan feedback mentor</h2>
   {% if baris_tugas %}
   <div class="space-y-3">
     {% for b in baris_tugas %}
@@ -174,23 +174,10 @@
 
       <div class="mt-3 rounded-xl bg-cream-50 px-4 py-3">
         {% if b.review %}
-        <p class="text-sm text-navy"><span class="font-bold">Nilai {{ b.review.score }}</span> · {{ b.review.reviewer.nama_lengkap|default:"Mentor" }} · {{ b.review.updated_at|date:"j M Y, H:i" }}</p>
-        {% if b.review.feedback %}<p class="mt-1 whitespace-pre-line text-sm text-navy">{{ b.review.feedback }}</p>{% endif %}
+        <p class="whitespace-pre-line text-sm text-navy">{{ b.review.feedback }}</p>
+        <p class="mt-1 text-xs text-navy-400">{{ b.review.reviewer.nama_lengkap|default:"Mentor" }} · {{ b.review.updated_at|date:"j M Y, H:i" }}</p>
         {% else %}
-        <p class="text-sm text-navy-400">Belum dinilai mentor.</p>
-        {% endif %}
-        {% if b.riwayat|length > 1 %}
-        <details class="mt-2 text-sm">
-          <summary class="cursor-pointer font-semibold text-navy">Riwayat penilaian ({{ b.riwayat|length }})</summary>
-          <ul class="mt-2 space-y-2">
-            {% for r in b.riwayat %}
-            <li class="text-navy">
-              <span class="font-semibold">{{ r.score }}</span> · {{ r.reviewer.nama_lengkap|default:"Mentor" }} · {{ r.created_at|date:"j M Y, H:i" }}
-              {% if r.feedback %}<span class="block whitespace-pre-line text-navy-400">{{ r.feedback }}</span>{% endif %}
-            </li>
-            {% endfor %}
-          </ul>
-        </details>
+        <p class="text-sm text-navy-400">Belum ada feedback mentor.</p>
         {% endif %}
       </div>
       {% endif %}

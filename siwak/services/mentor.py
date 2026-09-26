@@ -2,7 +2,6 @@ from django.db import transaction
 
 from siwak.akses import AksesDitolak
 from siwak.models import (
-    AssignmentReviewHistory,
     MenteeAssessment,
     MentorFeedback,
     MentoringAttendance,
@@ -101,17 +100,10 @@ def save_attendance_row(*, form, participant, session, mentor, feedback_entry=No
     return attendance
 
 
-@transaction.atomic
 def save_assignment_review(*, form, submission, mentor):
-    """Simpan nilai tugas + tambah snapshot riwayat (dipakai halaman detail & rekap)."""
+    """Simpan feedback tugas, disunting di tempat (dipakai halaman detail & rekap)."""
     review = form.save(commit=False)
     review.submission = submission
     review.reviewer = mentor
     review.save()
-    AssignmentReviewHistory.objects.create(
-        submission=submission,
-        score=review.score,
-        feedback=review.feedback,
-        reviewer=mentor,
-    )
     return review

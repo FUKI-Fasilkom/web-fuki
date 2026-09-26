@@ -138,11 +138,9 @@ class CatatanMenteeForm(forms.ModelForm):
 class AssignmentReviewForm(forms.ModelForm):
     class Meta:
         model = AssignmentReview
-        fields = ["score", "feedback"]
+        fields = ["feedback"]
+        error_messages = {"feedback": {"required": "Feedback tidak boleh kosong."}}
         widgets = {
-            "score": forms.NumberInput(
-                attrs={"class": FIELD_CLASSES, "min": 0, "max": 100, "placeholder": "0-100"}
-            ),
             "feedback": forms.Textarea(
                 attrs={"class": FIELD_CLASSES, "rows": 5, "placeholder": "Feedback untuk mentee"}
             ),

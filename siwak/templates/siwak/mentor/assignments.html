@@ -35,7 +35,7 @@
               {% if item.submission %}
               <a href="{% url 'siwak:mentor_mentee_detail' participant_id=row.participant.pk %}#assignment-{{ item.task.pk }}"
                  class="rounded-lg bg-navy px-3 py-2 text-xs font-bold text-white hover:bg-navy-700">
-                {% if item.submission.mentor_review %}Nilai {{ item.submission.mentor_review.score }}{% else %}Beri Nilai{% endif %}
+                {% if item.submission.mentor_review %}Lihat Feedback{% else %}Beri Feedback{% endif %}
               </a>
               {% endif %}
             </div>

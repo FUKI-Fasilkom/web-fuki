@@ -10,7 +10,6 @@ from django.utils import timezone
 
 from .models import (
     AssignmentReview,
-    AssignmentReviewHistory,
     Answer,
     AssessmentAspect,
     KelompokMentoring,
@@ -360,7 +359,6 @@ class MentorFeatureTests(TestCase):
             {
                 "action": "assignment_review",
                 "submission_id": self.other_submission.pk,
-                f"assignment_{self.other_submission.pk}-score": 92,
                 f"assignment_{self.other_submission.pk}-feedback": "Tidak boleh tersimpan.",
             },
         )
@@ -371,22 +369,52 @@ class MentorFeatureTests(TestCase):
             {
                 "action": "assignment_review",
                 "submission_id": self.submission.pk,
-                f"assignment_{self.submission.pk}-score": 92,
                 f"assignment_{self.submission.pk}-feedback": "Bagus.",
             },
         )
 
         self.assertEqual(response.status_code, 302)
         review = AssignmentReview.objects.get(submission=self.submission)
-        self.assertEqual(review.score, 92)
-        self.assertEqual(review.reviewer, self.mentor)
-        self.assertTrue(
-            AssignmentReviewHistory.objects.filter(
-                submission=self.submission,
-                score=92,
-                reviewer=self.mentor,
-            ).exists()
+        self.assertEqual((review.feedback, review.reviewer), ("Bagus.", self.mentor))
+        self.assertFalse(AssignmentReview.objects.filter(submission=self.other_submission).exists())
+
+    def _kirim_feedback_tugas(self, feedback):
+        return self.client.post(
+            reverse("siwak:mentor_mentee_detail", kwargs={"participant_id": self.participant.pk}),
+            {
+                "action": "assignment_review",
+                "submission_id": self.submission.pk,
+                f"assignment_{self.submission.pk}-feedback": feedback,
+            },
         )
+
+    def test_editing_assignment_feedback_replaces_it_and_the_mentee_sees_only_the_newest(self):
+        self.client.force_login(self.mentor_user)
+        self._kirim_feedback_tugas("Versi pertama.")
+        self._kirim_feedback_tugas("Versi kedua.")
+
+        self.assertEqual(
+            list(AssignmentReview.objects.filter(submission=self.submission).values_list("feedback", flat=True)),
+            ["Versi kedua."],
+        )
+        self.client.force_login(self.mentee_user)
+        for url in (
+            reverse("siwak:mentee_feedback_history"),
+            reverse("siwak:tugas_detail", kwargs={"pk": self.submission.tugas_id}),
+        ):
+            with self.subTest(url=url):
+                response = self.client.get(url)
+                self.assertContains(response, "Versi kedua.", count=1)
+                self.assertNotContains(response, "Versi pertama.")
+                self.assertNotContains(response, "/100")
+
+    def test_blank_assignment_feedback_is_rejected(self):
+        self.client.force_login(self.mentor_user)
+        response = self._kirim_feedback_tugas("   ")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Feedback tidak boleh kosong.")
+        self.assertFalse(AssignmentReview.objects.exists())
 
     def test_answer_download_allows_owner_and_responsible_mentor_only(self):
         url = reverse(
@@ -577,7 +605,6 @@ class MentorFeatureTests(TestCase):
             {
                 "action": "assignment_review",
                 "submission_id": self.submission.pk,
-                f"assignment_{self.submission.pk}-score": 90,
                 f"assignment_{self.submission.pk}-feedback": "Mantap.",
             },
         )

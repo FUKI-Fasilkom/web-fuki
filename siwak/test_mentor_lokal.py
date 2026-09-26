@@ -60,7 +60,7 @@ class MentorFeatureLokalTests(test_mentor.MentorFeatureTests):
 
 
 class MentorRekapPagesLokalTests(test_mentor_rekap.MentorRekapPagesTests):
-    """Presensi, Nilai Mentee, dan Penilaian Tugas dengan mentor akun lokal."""
+    """Presensi, Nilai Mentee, dan Feedback Tugas dengan mentor akun lokal."""
 
     def setUp(self):
         super().setUp()

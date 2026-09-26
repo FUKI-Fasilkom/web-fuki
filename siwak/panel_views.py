@@ -22,7 +22,7 @@ from django.contrib import messages
 from django.core.paginator import Paginator
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
-from django.db.models import Avg, Count, F, Max, Prefetch, ProtectedError, Q
+from django.db.models import Avg, Count, F, Max, ProtectedError, Q
 from django.forms import inlineformset_factory
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -35,7 +35,6 @@ from .akses import pemindai_required, staf_required
 from .models import (
     AssessmentAspect,
     AssignmentReview,
-    AssignmentReviewHistory,
     Choice,
     EventRSVP,
     KelompokMentoring,
@@ -773,7 +772,7 @@ def panel_kelompok_detail(request, pk):
 
     # Tugas berlaku untuk semua kelompok, jadi yang dihitung cukup tugas aktif
     # yang sudah dikumpulkan tiap mentee (lewat akun loginnya), dan berapa di
-    # antaranya yang sudah dinilai mentor.
+    # antaranya yang sudah diberi feedback mentor.
     tugas_aktif = Tugas.objects.filter(is_active=True).count()
     terkumpul = dict(
         TugasSubmission.objects.filter(
@@ -840,7 +839,7 @@ def panel_mentee_detail(request, pk):
     """Semua yang tercatat tentang satu mentee, untuk diperiksa pengurus.
 
     Presensi dan feedback tiap sesi, nilai per aspek, serta setiap tugas beserta
-    jawaban, nilai, feedback, dan riwayat penilaian mentornya. Semuanya hanya
+    jawaban dan feedback mentornya. Semuanya hanya
     baca — yang mengisinya mentor dari portalnya — termasuk catatan privat,
     yang hanya boleh disunting mentor kelompoknya (`boleh_ubah_catatan`).
 
@@ -890,14 +889,7 @@ def panel_mentee_detail(request, pk):
     submissions = (
         TugasSubmission.objects.filter(user=mentee.user)
         .select_related("mentor_review__reviewer")
-        .prefetch_related(
-            "answers__question",
-            "answers__selected_choice",
-            Prefetch(
-                "mentor_review_history",
-                queryset=AssignmentReviewHistory.objects.select_related("reviewer"),
-            ),
-        )
+        .prefetch_related("answers__question", "answers__selected_choice")
         if mentee.user_id
         else TugasSubmission.objects.none()
     )
@@ -909,7 +901,6 @@ def panel_mentee_detail(request, pk):
             "tugas": tugas,
             "submission": submission,
             "review": getattr(submission, "mentor_review", None) if submission else None,
-            "riwayat": list(submission.mentor_review_history.all()) if submission else [],
         })
 
     return render(request, "siwak/panel/mentee_detail.html", _kerangka(
@@ -1481,7 +1472,7 @@ def panel_pertanyaan_urut(request, pk):
 # ---------------------------------------------------------------------------
 
 def _jawaban_queryset(tugas, kata="", kelompok=""):
-    # `mentor_review` ikut diambil: nilai dan feedback mentor tampil di samping
+    # `mentor_review` ikut diambil: feedback mentor tampil di samping
     # jawabannya, supaya pengurus tidak perlu membuka detail mentee satu per satu.
     qs = (
         tugas.submissions.select_related("user__profil__kelompok", "mentor_review__reviewer")
@@ -1557,7 +1548,7 @@ def panel_jawaban(request, pk):
 @staf_required
 def panel_jawaban_csv(request, pk):
     """Unduhan mengikuti pencarian dan kelompok yang sedang aktif, sama seperti
-    ekspor RSVP, lengkap dengan nilai dan feedback mentornya."""
+    ekspor RSVP, lengkap dengan feedback mentornya."""
     tugas = get_object_or_404(Tugas, pk=pk)
     pertanyaan = list(_pertanyaan_terurut(tugas))
     kata = (request.GET.get("q") or "").strip()
@@ -1571,7 +1562,7 @@ def panel_jawaban_csv(request, pk):
     penulis.writerow(
         ["Nama", "NPM", "Kelompok", "Status", "Waktu Kumpul"]
         + [s.pertanyaan for s in pertanyaan]
-        + ["Nilai Mentor", "Feedback Mentor", "Dinilai Oleh"]
+        + ["Feedback Mentor", "Feedback Oleh"]
     )
     for pengumpulan in _jawaban_queryset(tugas, kata, kelompok):
         profil = getattr(pengumpulan.user, "profil", None)
@@ -1587,7 +1578,6 @@ def panel_jawaban_csv(request, pk):
             ]
             + [peta[s.pk].isi_teks if s.pk in peta else "" for s in pertanyaan]
             + [
-                review.score if review else "",
                 review.feedback if review else "",
                 review.reviewer.nama_lengkap if review and review.reviewer else "",
             ]

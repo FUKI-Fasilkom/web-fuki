@@ -20,7 +20,6 @@ from .models import (
     Answer,
     AssessmentAspect,
     AssignmentReview,
-    AssignmentReviewHistory,
     EventRSVP,
     KelompokMentoring,
     MenteeAssessment,
@@ -323,13 +322,7 @@ class PengawasanAdminTests(TestCase):
         submission = TugasSubmission.objects.create(tugas=self.tugas, user=self.mentee.user)
         Answer.objects.create(submission=submission, question=soal, text_answer="Sabar itu penting.")
         AssignmentReview.objects.create(
-            submission=submission, score=92, feedback="Refleksi yang jujur.", reviewer=self.mentor
-        )
-        AssignmentReviewHistory.objects.create(
-            submission=submission, score=80, feedback="Coba lebih dalam.", reviewer=self.mentor
-        )
-        AssignmentReviewHistory.objects.create(
-            submission=submission, score=92, feedback="Refleksi yang jujur.", reviewer=self.mentor
+            submission=submission, feedback="Refleksi yang jujur.", reviewer=self.mentor
         )
         self.url = reverse("siwak:panel_mentee_detail", args=[self.mentee.pk])
 
@@ -344,9 +337,8 @@ class PengawasanAdminTests(TestCase):
             "Hadir", "Datang awal", "Aktif berdiskusi.",
             # nilai per aspek
             "Akhlak", "88", "Sopan",
-            # tugas: jawaban, nilai, feedback, riwayat
-            "Refleksi Pekan 1", "Sabar itu penting.", "Nilai 92", "Refleksi yang jujur.",
-            "Coba lebih dalam.",
+            # tugas: jawaban dan feedback
+            "Refleksi Pekan 1", "Sabar itu penting.", "Refleksi yang jujur.",
         ):
             with self.subTest(teks=teks):
                 self.assertContains(response, teks)
@@ -425,27 +417,27 @@ class PengawasanAdminTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Belum ditempatkan di kelompok.")
 
-    def test_the_task_answers_page_shows_the_mentors_grade_and_feedback(self):
+    def test_the_task_answers_page_shows_the_mentors_feedback(self):
         self.client.force_login(self.staf)
 
         response = self.client.get(reverse("siwak:panel_jawaban", args=[self.tugas.pk]))
 
-        self.assertContains(response, "Nilai 92")
+        self.assertContains(response, "Ada feedback")
         self.assertContains(response, "Refleksi yang jujur.")
         self.assertContains(response, "Kelompok 7")
         self.assertContains(response, f'href="{self.url}"')
         self.assertEqual(response.context["jumlah_dinilai"], 1)
 
-    def test_the_task_answers_export_carries_the_group_grade_and_feedback(self):
+    def test_the_task_answers_export_carries_the_group_and_feedback(self):
         self.client.force_login(self.staf)
 
         response = self.client.get(reverse("siwak:panel_jawaban_csv", args=[self.tugas.pk]))
 
         kepala, baris = response.content.decode().splitlines()
         self.assertTrue(kepala.startswith("Nama,NPM,Kelompok,Status,Waktu Kumpul,"))
-        self.assertTrue(kepala.endswith("Nilai Mentor,Feedback Mentor,Dinilai Oleh"))
+        self.assertTrue(kepala.endswith(",Feedback Mentor,Feedback Oleh"))
         self.assertIn("Kelompok 7", baris)
-        self.assertTrue(baris.endswith("92,Refleksi yang jujur.,Kak Ahmad"))
+        self.assertTrue(baris.endswith(",Refleksi yang jujur.,Kak Ahmad"))
 
     def test_the_group_page_counts_active_sessions_out_of_all_of_them_when_narrowed(self):
         """Menyaring kisi ke satu sesi tidak boleh mengubah "Sesi aktif 2 / 4" jadi "2 / 1"."""
@@ -491,7 +483,7 @@ class PengawasanAdminTests(TestCase):
 
         html = self.client.get(reverse("siwak:panel_jawaban", args=[self.tugas.pk])).content.decode()
 
-        self.assertRegex(html, r'<div class="rounded-xl bg-navy[^"]*">\s*<p[^>]*>Penilaian mentor</p>')
+        self.assertRegex(html, r'<div class="rounded-xl bg-navy[^"]*">\s*<p[^>]*>Feedback mentor</p>')
 
 
 class PanelSaringanTests(TestCase):

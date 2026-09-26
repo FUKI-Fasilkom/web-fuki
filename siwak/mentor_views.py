@@ -20,7 +20,6 @@ from .mentor_forms import (
 )
 from .models import (
     AssignmentReview,
-    AssignmentReviewHistory,
     AssessmentAspect,
     KelompokMentoring,
     Profile,
@@ -215,7 +214,7 @@ def mentee_detail(request, participant_id):
             save_assignment_review(
                 form=assignment_target_form, submission=assignment_target, mentor=mentor
             )
-            messages.success(request, "Nilai dan feedback assignment berhasil disimpan.")
+            messages.success(request, "Feedback assignment berhasil disimpan.")
             return _ke_mentee(participant, f"assignment-{assignment_target.tugas_id}")
 
     tasks = Tugas.objects.filter(is_active=True).prefetch_related(
@@ -249,11 +248,6 @@ def mentee_detail(request, participant_id):
                 "submission": submission,
                 "review": review,
                 "review_form": review_form,
-                "review_history": (
-                    submission.mentor_review_history.select_related("reviewer")
-                    if submission
-                    else []
-                ),
                 "status": _status_tugas(submission),
             }
         )
@@ -444,15 +438,18 @@ def mentee_feedback_history(request):
         key=lambda entry: entry.created_at,
         reverse=True,
     )
-    assignment_review_history = AssignmentReviewHistory.objects.filter(
-        submission__user=request.user
-    ).select_related("submission__tugas", "reviewer")
+    # Satu feedback per tugas (OneToOne ke submission), yang terbaru disunting paling atas.
+    assignment_reviews = (
+        AssignmentReview.objects.filter(submission__user=request.user)
+        .select_related("submission__tugas", "reviewer")
+        .order_by("-updated_at")
+    )
     return render(
         request,
         "siwak/mentee_feedback_history.html",
         {
             "feedback_entries": feedback_entries,
-            "assignment_review_history": assignment_review_history,
+            "assignment_reviews": assignment_reviews,
         },
     )
 
@@ -490,7 +487,7 @@ def answer_download(request, submission_id, answer_id):
     )
 
 
-# --- Halaman rekap mentor: presensi, nilai mentee, penilaian tugas ---------
+# --- Halaman rekap mentor: presensi, nilai mentee, feedback tugas ----------
 #
 # Ketiganya berbentuk satu <form> besar berisi banyak baris, dan boleh diisi
 # sebagian: mentor yang baru sempat mengisi 3 dari 10 mentee tetap bisa
@@ -504,7 +501,7 @@ def answer_download(request, submission_id, answer_id):
 #     lengkap dengan isiannya.
 #   * Form barisnya dibuat dengan `use_required_attribute=False`. Tanpa itu
 #     Django menempelkan atribut HTML `required` ke isian wajib (status presensi,
-#     nilai tugas) di SETIAP baris, dan peramban menolak mengirim form sebelum
+#     feedback tugas) di SETIAP baris, dan peramban menolak mengirim form sebelum
 #     semua baris terisi — aturan "wajib" per baris tetap dicek di server,
 #     hanya untuk baris yang benar-benar diisi.
 

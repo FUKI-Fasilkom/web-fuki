@@ -11,7 +11,6 @@ from django.utils import timezone
 
 from .models import (
     AssignmentReview,
-    AssignmentReviewHistory,
     AssessmentAspect,
     KelompokMentoring,
     Profile,
@@ -79,7 +78,7 @@ def isian_form_post(html):
 
 
 class MentorRekapPagesTests(TestCase):
-    """Presensi Mentoring, Nilai Mentee, dan Penilaian Tugas."""
+    """Presensi Mentoring, Nilai Mentee, dan Feedback Tugas."""
 
     @classmethod
     def setUpClass(cls):
@@ -141,7 +140,7 @@ class MentorRekapPagesTests(TestCase):
         positions = [
             html.index("Presensi Mentoring"),
             html.index("Nilai Mentee"),
-            html.index("Penilaian Tugas"),
+            html.index("Feedback Tugas"),
             html.index("Daftar Mentee"),
         ]
         self.assertEqual(positions, sorted(positions))
@@ -236,9 +235,9 @@ class MentorRekapPagesTests(TestCase):
         self.assertNotIn("required", status.group(0))
 
         tugas = self.client.get(reverse("siwak:mentor_task_reviews")).content.decode()
-        nilai = re.search(rf'<input[^>]*name="t{self.sub_ani.pk}-score"[^>]*>', tugas)
-        self.assertIsNotNone(nilai)
-        self.assertNotIn("required", nilai.group(0))
+        feedback = re.search(rf'<textarea[^>]*name="t{self.sub_ani.pk}-feedback"[^>]*>', tugas)
+        self.assertIsNotNone(feedback)
+        self.assertNotIn("required", feedback.group(0))
 
     def _kirim_seperti_peramban(self, url, ubah):
         """Buka halamannya, lalu kirim SELURUH isian form seperti peramban —
@@ -283,12 +282,12 @@ class MentorRekapPagesTests(TestCase):
         self._submit(self.task, self.budi)
 
         response = self._kirim_seperti_peramban(
-            reverse("siwak:mentor_task_reviews"), {f"t{self.sub_ani.pk}-score": "90"}
+            reverse("siwak:mentor_task_reviews"), {f"t{self.sub_ani.pk}-feedback": "Rapi."}
         )
 
         self.assertEqual(response.status_code, 302)
         self.assertEqual(
-            list(AssignmentReview.objects.values_list("submission", "score")), [(self.sub_ani.pk, 90)]
+            list(AssignmentReview.objects.values_list("submission", "feedback")), [(self.sub_ani.pk, "Rapi.")]
         )
 
     def test_browser_submit_without_changes_saves_nothing(self):
@@ -334,17 +333,19 @@ class MentorRekapPagesTests(TestCase):
         self.assertEqual(MenteeAssessment.objects.get(peserta=self.ani).score, 85)
         self.assertFalse(MenteeAssessment.objects.filter(peserta=self.budi).exists())
 
+        # Feedback tugas yang sudah ada lalu dikosongkan = baris tidak valid.
         sub_budi = self._submit(self.task, self.budi)
+        AssignmentReview.objects.create(submission=sub_budi, feedback="Lama.", reviewer=self.mentor)
         tugas = {
-            f"t{self.sub_ani.pk}-score": 90, f"t{self.sub_ani.pk}-feedback": "",
-            f"t{sub_budi.pk}-score": 150, f"t{sub_budi.pk}-feedback": "",
+            f"t{self.sub_ani.pk}-feedback": "Bagus.",
+            f"t{sub_budi.pk}-feedback": "",
         }
 
         response = self.client.post(reverse("siwak:mentor_task_reviews"), tugas)
 
         self.assertContains(response, "1 baris belum valid")
-        self.assertEqual(AssignmentReview.objects.get(submission=self.sub_ani).score, 90)
-        self.assertFalse(AssignmentReview.objects.filter(submission=sub_budi).exists())
+        self.assertEqual(AssignmentReview.objects.get(submission=self.sub_ani).feedback, "Bagus.")
+        self.assertEqual(AssignmentReview.objects.get(submission=sub_budi).feedback, "Lama.")
 
     def test_attendance_inactive_session_and_foreign_rows_are_ignored(self):
         self.client.force_login(self.mentor.user)
@@ -446,35 +447,36 @@ class MentorRekapPagesTests(TestCase):
         self.assertContains(self.client.get(url, {"q": "zzz"}), "Tidak ada submission")
         self.assertNotContains(self.client.get(url, {"status": "sudah"}), "Ani Mentee")
 
-    def test_task_review_saves_score_feedback_and_history(self):
+    def test_task_review_saves_and_edits_feedback_in_place(self):
         self.client.force_login(self.mentor.user)
         url = reverse("siwak:mentor_task_reviews")
         prefix = f"t{self.sub_ani.pk}"
 
-        self.assertEqual(
-            self.client.post(url, {f"{prefix}-score": 88, f"{prefix}-feedback": "Rapi."}).status_code, 302
-        )
+        self.assertEqual(self.client.post(url, {f"{prefix}-feedback": "Rapi."}).status_code, 302)
         review = AssignmentReview.objects.get(submission=self.sub_ani)
-        self.assertEqual((review.score, review.feedback, review.reviewer), (88, "Rapi.", self.mentor))
+        self.assertEqual((review.feedback, review.reviewer), ("Rapi.", self.mentor))
 
-        # Sunting: satu review, riwayat bertambah; submit ulang tanpa perubahan tidak menambah riwayat.
-        self.client.post(url, {f"{prefix}-score": 95, f"{prefix}-feedback": "Sempurna."})
-        self.client.post(url, {f"{prefix}-score": 95, f"{prefix}-feedback": "Sempurna."})
-        self.assertEqual(AssignmentReview.objects.filter(submission=self.sub_ani).count(), 1)
-        self.assertEqual(AssignmentReviewHistory.objects.filter(submission=self.sub_ani).count(), 2)
+        # Sunting: tetap satu review, isinya diganti.
+        self.client.post(url, {f"{prefix}-feedback": "Sempurna."})
+        self.client.post(url, {f"{prefix}-feedback": "Sempurna."})
+        self.assertEqual(
+            list(AssignmentReview.objects.filter(submission=self.sub_ani).values_list("feedback", flat=True)),
+            ["Sempurna."],
+        )
         self.assertContains(self.client.get(url), "Sempurna.")
+        self.assertNotContains(self.client.get(url), "Nilai Tugas")
 
-    def test_task_review_rejects_invalid_score_and_foreign_submission(self):
+    def test_task_review_rejects_clearing_feedback_and_foreign_submission(self):
+        AssignmentReview.objects.create(submission=self.sub_ani, feedback="Lama.", reviewer=self.mentor)
         self.client.force_login(self.mentor.user)
         url = reverse("siwak:mentor_task_reviews")
-        response = self.client.post(url, {f"t{self.sub_ani.pk}-score": 150, f"t{self.sub_ani.pk}-feedback": "x"})
+        response = self.client.post(url, {f"t{self.sub_ani.pk}-feedback": "  "})
         self.assertEqual(response.status_code, 200)
-        self.assertFalse(AssignmentReview.objects.exists())
+        self.assertContains(response, "Feedback tidak boleh kosong.")
+        self.assertEqual(AssignmentReview.objects.get(submission=self.sub_ani).feedback, "Lama.")
 
         # Submission mentee kelompok lain tidak ada di halaman ini, jadi datanya diabaikan.
-        self.client.post(
-            url, {f"t{self.sub_outsider.pk}-score": 50, f"t{self.sub_outsider.pk}-feedback": "x"}
-        )
+        self.client.post(url, {f"t{self.sub_outsider.pk}-feedback": "x"})
         self.assertFalse(AssignmentReview.objects.filter(submission=self.sub_outsider).exists())
 
     def test_mentor_without_group_sees_empty_state(self):

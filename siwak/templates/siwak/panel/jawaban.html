@@ -32,7 +32,7 @@
   </div>
   <div class="rounded-2xl border-2 border-gold-light bg-white px-4 py-4">
     <p class="text-2xl font-bold leading-none text-navy sm:text-3xl">{{ jumlah_dinilai }}<span class="text-base font-semibold text-navy-400"> / {{ jumlah_semua }}</span></p>
-    <p class="mt-1.5 text-[11px] font-semibold uppercase tracking-wide text-navy-400 sm:text-xs">Sudah Dinilai Mentor</p>
+    <p class="mt-1.5 text-[11px] font-semibold uppercase tracking-wide text-navy-400 sm:text-xs">Sudah Diberi Feedback</p>
   </div>
   <div class="rounded-2xl border-2 border-gold-light bg-white px-4 py-4">
     <p class="text-2xl font-bold leading-none text-navy sm:text-3xl">{{ pertanyaan|length }}</p>
@@ -83,9 +83,9 @@
         <span class="block text-xs text-navy-400">{{ item.npm }}{% if item.kelompok %} · {{ item.kelompok }}{% endif %}</span>
       </span>
       {% if item.review %}
-      <span class="rounded-full bg-navy px-2.5 py-1 text-[11px] font-bold text-white">Nilai {{ item.review.score }}</span>
+      <span class="rounded-full bg-navy px-2.5 py-1 text-[11px] font-bold text-white">Ada feedback</span>
       {% else %}
-      <span class="rounded-full bg-navy/5 px-2.5 py-1 text-[11px] font-semibold text-navy-400">Belum dinilai</span>
+      <span class="rounded-full bg-navy/5 px-2.5 py-1 text-[11px] font-semibold text-navy-400">Belum ada feedback</span>
       {% endif %}
       {% if item.obj.status == 'late' %}
       <span class="rounded-full bg-navy/5 px-2.5 py-1 text-[11px] font-bold text-red-700">Terlambat</span>
@@ -120,16 +120,16 @@
       {% endfor %}
 
       {% comment %}
-        Latar navy, bukan krem: penilaian mentor harus langsung terbedakan dari
+        Latar navy, bukan krem: feedback mentor harus langsung terbedakan dari
         soal dan jawaban mentee di atasnya.
       {% endcomment %}
       <div class="rounded-xl bg-navy px-4 py-3.5 text-white">
-        <p class="text-xs font-bold uppercase tracking-wide text-gold">Penilaian mentor</p>
+        <p class="text-xs font-bold uppercase tracking-wide text-gold">Feedback mentor</p>
         {% if item.review %}
-        <p class="mt-1.5 text-sm text-cream-300"><span class="text-base font-bold text-white">Nilai {{ item.review.score }}</span> · {{ item.review.reviewer.nama_lengkap|default:"Mentor" }} · {{ item.review.updated_at|date:"j M Y, H:i" }}</p>
-        {% if item.review.feedback %}<p class="mt-1.5 whitespace-pre-line text-sm text-white">{{ item.review.feedback }}</p>{% endif %}
+        <p class="mt-1.5 whitespace-pre-line text-sm text-white">{{ item.review.feedback }}</p>
+        <p class="mt-1.5 text-sm text-cream-300">{{ item.review.reviewer.nama_lengkap|default:"Mentor" }} · {{ item.review.updated_at|date:"j M Y, H:i" }}</p>
         {% else %}
-        <p class="mt-1.5 text-sm text-cream-300">Belum dinilai mentor.</p>
+        <p class="mt-1.5 text-sm text-cream-300">Belum ada feedback mentor.</p>
         {% endif %}
         {% if item.profil and item.profil.role == 'mentee' %}
         <a href="{% url 'siwak:panel_mentee_detail' item.profil.pk %}" class="mt-2.5 inline-block text-sm font-semibold text-white underline decoration-gold underline-offset-2 transition hover:text-gold">Detail mentee</a>

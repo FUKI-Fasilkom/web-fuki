@@ -631,16 +631,18 @@ class TugasSubmission(models.Model):
 
 
 class AssignmentReview(models.Model):
+    """Feedback mentor untuk satu pengumpulan tugas.
+
+    Tugas tidak diberi nilai angka; satu submission punya paling banyak satu
+    feedback yang disunting di tempat (tanpa riwayat versi).
+    """
+
     submission = models.OneToOneField(
         TugasSubmission,
         on_delete=models.CASCADE,
         related_name="mentor_review",
     )
-    score = models.PositiveSmallIntegerField(
-        validators=[MinValueValidator(0), MaxValueValidator(100)],
-        verbose_name="Nilai Tugas",
-    )
-    feedback = models.TextField(blank=True)
+    feedback = models.TextField()
     reviewer = models.ForeignKey(
         Profile,
         on_delete=models.SET_NULL,
@@ -652,42 +654,11 @@ class AssignmentReview(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name = "Penilaian Tugas"
-        verbose_name_plural = "Penilaian Tugas"
+        verbose_name = "Feedback Tugas"
+        verbose_name_plural = "Feedback Tugas"
 
     def __str__(self):
-        return f"{self.submission} - {self.score}"
-
-
-class AssignmentReviewHistory(models.Model):
-    """Append-only snapshots so assignment feedback remains reviewable over time."""
-
-    submission = models.ForeignKey(
-        TugasSubmission,
-        on_delete=models.CASCADE,
-        related_name="mentor_review_history",
-    )
-    score = models.PositiveSmallIntegerField(
-        validators=[MinValueValidator(0), MaxValueValidator(100)],
-        verbose_name="Nilai Tugas",
-    )
-    feedback = models.TextField(blank=True)
-    reviewer = models.ForeignKey(
-        Profile,
-        on_delete=models.SET_NULL,
-        null=True,
-        limit_choices_to={"role": Profile.ROLE_MENTOR},
-        related_name="assignment_review_history",
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        verbose_name = "Riwayat Penilaian Tugas"
-        verbose_name_plural = "Riwayat Penilaian Tugas"
-        ordering = ["-created_at"]
-
-    def __str__(self):
-        return f"{self.submission} - {self.score} ({self.created_at})"
+        return f"Feedback {self.submission}"
 
 
 def _new_token():

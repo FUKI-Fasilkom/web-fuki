@@ -11,7 +11,6 @@ from .models import (
     Answer,
     AssessmentAspect,
     AssignmentReview,
-    AssignmentReviewHistory,
     Choice,
     EventRSVP,
     FAQMentoring,
@@ -369,7 +368,7 @@ class TugasSubmissionAdmin(admin.ModelAdmin):
     """Standalone selain inline di TugasAdmin, supaya relasi Answer &
     AssignmentReview bisa ditelusuri dari satu submission."""
 
-    list_display = ["tugas", "user", "status", "nilai", "jumlah_jawaban", "submitted_at"]
+    list_display = ["tugas", "user", "status", "ada_feedback", "jumlah_jawaban", "submitted_at"]
     list_filter = ["status", "tugas"]
     search_fields = ["tugas__judul_tugas", "user__username", "user__profil__nama_lengkap"]
     autocomplete_fields = ["tugas"]
@@ -377,10 +376,9 @@ class TugasSubmissionAdmin(admin.ModelAdmin):
     readonly_fields = ["status", "submitted_at"]
     inlines = [AnswerInline, AssignmentReviewInline]
 
-    @admin.display(description="Nilai")
-    def nilai(self, obj):
-        review = getattr(obj, "mentor_review", None)
-        return review.score if review else "-"
+    @admin.display(description="Feedback", boolean=True)
+    def ada_feedback(self, obj):
+        return hasattr(obj, "mentor_review")
 
     @admin.display(description="Jawaban")
     def jumlah_jawaban(self, obj):
@@ -406,7 +404,7 @@ class AnswerAdmin(admin.ModelAdmin):
 
 @admin.register(AssignmentReview)
 class AssignmentReviewAdmin(admin.ModelAdmin):
-    list_display = ["submission", "score", "reviewer", "updated_at"]
+    list_display = ["submission", "reviewer", "updated_at"]
     list_filter = ["submission__tugas", "reviewer"]
     search_fields = [
         "submission__user__username",
@@ -416,24 +414,3 @@ class AssignmentReviewAdmin(admin.ModelAdmin):
     autocomplete_fields = ["submission", "reviewer"]
     list_select_related = ["submission__tugas", "submission__user", "reviewer"]
     readonly_fields = ["created_at", "updated_at"]
-
-
-@admin.register(AssignmentReviewHistory)
-class AssignmentReviewHistoryAdmin(admin.ModelAdmin):
-    """Append-only: cuma untuk dibaca, jangan diedit lewat admin."""
-
-    list_display = ["submission", "score", "reviewer", "created_at"]
-    list_filter = ["submission__tugas", "reviewer"]
-    search_fields = [
-        "submission__user__username",
-        "submission__tugas__judul_tugas",
-        "feedback",
-    ]
-    list_select_related = ["submission__tugas", "submission__user", "reviewer"]
-    readonly_fields = ["submission", "score", "feedback", "reviewer", "created_at"]
-
-    def has_add_permission(self, request):
-        return False
-
-    def has_change_permission(self, request, obj=None):
-        return False
