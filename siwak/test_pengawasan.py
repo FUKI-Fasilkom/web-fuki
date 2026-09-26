@@ -10,10 +10,12 @@ import datetime
 import re
 
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import Permission
-from django.test import TestCase
+from django.contrib.auth.models import AnonymousUser, Permission
+from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
+
+from main.context_processors import monitoring
 
 from .mentor_forms import FIELD_CLASSES, CatatanMenteeForm
 from .models import (
@@ -33,6 +35,7 @@ from .models import (
     TugasSubmission,
 )
 from .services.mentor import boleh_baca_catatan, boleh_ubah_catatan
+from .services.qrcode_service import sign_payload
 
 
 User = get_user_model()
@@ -182,6 +185,22 @@ class CatatanMenteeTests(TestCase):
                     403,
                 )
         self.assertEqual(self._catatan(), CATATAN)
+
+    def test_it_is_masked_from_clarity_session_recordings(self):
+        """Second layer behind ClarityTests: these pages do not load Clarity at
+        all, but the note stays masked should that ever change."""
+        masker = 'data-clarity-mask="True"'
+        self.client.force_login(self.mentor_a.user)
+        self.assertContains(
+            self.client.get(reverse("siwak:mentor_mentee_detail", args=[self.mentee_a.pk])), masker
+        )
+        self.client.force_login(self.staf)
+        for url in (
+            reverse("siwak:panel_mentee_detail", args=[self.mentee_a.pk]),
+            reverse("siwak:panel_kelompok_detail", args=[self.kelompok_a.pk]),
+        ):
+            with self.subTest(url=url):
+                self.assertContains(self.client.get(url), masker)
 
     def test_the_public_group_search_never_shows_it(self):
         response = self.client.post(reverse("siwak:kelompok_search"), {"nama_lengkap": "Mentee A"})
@@ -644,3 +663,105 @@ class PanelSaringanTests(TestCase):
         _, *baris = response.content.decode().splitlines()
         self.assertEqual(len(baris), 1)
         self.assertIn("Ani", baris[0])
+
+
+@override_settings(DEPLOY_ENV="production")
+class ClarityTests(TestCase):
+    """Microsoft Clarity records sessions, page text included: only for guests
+    who are not logged in, only in production, and never on internal pages."""
+
+    TAG = "clarity.ms/tag/"
+
+    def _publik(self):
+        return ("/", reverse("siwak:landing"), reverse("siwak:kelompok_search"))
+
+    def test_guests_on_public_pages_in_production_get_clarity(self):
+        for url in self._publik():
+            with self.subTest(url=url):
+                self.assertContains(self.client.get(url), self.TAG)
+
+    def test_non_production_never_loads_clarity(self):
+        for env in ("staging", "development"):
+            with self.settings(DEPLOY_ENV=env):
+                for url in self._publik():
+                    with self.subTest(env=env, url=url):
+                        self.assertNotContains(self.client.get(url), self.TAG)
+
+    def test_logged_in_users_never_load_clarity_even_on_public_pages(self):
+        mentee = _profil("2500000009", "Mentee Z", Profile.ROLE_MENTEE)
+        for akun in (mentee.user, User.objects.create_user(username="pengurus", is_staff=True)):
+            self.client.force_login(akun)
+            for url in self._publik():
+                with self.subTest(akun=akun.username, url=url):
+                    self.assertNotContains(self.client.get(url), self.TAG)
+
+    def test_excluded_prefixes_still_hold_for_guests(self):
+        """Second safety net behind the login rule, checked on path_info so a
+        site mounted under a SCRIPT_NAME cannot slip past it."""
+        rf = RequestFactory()
+
+        def aktif(path, **extra):
+            request = rf.get(path, **extra)
+            request.user = AnonymousUser()
+            return monitoring(request)["CLARITY_AKTIF"]
+
+        for path in (
+            "/siwak/admin/", "/siwak/mentor/", "/siwak/qr/abc/", "/siwak/pindai/",
+            "/siwak/login/", "/siwak/login/khusus/",
+        ):
+            with self.subTest(path=path):
+                self.assertFalse(aktif(path))
+        self.assertTrue(aktif("/siwak/"))
+        # request.path would be "/fuki/siwak/admin/" here and miss the prefix.
+        self.assertFalse(aktif("/siwak/admin/", SCRIPT_NAME="/fuki"))
+
+    def test_a_guest_opening_a_qr_link_never_hands_the_token_to_clarity(self):
+        """Tamu (HP panitia yang belum login, atau mentee yang memindai QR-nya
+        sendiri) dialihkan ke halaman login dengan ?next=/siwak/qr/<token>/.
+        Token itu berlaku 30 hari; Clarity merekam URL halaman."""
+        mentee = _profil("2500000001", "Mentee A", Profile.ROLE_MENTEE)
+        rsvp = EventRSVP.objects.create(event=SiwakEvent.objects.create(judul="Acara"), user=mentee.user)
+        signed = sign_payload("kupon", rsvp.qr_kupon_token)
+
+        response = self.client.get(reverse("siwak:qr_verify", args=[signed]), follow=True)
+
+        self.assertTrue(response.redirect_chain[-1][0].startswith(reverse("siwak:login_khusus")))
+        self.assertContains(response, signed)  # ada di halaman: next + tautan SSO
+        self.assertNotContains(response, self.TAG)
+
+    def test_internal_pages_do_not_load_clarity(self):
+        kelompok = KelompokMentoring.objects.create(nama_kelompok="Kelompok A")
+        mentor = _profil("2100000001", "Mentor A", Profile.ROLE_MENTOR, kelompok)
+        mentee = _profil("2500000001", "Mentee A", Profile.ROLE_MENTEE, kelompok)
+        rsvp = EventRSVP.objects.create(
+            event=SiwakEvent.objects.create(judul="Main Event"), user=mentee.user
+        )
+        qr = reverse("siwak:qr_verify", args=[sign_payload("registrasi", rsvp.qr_registrasi_token)])
+
+        halaman = {
+            User.objects.create_superuser(username="admin", password="x"): (
+                reverse("siwak:panel_beranda"),
+                reverse("siwak:panel_daftar", args=["peserta"]),
+                reverse("siwak:panel_kelompok_detail", args=[kelompok.pk]),
+                reverse("siwak:panel_mentee_detail", args=[mentee.pk]),
+                reverse("siwak:panel_rsvp", args=[rsvp.event_id]),
+                reverse("siwak:pindai_beranda"),
+                # Daftar RSVP panitia: nama + NPM semua peserta acara.
+                reverse("siwak:pindai_rsvp", args=[rsvp.event_id]),
+                qr,
+            ),
+            mentor.user: (
+                reverse("siwak:mentor_dashboard"),
+                reverse("siwak:mentor_mentee_detail", args=[mentee.pk]),
+                reverse("siwak:mentor_attendance"),
+                reverse("siwak:mentor_assessments"),
+                reverse("siwak:mentor_task_reviews"),
+            ),
+        }
+        for akun, urls in halaman.items():
+            self.client.force_login(akun)
+            for url in urls:
+                with self.subTest(akun=akun.username, url=url):
+                    response = self.client.get(url)
+                    self.assertEqual(response.status_code, 200)
+                    self.assertNotContains(response, self.TAG)

@@ -15,7 +15,12 @@ import os
 import sys
 import dj_database_url
 import requests
+import sentry_sdk
 from dotenv import load_dotenv
+from sentry_sdk.scrubber import DEFAULT_DENYLIST, EventScrubber
+
+from main.monitoring import bersihkan_event
+
 load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -134,6 +139,8 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    # Sentry user context = user id only (main/monitoring.py); needs request.user.
+    'main.monitoring.SentryUserMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     # Halaman 403 "Akses Ditolak" SIWAK untuk user yang salah peran (siwak/akses.py).
@@ -157,6 +164,9 @@ TEMPLATES = [
                 # base.html bisa menyusun <title>, canonical, Open Graph, dan JSON-LD
                 # dari satu sumber saja.
                 'main.context_processors.seo',
+                # Apakah halaman ini boleh memuat Microsoft Clarity (lihat
+                # CLARITY_EXCLUDED_PREFIXES).
+                'main.context_processors.monitoring',
             ],
         },
     },
@@ -351,3 +361,71 @@ LOGGING = {
         'cas': {'handlers': ['console'], 'level': 'DEBUG', 'propagate': False},
     },
 }
+
+
+# ---------------------------------------------------------------------------
+# Monitoring — Sentry & Microsoft Clarity
+# ---------------------------------------------------------------------------
+# Deployment environment, shared by Sentry (environment tag) and Clarity (only
+# in production). Staging and production are already told apart by the SITE_URL
+# that deploy.yml writes into app.env, so no new pipeline variable is needed; an
+# explicit DJANGO_ENV still wins if one is ever set. DEBUG is only on for local
+# development.
+DEPLOY_ENV = os.getenv("DJANGO_ENV") or (
+    "staging" if "staging" in SITE_URL
+    else "development" if DEBUG
+    else "production"
+)
+
+# Error tracking plus a sample of performance traces; the Django integration is
+# enabled automatically because Django is installed. Kept as a dict so tests can
+# check the privacy settings without Sentry being switched on.
+#
+# Privacy: no default PII (IP, cookies, raw headers), no request bodies (mentee
+# notes, task answers), and no stack-frame local variables — a key denylist
+# cannot catch a student's name or NPM inside a model's __str__ (Profile prints
+# as "Nama (NPM)"), so locals are not sent at all. The recursive key-based
+# scrubber covers what is left (headers, extras, breadcrumbs, spans); `signed`
+# is qr_verify's name for the QR token. The scrubber only matches key names and
+# never reads text, so main.monitoring.bersihkan_event redacts the QR token path
+# and the CAS `ticket` in every string of the event: URLs, the Referer header,
+# the URL-encoded `?next=`, and the query of outgoing requests to SSO UI in
+# spans and breadcrumbs. The only user context sent is the numeric user id
+# (main.monitoring.SentryUserMiddleware).
+SENTRY_OPTIONS = {
+    "dsn": "https://cb9cca9e8889db66cedc56d94d2ee33e@o4512145721458688.ingest.us.sentry.io/4512145755602944",
+    "send_default_pii": False,
+    "max_request_body_size": "never",
+    "include_local_variables": False,
+    "event_scrubber": EventScrubber(
+        recursive=True,
+        denylist=DEFAULT_DENYLIST
+        + ["notes", "catatan", "feedback", "isi", "jawaban", "npm", "qr", "ticket", "signed"],
+    ),
+    "before_send": bersihkan_event,
+    "before_send_transaction": bersihkan_event,
+    "traces_sample_rate": 0.2,
+    "environment": DEPLOY_ENV,
+}
+
+# Off for local development (DEBUG) and under `manage.py test`: the suite
+# deliberately triggers 403s, 404s and errors, and without this guard every
+# local run would send events and traces to the same project as production.
+SENTRY_AKTIF = not (DEBUG or RUNNING_TESTS)
+if SENTRY_AKTIF:
+    sentry_sdk.init(**SENTRY_OPTIONS)
+
+# Microsoft Clarity records sessions, page text included, so it is kept off the
+# internal pages that show other students' names and NPMs. Any URL under one of
+# these prefixes renders without the Clarity script (see
+# main/context_processors.monitoring). Django's own /admin/ does not extend
+# templates/base.html, so it never loads Clarity in the first place.
+CLARITY_EXCLUDED_PREFIXES = (
+    "/siwak/admin/",   # panel pengurus
+    "/siwak/mentor/",  # portal mentor: daftar & detail mentee
+    "/siwak/qr/",      # konfirmasi scan QR: nama + NPM peserta
+    "/siwak/pindai/",  # halaman awal akun pemindai
+    # Tamu yang membuka tautan QR dialihkan ke sini dengan
+    # ?next=/siwak/qr/<token>/, dan Clarity merekam URL halaman.
+    "/siwak/login/",
+)
