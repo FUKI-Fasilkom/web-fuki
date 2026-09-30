@@ -23,6 +23,7 @@ PyYAML==6.0.3
 qrcode==8.0
 requests==2.33.1
 s3transfer==0.16.0
+sentry-sdk==2.70.0
 six==1.17.0
 sqlparse==0.5.5
 tzdata==2026.1

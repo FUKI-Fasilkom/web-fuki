@@ -143,7 +143,7 @@
           <td class="whitespace-nowrap px-3.5 py-3 text-center text-navy">{{ b.dinilai }} / {{ b.tugas }}</td>
           <td class="whitespace-nowrap px-3.5 py-3 text-center font-semibold text-navy">{{ b.rata_nilai|default:"—" }}</td>
           <td class="px-3.5 py-3 text-navy-400">
-            {% if b.profil.notes %}<span class="block max-w-[28ch] text-navy" title="{{ b.profil.notes }}">{{ b.profil.notes|truncatechars:80 }}</span>{% else %}—{% endif %}
+            {% if b.profil.notes %}<span data-clarity-mask="True" class="block max-w-[28ch] text-navy" title="{{ b.profil.notes }}">{{ b.profil.notes|truncatechars:80 }}</span>{% else %}—{% endif %}
           </td>
         </tr>
         {% endfor %}
