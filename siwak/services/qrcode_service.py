@@ -34,13 +34,16 @@ def qr_png_data_uri(data: str) -> str:
     return f"data:image/png;base64,{encoded}"
 
 
+def _qr_verify_data_uri(request, kind: str, token: str) -> str:
+    """QR berisi URL absolut `qr_verify` untuk token ini, supaya kamera HP
+    panitia langsung membuka halaman pindainya."""
+    signed = sign_payload(kind, token)
+    return qr_png_data_uri(request.build_absolute_uri(reverse("siwak:qr_verify", args=[signed])))
+
+
 def registrasi_qr_data_uri(request, rsvp) -> str:
-    signed = sign_payload("registrasi", rsvp.qr_registrasi_token)
-    url = request.build_absolute_uri(reverse("siwak:qr_verify", args=[signed]))
-    return qr_png_data_uri(url)
+    return _qr_verify_data_uri(request, "registrasi", rsvp.qr_registrasi_token)
 
 
 def kupon_qr_data_uri(request, rsvp) -> str:
-    signed = sign_payload("kupon", rsvp.qr_kupon_token)
-    url = request.build_absolute_uri(reverse("siwak:qr_verify", args=[signed]))
-    return qr_png_data_uri(url)
+    return _qr_verify_data_uri(request, "kupon", rsvp.qr_kupon_token)

@@ -1,15 +1,9 @@
 {% load static %}
 
-{% comment %}
-  Beranda ditautkan sebagai "/" literal, bukan {% url 'beranda' %}: main/urls.py
-  mendaftarkan nama 'beranda' dua kali sehingga reverse() mengembalikan
-  '/beranda', bukan '/'. Alasan yang sama didokumentasikan di web_fuki/sitemaps.py.
-{% endcomment %}
-
 <nav x-data="{ open: false, kegiatan: false, siwak: false }" class="bg-[#FDFBF4] sticky top-0 z-50 shadow-sm">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex items-center justify-between gap-4">
 
-    <a href="/" class="flex items-center space-x-2 shrink-0">
+    <a href="{% url 'beranda' %}" class="flex items-center space-x-2 shrink-0">
       <img src="{% static 'images/Logo-FUKI-Biru.png' %}" alt="Logo FUKI"
            class="w-7 h-7 sm:w-9 sm:h-9 object-contain" />
       <span class="font-bold text-navy text-sm sm:text-base whitespace-nowrap">FUKI FASILKOM UI</span>
@@ -21,7 +15,7 @@
       terlipat dua baris; di situ ukurannya turun ke 14px dan jaraknya dirapatkan.
     {% endcomment %}
     <div class="hidden lg:flex items-center gap-4 xl:gap-6 text-sm xl:text-base whitespace-nowrap">
-      <a href="/" class="text-navy hover:text-navy-600 transition">Beranda</a>
+      <a href="{% url 'beranda' %}" class="text-navy hover:text-navy-600 transition">Beranda</a>
       <a href="{% url 'profil' %}" class="text-navy hover:text-navy-600 transition">Profil</a>
       <a href="{% url 'birdep:team_list' %}" class="text-navy hover:text-navy-600 transition">Biro &amp; Departemen</a>
 
@@ -106,7 +100,7 @@
   </div>
 
   <div x-show="open" x-transition x-cloak class="lg:hidden px-4 pb-4 space-y-1 text-base border-t border-navy/10 pt-3">
-    <a href="/" class="block py-2 text-navy hover:text-navy-600">Beranda</a>
+    <a href="{% url 'beranda' %}" class="block py-2 text-navy hover:text-navy-600">Beranda</a>
     <a href="{% url 'profil' %}" class="block py-2 text-navy hover:text-navy-600">Profil</a>
     <a href="{% url 'birdep:team_list' %}" class="block py-2 text-navy hover:text-navy-600">Biro &amp; Departemen</a>
     <p class="pt-2 pb-1 text-xs font-semibold uppercase tracking-wide text-navy-400">Kegiatan</p>

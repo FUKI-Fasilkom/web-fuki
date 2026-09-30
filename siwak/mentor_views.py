@@ -8,8 +8,7 @@ from django.db.models import Count, Prefetch, Q
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from django.utils.http import urlencode
-from django.utils.http import content_disposition_header, url_has_allowed_host_and_scheme
+from django.utils.http import content_disposition_header
 from django.views.decorators.http import require_POST
 from storages.backends.s3 import S3Storage
 
@@ -32,12 +31,13 @@ from .models import (
 )
 from .services.mentor import (
     boleh_ubah_catatan,
-    mentor_for_user,
+    memegang_mentee,
     require_mentor,
     save_assessments,
     save_assignment_review,
     save_attendance_row,
 )
+from .utils import kembali, kueri_tanpa_halaman
 
 PER_HALAMAN = 20
 
@@ -47,10 +47,41 @@ def _mentor_group_or_404(mentor, group_id):
     return get_object_or_404(KelompokMentoring, pk=group_id, anggota=mentor)
 
 
-@login_required
-def mentor_dashboard(request):
+def _mentor_dan_kelompok_aktif(request):
+    """Mentor yang login + kelompok aktifnya, atau group=None kalau belum punya."""
     mentor = require_mentor(request.user)
     group = mentor.kelompok if mentor.kelompok_id and mentor.kelompok.is_active else None
+    return mentor, group
+
+
+def _status_tugas(submission):
+    """Label status satu tugas di portal mentor."""
+    if submission is None:
+        return "Pending"
+    return "Late" if submission.status == "late" else "Submitted"
+
+
+def _feedback_terbaru(entries, kunci):
+    """Feedback terbaru per `kunci(entry)`.
+
+    Feedback disunting, bukan ditumpuk (satu per sesi per mentor), jadi kalau
+    masih ada baris lama sisa sistem log, cuma yang terbaru yang dipakai.
+    """
+    terbaru = {}
+    for entry in entries.order_by("-created_at"):
+        terbaru.setdefault(kunci(entry), entry)
+    return terbaru
+
+
+def _ke_mentee(participant, jangkar):
+    """Kembali ke bagian `jangkar` di halaman detail mentee sesudah menyimpan."""
+    url = reverse("siwak:mentor_mentee_detail", kwargs={"participant_id": participant.pk})
+    return redirect(f"{url}#{jangkar}")
+
+
+@login_required
+def mentor_dashboard(request):
+    mentor, group = _mentor_dan_kelompok_aktif(request)
     mentee_cards = []
     session_count = 0
     task_count = 0
@@ -137,10 +168,7 @@ def mentee_detail(request, participant_id):
     if action == "assessment" and assessment_form.is_valid():
         save_assessments(form=assessment_form, participant=participant, mentor=mentor)
         messages.success(request, "Penilaian mentee berhasil disimpan.")
-        return redirect(
-            f"{reverse('siwak:mentor_mentee_detail', kwargs={'participant_id': participant.pk})}"
-            "#penilaian"
-        )
+        return _ke_mentee(participant, "penilaian")
 
     assessment_rows = [
         {
@@ -188,10 +216,7 @@ def mentee_detail(request, participant_id):
                 form=assignment_target_form, submission=assignment_target, mentor=mentor
             )
             messages.success(request, "Nilai dan feedback assignment berhasil disimpan.")
-            return redirect(
-                f"{reverse('siwak:mentor_mentee_detail', kwargs={'participant_id': participant.pk})}"
-                f"#assignment-{assignment_target.tugas_id}"
-            )
+            return _ke_mentee(participant, f"assignment-{assignment_target.tugas_id}")
 
     tasks = Tugas.objects.filter(is_active=True).prefetch_related(
         Prefetch(
@@ -229,13 +254,7 @@ def mentee_detail(request, participant_id):
                     if submission
                     else []
                 ),
-                "status": (
-                    "Pending"
-                    if submission is None
-                    else "Late"
-                    if submission.status == "late"
-                    else "Submitted"
-                ),
+                "status": _status_tugas(submission),
             }
         )
 
@@ -248,13 +267,12 @@ def mentee_detail(request, participant_id):
             ),
         )
     )
-    # Feedback terbaru milik mentor ini per sesi; itulah yang disunting (satu
-    # feedback per sesi, bukan log), sama seperti halaman rekap presensi.
-    feedback_by_session = {}
-    for entry in MentorFeedback.objects.filter(
-        session__in=sessions, peserta=participant, mentor=mentor
-    ).order_by("-created_at"):
-        feedback_by_session.setdefault(entry.session_id, entry)
+    # Feedback milik mentor ini per sesi; itulah yang disunting, sama seperti
+    # halaman rekap presensi.
+    feedback_by_session = _feedback_terbaru(
+        MentorFeedback.objects.filter(session__in=sessions, peserta=participant, mentor=mentor),
+        lambda entry: entry.session_id,
+    )
 
     session_target = None
     session_target_form = None
@@ -284,10 +302,7 @@ def mentee_detail(request, participant_id):
                 feedback_entry=existing_feedback,
             )
             messages.success(request, f"Presensi dan feedback {session_target.judul} tersimpan.")
-            return redirect(
-                f"{reverse('siwak:mentor_mentee_detail', kwargs={'participant_id': participant.pk})}"
-                f"#session-{session_target.pk}"
-            )
+            return _ke_mentee(participant, f"session-{session_target.pk}")
 
     session_cards = []
     for session in sessions:
@@ -362,12 +377,9 @@ def mentee_catatan(request, participant_id):
     else:
         messages.error(request, "Catatan belum tersimpan. Periksa isiannya lalu coba lagi.")
 
-    tujuan = request.POST.get("next") or ""
-    if tujuan and url_has_allowed_host_and_scheme(
-        tujuan, allowed_hosts={request.get_host()}, require_https=request.is_secure()
-    ):
-        return redirect(tujuan)
-    return redirect("siwak:mentor_mentee_detail", participant_id=participant.pk)
+    return kembali(
+        request, reverse("siwak:mentor_mentee_detail", kwargs={"participant_id": participant.pk})
+    )
 
 
 @login_required
@@ -407,13 +419,7 @@ def assignments(request, group_id):
                 {
                     "task": task,
                     "submission": submission,
-                    "status": (
-                        "Pending"
-                        if submission is None
-                        else "Late"
-                        if submission.status == "late"
-                        else "Submitted"
-                    ),
+                    "status": _status_tugas(submission),
                 }
             )
         rows.append({"participant": participant, "tasks": participant_tasks})
@@ -427,13 +433,12 @@ def assignments(request, group_id):
 
 @login_required
 def mentee_feedback_history(request):
-    # Satu feedback per (sesi, mentor): kalau ada baris lama sisa sistem log,
-    # cuma yang terbaru yang ditampilkan.
-    feedback_by_session_mentor = {}
-    for entry in MentorFeedback.objects.filter(
-        peserta__user=request.user
-    ).select_related("session", "mentor", "peserta").order_by("-created_at"):
-        feedback_by_session_mentor.setdefault((entry.session_id, entry.mentor_id), entry)
+    feedback_by_session_mentor = _feedback_terbaru(
+        MentorFeedback.objects.filter(peserta__user=request.user).select_related(
+            "session", "mentor", "peserta"
+        ),
+        lambda entry: (entry.session_id, entry.mentor_id),
+    )
     feedback_entries = sorted(
         feedback_by_session_mentor.values(),
         key=lambda entry: entry.created_at,
@@ -459,19 +464,8 @@ def answer_download(request, submission_id, answer_id):
         pk=submission_id,
     )
     is_owner = submission.user_id == request.user.id
-    mentor = mentor_for_user(request.user)
-    # `mentor.kelompok_id` wajib dicek: mentor tanpa kelompok akan menghasilkan
-    # `kelompok_id=None`, yang di ORM berarti IS NULL dan cocok dengan SEMUA
-    # mentee yang belum punya kelompok.
-    is_responsible_mentor = bool(
-        mentor
-        and mentor.kelompok_id
-        and Profile.objects.filter(
-            user=submission.user,
-            role=Profile.ROLE_MENTEE,
-            kelompok_id=mentor.kelompok_id,
-        ).exists()
-    )
+    mentee = getattr(submission.user, "profil", None)
+    is_responsible_mentor = mentee is not None and memegang_mentee(request.user, mentee)
     if not (is_owner or is_responsible_mentor or request.user.is_staff):
         raise Http404
     file = get_object_or_404(submission.answers, pk=answer_id).file_answer
@@ -515,21 +509,13 @@ def answer_download(request, submission_id, answer_id):
 #     hanya untuk baris yang benar-benar diisi.
 
 
-def _rekap_context(request):
-    """Mentor + kelompok aktifnya, atau group=None kalau belum punya kelompok aktif."""
-    mentor = require_mentor(request.user)
-    group = mentor.kelompok if mentor.kelompok_id and mentor.kelompok.is_active else None
-    return mentor, group
-
-
 def _matches(query, *texts):
     return not query or any(query in (text or "").lower() for text in texts)
 
 
 def _paginate(request, rows):
     halaman = Paginator(rows, PER_HALAMAN).get_page(request.GET.get("page"))
-    kueri = urlencode({k: v for k, v in request.GET.items() if k != "page" and v})
-    return halaman, kueri
+    return halaman, kueri_tanpa_halaman(request)
 
 
 def _dikirim(request, prefix):
@@ -569,7 +555,7 @@ def _rekap_selesai(request, saved_count, error_count):
 
 @login_required
 def mentor_attendance(request):
-    mentor, group = _rekap_context(request)
+    mentor, group = _mentor_dan_kelompok_aktif(request)
     if group is None:
         return render(request, "siwak/mentor/attendance.html", {"mentor": mentor, "group": None})
 
@@ -582,12 +568,13 @@ def mentor_attendance(request):
         (a.session_id, a.peserta_id): a
         for a in MentoringAttendance.objects.filter(session__in=sessions, peserta__in=participants)
     }
-    # Feedback terbaru milik mentor ini per (sesi, mentee); itulah yang disunting.
-    feedback = {}
-    for entry in MentorFeedback.objects.filter(
-        session__in=sessions, peserta__in=participants, mentor=mentor
-    ).order_by("-created_at"):
-        feedback.setdefault((entry.session_id, entry.peserta_id), entry)
+    # Feedback milik mentor ini per (sesi, mentee); itulah yang disunting.
+    feedback = _feedback_terbaru(
+        MentorFeedback.objects.filter(
+            session__in=sessions, peserta__in=participants, mentor=mentor
+        ),
+        lambda entry: (entry.session_id, entry.peserta_id),
+    )
 
     rows = []
     for session in sessions:
@@ -657,7 +644,7 @@ def mentor_attendance(request):
 
 @login_required
 def mentor_assessments(request):
-    mentor, group = _rekap_context(request)
+    mentor, group = _mentor_dan_kelompok_aktif(request)
     if group is None:
         return render(request, "siwak/mentor/assessments.html", {"mentor": mentor, "group": None})
 
@@ -729,7 +716,7 @@ def mentor_assessments(request):
 
 @login_required
 def mentor_task_reviews(request):
-    mentor, group = _rekap_context(request)
+    mentor, group = _mentor_dan_kelompok_aktif(request)
     if group is None:
         return render(request, "siwak/mentor/task_reviews.html", {"mentor": mentor, "group": None})
 

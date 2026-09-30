@@ -3,7 +3,6 @@ from django import forms
 from .models import (
     AssignmentReview,
     AssessmentAspect,
-    MenteeAssessment,
     MentoringAttendance,
     Profile,
 )

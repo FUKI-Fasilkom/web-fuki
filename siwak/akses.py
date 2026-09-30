@@ -2,7 +2,7 @@
 
 Ada empat bagian berpenjaga: panel pengurus (`staf_required`), portal mentor
 (`services.mentor.require_mentor`), pemindai QR (`pemindai_required`), dan
-Tugas Mentoring (`mentee_required`). User yang sudah login tapi salah peran
+Tugas Mentoring (`mentee_required`). Ketiga decorator itu tinggal di sini. User yang sudah login tapi salah peran
 tidak lagi mendapat 403 polos: penjaganya melempar `AksesDitolak(bagian)`, dan
 `handler403` merender satu halaman bergaya SIWAK yang menyebut halaman mana
 yang tertutup dan menawarkan jalan ke bagian miliknya sendiri (mis. mentor
@@ -15,8 +15,12 @@ PermissionDenied lainnya dengan halaman yang sama.
 Status HTTP-nya tetap 403 — yang berubah hanya tampilannya.
 """
 
+from functools import wraps
+
+from django.contrib import messages
+from django.contrib.auth.views import redirect_to_login
 from django.core.exceptions import PermissionDenied
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 from django.urls import reverse
 
 from .models import Profile, SiwakInfo
@@ -58,6 +62,73 @@ def bagian_utama(user):
 
 def url_bagian(bagian):
     return reverse(BAGIAN[bagian][2])
+
+
+# ---------------------------------------------------------------------------
+# Penjaga peran
+#
+# `user_passes_test` Django mengarahkan *setiap* user yang gagal ke halaman
+# login — termasuk yang sudah login tapi salah peran — sehingga halaman login
+# berputar-putar. Penjaga di bawah meniru `staff_member_required`: user anonim
+# ke halaman login yang tepat, user yang salah peran ke halaman 403 di atas.
+# ---------------------------------------------------------------------------
+
+def staf_required(view_func):
+    """Panel pengurus: hanya `is_staff`. Yang belum login ke login admin.
+
+    Akun pemindai QR sengaja selalu `is_staff=False` (lihat AkunPemindaiForm),
+    jadi decorator inilah yang menutup seluruh panel untuknya."""
+
+    @wraps(view_func)
+    def _wrapped(request, *args, **kwargs):
+        if request.user.is_authenticated:
+            if not request.user.is_staff:
+                raise AksesDitolak("admin")
+            return view_func(request, *args, **kwargs)
+        return redirect_to_login(request.get_full_path(), reverse("admin:login"))
+
+    return _wrapped
+
+
+def pemindai_required(view_func):
+    """Pemindai QR: superuser dan akun panitia yang punya salah satu izin pindai.
+
+    Yang belum login ke "Login Akun Khusus" (login admin menolak akun panitia,
+    karena bukan staf). Jenis QR mana yang boleh dipindai diperiksa di dalam
+    `qr_verify`, begitu payload bertanda tangan menyebut jenisnya.
+    """
+
+    @wraps(view_func)
+    def _wrapped(request, *args, **kwargs):
+        if request.user.is_authenticated:
+            if not boleh_memindai(request.user):
+                raise AksesDitolak("pemindai")
+            return view_func(request, *args, **kwargs)
+        return redirect_to_login(request.get_full_path(), reverse("siwak:login_khusus"))
+
+    return _wrapped
+
+
+def mentee_required(view_func):
+    """Halaman Tugas Mentoring: harus login DAN berperan Mentee.
+
+    User yang sudah punya bagiannya sendiri (mentor, pengurus, pemindai QR)
+    mendapat halaman 403 yang menunjuk ke bagian itu. Sisanya (anonim, role
+    NULL) dikembalikan ke /siwak dengan notifikasi, bukan ke login/403, supaya
+    user tahu harus menghubungi CP.
+    """
+
+    @wraps(view_func)
+    def _wrapped(request, *args, **kwargs):
+        if request.user.is_authenticated:
+            if Profile.objects.filter(user=request.user, role=Profile.ROLE_MENTEE).exists():
+                return view_func(request, *args, **kwargs)
+            if bagian_utama(request.user):
+                raise AksesDitolak("mentee")
+        messages.error(request, "Anda harus menjadi Mentee, hubungi CP SIWAK")
+        return redirect("siwak:landing")
+
+    return _wrapped
 
 
 class AksesDitolakMiddleware:

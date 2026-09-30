@@ -7,7 +7,7 @@ cukup dengan menambah satu `Sumber` di sini: halaman daftar, tambah, ubah, dan
 hapus langsung ada tanpa menulis view atau template baru.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Callable
 
 from django.contrib.auth import get_user_model
@@ -144,7 +144,6 @@ class Bagian:
     nama: str
     deskripsi: str
     ikon: str
-    menu: tuple = field(default_factory=tuple)
 
 
 # Tombol "Buat RSVP" di setiap daftar yang isinya Profile.

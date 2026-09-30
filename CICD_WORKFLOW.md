@@ -496,8 +496,9 @@ Roughly in priority order.
       Cheap to add, high value.
 - [ ] **`SSH_KNOWN_HOSTS` secret.** Every deploy currently prints a warning and trusts
       the host key on first use. `ssh-keyscan <VPS_IP>` → paste into the secret.
-- [ ] **Real tests.** All `tests.py` are empty, so `checks` only validates configuration,
-      not behaviour. Add tests plus a lint step (ruff) to the same job.
+- [ ] **Run the tests in CI.** The suites exist (~600 tests, mostly `siwak`), but `checks`
+      only validates configuration. Add `python manage.py test` (needs a Postgres
+      service container) plus a lint step (ruff) to the same job.
 - [ ] **Staging subdomain.** Ask Fasilkom for `staging-fuki.cs.ui.ac.id`; staging is
       currently only reachable via an SSH tunnel on port 8080.
 - [ ] **Static cache-busting.** Switching to `CompressedManifestStaticFilesStorage` would

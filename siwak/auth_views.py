@@ -23,21 +23,11 @@ from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.views import LoginView
 from django.shortcuts import redirect, render, resolve_url
 from django.urls import reverse
-from django.utils.http import url_has_allowed_host_and_scheme
 
 from .models import Profile, SiwakInfo
 from .services.pemindai import boleh_memindai
 from .sso import role_landing_url
-
-
-def _next_yang_aman(request):
-    """`?next=` yang boleh dipakai, atau "" kalau tidak ada/tidak tepercaya."""
-    tujuan = request.GET.get("next") or request.POST.get("next") or ""
-    if tujuan and url_has_allowed_host_and_scheme(
-        tujuan, allowed_hosts={request.get_host()}, require_https=request.is_secure()
-    ):
-        return tujuan
-    return ""
+from .utils import next_aman
 
 
 def login_pilihan(request):
@@ -47,10 +37,10 @@ def login_pilihan(request):
     ke sini lewat @login_required hilang begitu dia memilih metodenya.
     """
     if request.user.is_authenticated:
-        return redirect(_next_yang_aman(request) or role_landing_url(request.user))
+        return redirect(next_aman(request) or role_landing_url(request.user))
 
     return render(request, "siwak/auth/login_pilihan.html", {
-        "next": _next_yang_aman(request),
+        "next": next_aman(request),
         "url_sso": reverse("siwak:cas_ng_login"),
         "url_khusus": reverse("siwak:login_khusus"),
         # Link CP-nya diatur pengelola lewat panel (SiwakInfo.kontak_cp), sama
@@ -105,7 +95,7 @@ class AkunKhususLoginView(LoginView):
         # `role_landing_url` sudah dipakai jalur SSO; jangan tulis ulang aturan
         # tujuan per role di dua tempat. `next` eksplisit tetap menang, supaya
         # pemindai yang login karena memindai QR kembali ke QR itu.
-        return _next_yang_aman(self.request) or role_landing_url(self.request.user)
+        return next_aman(self.request) or role_landing_url(self.request.user)
 
 
 def logout_cerdas(request):
