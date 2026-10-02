@@ -3,7 +3,9 @@
 Empat view CRUD di bawah melayani satu-satunya menu panel ini, Kegiatan.
 Alurnya sama dengan panel SIWAK dan memakai penolong yang sama
 (`main/panel.py`): pencarian, dropdown penyaring, pengurutan lewat judul kolom,
-paginasi, lalu form tambah/ubah dengan tombol hapus.
+paginasi, lalu form tambah/ubah dengan tombol hapus. Form di sini menyalakan
+`simpan_lanjutan`, yang memunculkan dua tombol simpan tambahan ala Django admin
+("Simpan & lanjut ubah", "Simpan & tambah lagi").
 
 Templatnya pun sama persis — `siwak/panel/daftar.html` dan `siwak/panel/form.html`
 beserta sertaannya. Templat itu tidak lagi memuat alamat `siwak:` yang
@@ -132,10 +134,15 @@ def _simpan(request, instance=None):
         form = sumber.form(request.POST, request.FILES, instance=instance)
         if form.is_valid():
             obj = form.save()
-            messages.success(
-                request,
-                f"{sumber.label} “{obj}” berhasil {'diperbarui' if ubah else 'ditambahkan'}.",
-            )
+            selesai = f"{sumber.label} “{obj}” berhasil {'diperbarui' if ubah else 'ditambahkan'}."
+            # Nama tombolnya sama dengan Django admin; lihat panel/form.html.
+            if "_continue" in request.POST:
+                messages.success(request, f"{selesai} Silakan lanjutkan menyuntingnya di bawah.")
+                return redirect("ki:panel_ubah", pk=obj.pk)
+            if "_addanother" in request.POST:
+                messages.success(request, f"{selesai} Silakan isi {sumber.label} berikutnya.")
+                return redirect("ki:panel_tambah")
+            messages.success(request, selesai)
             return redirect("ki:panel_daftar")
         messages.error(request, "Masih ada isian yang perlu dibetulkan.")
     else:
@@ -152,6 +159,7 @@ def _simpan(request, instance=None):
         form=form,
         sumber_data=sumber,
         objek=instance,
+        simpan_lanjutan=True,
         url_batal=reverse("ki:panel_daftar"),
         url_hapus=reverse("ki:panel_hapus", args=[instance.pk]) if ubah else "",
     ))

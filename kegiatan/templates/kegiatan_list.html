@@ -12,7 +12,7 @@
   {% include 'components/redesign_header.html' with page_title='Kegiatan' %}
   <img src="{% static 'images/redesign/water-rings.svg' %}" alt="" aria-hidden="true" class="pointer-events-none absolute left-[calc(58.33%+17px)] top-[1651px] -z-10 hidden h-[1041px] w-[1041px] max-w-none lg:block" />
   <section aria-label="Daftar kegiatan" class="relative mx-auto min-h-[520px] w-full px-[30px] pb-10 pt-[6px] lg:min-h-[1908px] lg:max-w-[1204px] lg:px-5 lg:pb-[354px] lg:pt-0 min-[1400px]:translate-x-[28px] min-[1400px]:px-0">
-    <nav aria-label="Filter kegiatan" class="mb-[13px] flex justify-center gap-4 lg:mb-[60px] lg:gap-8">
+    <nav aria-label="Filter kegiatan" class="mb-5 flex justify-center gap-4 lg:mb-[60px] lg:gap-8">
       {% include 'components/kegiatan_filter.html' with value='all' label='All' %}
       {% include 'components/kegiatan_filter.html' with value='upcoming' label='Upcoming' %}
       {% include 'components/kegiatan_filter.html' with value='past' label='Past' %}

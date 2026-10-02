@@ -286,6 +286,35 @@ class FormKegiatanTests(TestCase):
         self.assertEqual(kegiatan.judul, "Judul Baru")
         self.assertEqual(kegiatan.lokasi, "Ruang B")
 
+    def test_simpan_dan_lanjut_ubah_kembali_ke_form_objek_itu(self):
+        response = self.client.post(
+            reverse("ki:panel_tambah"), self.isi_minimal(_continue="1")
+        )
+        kegiatan = Kegiatan.objects.get(judul="Kegiatan Baru")
+        self.assertRedirects(response, reverse("ki:panel_ubah", args=[kegiatan.pk]))
+
+    def test_simpan_dan_lanjut_ubah_dari_halaman_ubah(self):
+        kegiatan = buat_kegiatan(judul="Judul Lama")
+        url = reverse("ki:panel_ubah", args=[kegiatan.pk])
+        response = self.client.post(url, self.isi_minimal(judul="Judul Baru", _continue="1"))
+        self.assertRedirects(response, url)
+        kegiatan.refresh_from_db()
+        self.assertEqual(kegiatan.judul, "Judul Baru")
+
+    def test_simpan_dan_tambah_lagi_kembali_ke_form_kosong(self):
+        response = self.client.post(
+            reverse("ki:panel_tambah"), self.isi_minimal(_addanother="1")
+        )
+        self.assertRedirects(response, reverse("ki:panel_tambah"))
+        self.assertTrue(Kegiatan.objects.filter(judul="Kegiatan Baru").exists())
+
+    def test_tombol_simpan_tambahan_hanya_di_panel_ki(self):
+        """Templat form-nya dipakai bersama SIWAK, jadi tombolnya digerbangi konteks."""
+        response = self.client.get(reverse("ki:panel_tambah"))
+        self.assertTrue(response.context["simpan_lanjutan"])
+        self.assertContains(response, 'name="_continue"')
+        self.assertContains(response, 'name="_addanother"')
+
     def test_form_ubah_memuat_tombol_hapus(self):
         kegiatan = buat_kegiatan()
         response = self.client.get(reverse("ki:panel_ubah", args=[kegiatan.pk]))
