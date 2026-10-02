@@ -32,7 +32,9 @@ def beranda(request):
         'canonical_path': '/',
         # Dibatasi 6: tab kategori disaring di sisi klien, jadi semua kartu ikut
         # dirender sekaligus dan daftar panjang akan memberatkan halaman.
-        'kegiatan_upcoming': Kegiatan.objects.filter(tanggal__gte=today)[:6],
+        # select_related: setiap kartu merender logo penyelenggaranya lewat
+        # Kegiatan.logo_url, yang menyentuh BirDep.
+        'kegiatan_upcoming': Kegiatan.objects.select_related('birdep').filter(tanggal__gte=today)[:6],
         'kategori_choices': Kegiatan.KATEGORI_CHOICES,
     }
     return render(request, 'beranda.html', context)

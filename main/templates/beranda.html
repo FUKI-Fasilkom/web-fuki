@@ -195,13 +195,14 @@
           </a>
         </div>
 
-        {% comment %}Kartu detail. Thumbnail khusus desktop: mockup mobile tidak memuatnya.{% endcomment %}
+        {% comment %}
+          Kartu detail. Logo penyelenggara khusus desktop: mockup mobile tidak memuatnya.
+          Latarnya krem, jadi logo FUKI biru terbaca tanpa cahaya gold seperti di kartu
+          navy halaman Kegiatan.
+        {% endcomment %}
         <div class="flex-1 min-w-0 bg-cream-200 rounded-2xl p-3 sm:p-5 flex gap-4">
-          <div class="hidden sm:block sm:w-32 sm:h-32 shrink-0 rounded-xl overflow-hidden bg-gray-300">
-            {% if kegiatan.gambar %}
-            <img src="{{ kegiatan.gambar.url }}" alt="{{ kegiatan.judul }}" loading="lazy" class="w-full h-full object-cover" />
-            {% endif %}
-          </div>
+          <img src="{{ kegiatan.logo_url }}" alt="Logo {{ kegiatan.penyelenggara }}" loading="lazy"
+               class="hidden sm:block sm:w-32 sm:h-32 shrink-0 object-contain" />
 
           <div class="flex-1 min-w-0 flex flex-col">
             <span class="self-start bg-badge text-navy text-[9px] sm:text-[10px] font-semibold px-2 sm:px-2.5 py-1 rounded-md">{{ kegiatan.get_kategori_display }}</span>

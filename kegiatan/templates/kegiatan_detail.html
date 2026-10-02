@@ -26,10 +26,15 @@
 
     <h1 class="mt-3 text-2xl sm:text-4xl font-bold text-navy-700 leading-snug">{{ kegiatan.judul }}</h1>
 
-    {% if kegiatan.gambar %}
-    <img src="{{ kegiatan.gambar.url }}" alt="{{ kegiatan.judul }}"
-         class="mt-6 w-full rounded-2xl object-cover max-h-[420px]" />
-    {% endif %}
+    {% comment %}
+      Logo penyelenggara mengisi slot yang dulu dipakai poster kegiatan. Latarnya
+      krem, jadi logo FUKI biru tetap terbaca tanpa cahaya gold seperti di kartu navy.
+    {% endcomment %}
+    <div class="mt-6 flex flex-col items-center gap-3 rounded-2xl bg-cream-200 px-6 py-8">
+      <img src="{{ kegiatan.logo_url }}" alt="Logo {{ kegiatan.penyelenggara }}"
+           class="h-28 w-28 sm:h-40 sm:w-40 object-contain" />
+      <p class="text-xs sm:text-sm font-semibold text-navy">{{ kegiatan.penyelenggara }}</p>
+    </div>
 
     <div class="mt-8 grid sm:grid-cols-3 gap-4">
       <div class="bg-cream-200 rounded-2xl p-5 text-center">
@@ -40,7 +45,10 @@
         {% endif %}
       </div>
 
+      {% comment %}Kartu info hanya dirender bila ada isinya; lokasi dan contact keduanya opsional.{% endcomment %}
+      {% if kegiatan.lokasi or kegiatan.contact %}
       <div class="sm:col-span-2 bg-cream-200 rounded-2xl p-5 space-y-3 text-sm text-navy">
+        {% if kegiatan.lokasi %}
         <div class="flex items-start gap-2">
           <svg class="w-4 h-4 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
@@ -51,14 +59,6 @@
             <a href="{{ kegiatan.link_lokasi }}" target="_blank" rel="noopener" class="underline hover:text-navy-600">{{ kegiatan.lokasi }}</a>
             {% else %}{{ kegiatan.lokasi }}{% endif %}
           </span>
-        </div>
-
-        {% if kegiatan.guest_star %}
-        <div class="flex items-start gap-2">
-          <svg class="w-4 h-4 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-          </svg>
-          <span>Bersama {{ kegiatan.guest_star }}</span>
         </div>
         {% endif %}
 
@@ -71,6 +71,7 @@
         </div>
         {% endif %}
       </div>
+      {% endif %}
     </div>
 
     {% if kegiatan.deskripsi %}
