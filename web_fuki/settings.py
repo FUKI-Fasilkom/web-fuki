@@ -71,6 +71,7 @@ INSTALLED_APPS = [
     'profil',
     'blog_kajian',
     'siwak',
+    'ki',
 ]
 
 # 5.1 (Submission Rules: "File size limit"). Applies to every upload in the

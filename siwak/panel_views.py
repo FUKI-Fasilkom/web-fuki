@@ -22,7 +22,7 @@ from django.contrib import messages
 from django.core.paginator import Paginator
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
-from django.db.models import Avg, Count, F, Max, Prefetch, ProtectedError, Q
+from django.db.models import Avg, Count, Max, Prefetch, ProtectedError, Q
 from django.forms import inlineformset_factory
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -30,6 +30,16 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.text import slugify
 from django.views.decorators.http import require_POST
+
+from main.panel import (
+    PER_HALAMAN,
+    aksi_baris,
+    kepala_kolom,
+    pilihan_urut,
+    sel_baris,
+    terapkan_saringan,
+    terapkan_urutan,
+)
 
 from .akses import pemindai_required, staf_required
 from .models import (
@@ -65,8 +75,6 @@ from .services.pemindai import boleh_memindai
 from .services.rsvp import buat_rsvp, klaim_rsvp_tertunda
 from .utils import cari_teks, kembali, kueri_tanpa_halaman, nama_akun, next_aman
 
-PER_HALAMAN = 25
-
 # Tipe kolom yang isinya dropdown penyunting relasi, bukan sekadar tulisan.
 # Dipakai untuk menentukan daftar pilihan apa yang perlu ikut dikirim ke templat.
 TIPE_BUTUH_KELOMPOK = {"pilih_kelompok", "pilih_kelompok_mentor"}
@@ -99,6 +107,7 @@ def _menu(bagian_aktif="", sumber_aktif="", khusus_aktif=""):
             })
         menu.append({
             "bagian": bagian,
+            "url": reverse("siwak:panel_bagian", args=[bagian.slug]),
             "butir": butir,
             "aktif": bagian_aktif == bagian.slug,
         })
@@ -111,6 +120,13 @@ def _kerangka(*, judul, bagian="", sumber="", khusus="", remah=(), **ekstra):
         "menu": _menu(bagian, sumber, khusus),
         "remah": list(remah),
         "bagian_aktif": bagian,
+        # Identitas panel. Templat kerangka (siwak/panel/base.html) dipakai
+        # bersama panel Kontrol Internal, jadi nama dan alamatnya datang dari
+        # sini, bukan di-hardcode di templatnya.
+        "panel_nama": "Panel SIWAK-NG",
+        "panel_url_beranda": reverse("siwak:panel_beranda"),
+        "panel_url_situs": reverse("siwak:landing"),
+        "panel_label_situs": "Lihat halaman SIWAK",
     }
     konteks.update(ekstra)
     return konteks
@@ -144,58 +160,12 @@ URL_SEL = {
 
 
 def _sel(obj, sumber, nomor):
-    """Ubah satu objek jadi daftar sel siap render. `nomor` = urutan baris ini
-    di seluruh daftar (bukan di halamannya), dipakai kolom bertipe "nomor"."""
-    daftar = []
-    for k in sumber.kolom:
-        butir = {
-            "judul": k.judul, "tipe": k.tipe,
-            "nilai": nomor if k.tipe == "nomor" else k.ambil(obj),
-            "utama": k.utama, "pk": obj.pk,
-        }
-        nama_url = URL_SEL.get(k.tipe)
-        if nama_url:
-            butir["url"] = reverse(nama_url, args=[obj.pk])
-        daftar.append(butir)
-    return daftar
+    """Sel satu baris, dengan peta penyunting inline khusus panel SIWAK."""
+    return sel_baris(obj, sumber, nomor, url_sel=URL_SEL, reverse_url=reverse)
 
 
 def _aksi(obj, sumber):
-    """Tombol tambahan baris ini — labelnya boleh menghitung isi objeknya."""
-    return [
-        {
-            "label": a.label(obj),
-            "url": reverse(a.nama_url, args=[a.pk(obj) if a.pk else obj.pk]),
-            "bawa_kembali": a.bawa_kembali,
-        }
-        for a in sumber.aksi_baris
-    ]
-
-
-def _saring(qs, sumber, request):
-    """Terapkan dropdown penyaring milik `sumber` dari alamat halaman.
-
-    Mengembalikan queryset tersaring, dropdown siap render, dan apakah ada
-    penyaring yang aktif. Nilai dicocokkan dengan pilihannya lebih dulu: nilai
-    yang tidak dikenal diabaikan, bukan dikirim ke query.
-    """
-    dropdown = []
-    aktif = False
-    for saringan in sumber.saringan:
-        pilihan = [(str(nilai), label) for nilai, label in saringan.pilihan()]
-        nilai = (request.GET.get(saringan.kunci) or "").strip()
-        if nilai not in dict(pilihan):
-            nilai = ""
-        if nilai:
-            qs = qs.filter(**{saringan.lookup: nilai})
-            aktif = True
-        dropdown.append({
-            "kunci": saringan.kunci,
-            "label": saringan.label,
-            "pilihan": pilihan,
-            "terpilih": nilai,
-        })
-    return qs, dropdown, aktif
+    return aksi_baris(obj, sumber, reverse_url=reverse)
 
 
 def _kelompok_terpilih(request):
@@ -212,47 +182,6 @@ def _angka(nilai):
     pilihan dropdown yang kosong tidak pernah sampai ke query sebagai teks."""
     nilai = (nilai or "").strip()
     return int(nilai) if nilai.isdigit() else None
-
-
-# ---------------------------------------------------------------------------
-# Pengurutan daftar
-# ---------------------------------------------------------------------------
-
-def _arah(ekspresi, turun):
-    """Beri arah pada satu butir pengurutan. `nulls_last` dipakai di kedua arah
-    supaya baris yang belum punya kelompok selalu jatuh di bawah, bukan
-    menumpuk di baris teratas saat diurutkan menurun."""
-    if isinstance(ekspresi, str):
-        ekspresi = F(ekspresi)
-    return ekspresi.desc(nulls_last=True) if turun else ekspresi.asc(nulls_last=True)
-
-
-def _url_urut(request, kunci, turun):
-    """Alamat daftar ini dengan urutan tertentu, tanpa kehilangan pencarian."""
-    params = {
-        k: v for k, v in request.GET.items()
-        if k not in ("urut", "arah", "page") and v
-    }
-    params["urut"] = kunci
-    if turun:
-        params["arah"] = "turun"
-    return f"?{urlencode(params)}"
-
-
-def _urutkan(qs, sumber, request):
-    """Terapkan urutan pilihan pengguna; kembalikan queryset + kunci + arahnya."""
-    if not sumber.pengurutan:
-        return qs, "", False
-
-    kunci = request.GET.get("urut") or sumber.urut_awal
-    if kunci not in sumber.pengurutan:
-        kunci = sumber.urut_awal
-    turun = request.GET.get("arah") == "turun"
-
-    ekspresi = sumber.pengurutan.get(kunci)
-    if not ekspresi:
-        return qs, "", turun
-    return qs.order_by(*[_arah(e, turun) for e in ekspresi]), kunci, turun
 
 
 # ---------------------------------------------------------------------------
@@ -333,39 +262,22 @@ def panel_daftar(request, slug):
 
     kata = (request.GET.get("q") or "").strip()
     qs = cari_teks(sumber.ambil_queryset(), sumber.pencarian, kata)
-    qs, saringan, ada_saringan = _saring(qs, sumber, request)
+    qs, saringan, ada_saringan = terapkan_saringan(qs, sumber, request)
 
-    qs, kunci_urut, turun = _urutkan(qs, sumber, request)
+    qs, kunci_urut, turun = terapkan_urutan(qs, sumber, request)
 
     halaman = Paginator(qs, PER_HALAMAN).get_page(request.GET.get("page"))
     baris = [
-        {"obj": o, "pk": o.pk, "sel": _sel(o, sumber, nomor), "aksi": _aksi(o, sumber)}
+        {
+            "obj": o,
+            "pk": o.pk,
+            "sel": _sel(o, sumber, nomor),
+            "aksi": _aksi(o, sumber),
+            "url_ubah": reverse("siwak:panel_ubah", args=[sumber.slug, o.pk]),
+            "url_hapus": reverse("siwak:panel_hapus", args=[sumber.slug, o.pk]),
+        }
         for nomor, o in enumerate(halaman.object_list, start=halaman.start_index())
     ]
-
-    # Judul kolom yang bisa diklik untuk mengurutkan. Sekali klik = menaik,
-    # klik lagi pada kolom yang sama = menurun.
-    kepala = []
-    for kolom in sumber.kolom:
-        aktif = bool(kolom.urut) and kolom.urut == kunci_urut
-        kepala.append({
-            "judul": kolom.judul,
-            "bisa_urut": bool(kolom.urut),
-            "aktif": aktif,
-            "turun": turun if aktif else False,
-            "url": _url_urut(request, kolom.urut, (not turun) if aktif else False) if kolom.urut else "",
-        })
-
-    # Versi HP tidak punya judul kolom untuk diklik, jadi urutannya dipilih
-    # lewat satu dropdown yang isinya sama persis.
-    pilihan_urut = []
-    for kolom in sumber.kolom_urut():
-        for arah_turun, kata_arah in ((False, "A-Z"), (True, "Z-A")):
-            pilihan_urut.append({
-                "label": f"{kolom.judul} ({kata_arah})",
-                "url": _url_urut(request, kolom.urut, arah_turun),
-                "terpilih": kolom.urut == kunci_urut and arah_turun == turun,
-            })
 
     tipe_kolom = {k.tipe for k in sumber.kolom}
     ekstra = {}
@@ -380,7 +292,7 @@ def panel_daftar(request, slug):
         sumber=sumber.slug,
         remah=[_remah_bagian(sumber.bagian), (sumber.label_jamak, "")],
         sumber_data=sumber,
-        kepala=kepala,
+        kepala=kepala_kolom(sumber, request, kunci_urut, turun),
         baris=baris,
         halaman=halaman,
         kata=kata,
@@ -388,7 +300,7 @@ def panel_daftar(request, slug):
         ada_saringan=ada_saringan,
         kunci_urut=kunci_urut,
         arah_turun=turun,
-        pilihan_urut=pilihan_urut,
+        pilihan_urut=pilihan_urut(sumber, request, kunci_urut, turun),
         # Dikirim ke setiap form dropdown supaya sesudah menyimpan, pengelola
         # kembali ke halaman, pencarian, dan urutan yang sama.
         url_kembali=request.get_full_path(),
@@ -396,6 +308,7 @@ def panel_daftar(request, slug):
         url_tambah=(
             reverse("siwak:panel_tambah", args=[sumber.slug]) if sumber.boleh_tambah else ""
         ),
+        url_bersih=reverse("siwak:panel_daftar", args=[sumber.slug]),
         **ekstra,
     ))
 

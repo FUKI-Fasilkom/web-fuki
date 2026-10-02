@@ -5,15 +5,17 @@ yang dipakai — didaftarkan di berkas ini. View di `panel_views.py` sengaja
 dibuat generik dan membaca peta ini, sehingga menambah satu jenis data baru
 cukup dengan menambah satu `Sumber` di sini: halaman daftar, tambah, ubah, dan
 hapus langsung ada tanpa menulis view atau template baru.
-"""
 
-from dataclasses import dataclass
-from typing import Callable
+Bentuk `Bagian`/`Sumber`/`Kolom`/`AksiBaris`/`Saringan` sendiri tidak khusus
+SIWAK dan tinggal di `main/panel.py`, dipakai bersama panel Kontrol Internal.
+"""
 
 from django.contrib.auth import get_user_model
 from django.db.models import Count, OuterRef, Q, Subquery
 from django.db.models.functions import Length
 from django.utils import formats
+
+from main.panel import AksiBaris, Bagian, Kolom, Saringan, Sumber
 
 from . import panel_forms as f
 from .models import (
@@ -35,115 +37,6 @@ from .models import (
 )
 
 User = get_user_model()
-
-
-@dataclass(frozen=True)
-class Kolom:
-    """Satu kolom di tabel daftar.
-
-    `tipe` menentukan cara sel digambar: "teks", "panjang" (dipotong),
-    "gambar", "bool" (centang/silang), "tanggal", "tag", "status_presensi"
-    (lencana Hadir/Izin/Tidak Hadir; nilainya pasangan (status, label)), "nomor" (urutan baris
-    di daftar, ikut nomor halaman), "saklar_rsvp" (tombol buka/tutup RSVP),
-    "pilih_kelompok" / "pilih_kelompok_mentor" (dropdown kelompok untuk mentee
-    dan untuk mentor; keduanya menyimpan lewat satu alamat yang sama, bedanya
-    hanya label dan hitungan kapasitas), "pilih_role" (dropdown role profil),
-    "pilih_aktif", atau penyunting teks "isi_link" (link grup WhatsApp kelompok)
-    dan "isi_npm" (NPM mentor). Lihat templat panel/_sel.html.
-
-    `urut` diisi kunci pengurutan kalau judul kolomnya boleh diklik untuk
-    mengurutkan; kuncinya harus ada di `Sumber.pengurutan`.
-    """
-
-    judul: str
-    ambil: Callable
-    tipe: str = "teks"
-    utama: bool = False  # jadi judul kartu saat tampilan HP
-    urut: str = ""
-
-
-@dataclass(frozen=True)
-class AksiBaris:
-    """Tombol tambahan di ujung satu baris daftar, mis. "Pertanyaan (3)".
-
-    `label` menerima objek barisnya supaya tombolnya bisa menyebut jumlah, dan
-    `nama_url` dipanggil dengan pk objek itu — atau dengan hasil `pk(objek)`
-    kalau tombolnya menuju objek lain, mis. mentee dari sebuah baris presensi.
-    `bawa_kembali` menyisipkan alamat daftar yang sedang dibuka (lengkap dengan
-    pencarian dan urutannya) sebagai `?next=`, supaya halaman tujuan bisa
-    mengembalikan pengelola ke sana.
-    """
-
-    label: Callable
-    nama_url: str
-    pk: Callable = None
-    bawa_kembali: bool = False
-
-
-@dataclass(frozen=True)
-class Saringan:
-    """Satu dropdown penyaring di atas tabel daftar, dibaca dari `?<kunci>=`.
-
-    `pilihan` dipanggil setiap kali halaman dibuka dan mengembalikan
-    [(nilai, label)]; `lookup` adalah field ORM yang dicocokkan dengan nilai
-    terpilih. Nilai yang tidak ada di pilihan diabaikan, jadi alamat yang
-    diketik asal-asalan tidak pernah sampai ke query sebagai teks bebas.
-    """
-
-    kunci: str
-    label: str
-    pilihan: Callable
-    lookup: str
-
-
-@dataclass(frozen=True)
-class Sumber:
-    """Satu jenis data yang bisa dikelola lewat panel."""
-
-    slug: str
-    bagian: str
-    label: str
-    label_jamak: str
-    deskripsi: str
-    model: type
-    form: type  # None untuk data hanya-tampil (boleh_tambah/ubah/hapus semuanya False)
-    kolom: tuple
-    pencarian: tuple = ()
-    kosong: str = ""
-    queryset: Callable = None
-    # {"kunci": (ekspresi ORM, ...)} — dipakai view saat judul kolom diklik.
-    pengurutan: dict = None
-    urut_awal: str = ""
-    # Data yang barisnya lahir/mati di tempat lain (mis. sesi mentoring dibuat
-    # otomatis saat kelompok dibuat) cukup boleh diubah saja.
-    boleh_tambah: bool = True
-    boleh_ubah: bool = True
-    boleh_hapus: bool = True
-    # Tombol tambahan per baris, di samping Ubah dan Hapus.
-    aksi_baris: tuple = ()
-    # Dropdown penyaring (kelompok, sesi, ...) di samping kotak cari.
-    saringan: tuple = ()
-
-    def ambil_queryset(self):
-        return self.queryset() if self.queryset else self.model.objects.all()
-
-    def punya_aksi(self):
-        """Kolom "Aksi" hanya digambar kalau ada tombol yang bisa ditekan."""
-        return bool(self.boleh_ubah or self.boleh_hapus or self.aksi_baris)
-
-    def kolom_urut(self):
-        """Kolom yang judulnya bisa diklik; jadi isi pilihan "Urutkan" di HP."""
-        return [k for k in self.kolom if k.urut]
-
-
-@dataclass(frozen=True)
-class Bagian:
-    """Satu dari empat kotak besar di halaman depan panel."""
-
-    slug: str
-    nama: str
-    deskripsi: str
-    ikon: str
 
 
 # Tombol "Buat RSVP" di setiap daftar yang isinya Profile.
