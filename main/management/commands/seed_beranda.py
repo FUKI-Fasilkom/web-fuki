@@ -66,7 +66,6 @@ class Command(BaseCommand):
                 "start_time": datetime.time(7, 0),
                 "end_time": datetime.time(15, 0),
                 "lokasi": "Auditorium Fasilkom UI",
-                "guest_star": "Ustadz Fulan",
                 "contact": "0812-0000-0000",
             })
             if dibuat:

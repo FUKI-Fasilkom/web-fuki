@@ -21,11 +21,9 @@ class StaticViewSitemap(Sitemap):
     protocol = 'https'
 
     def items(self):
-        # (path, prioritas). Beranda ditulis literal, bukan lewat reverse():
-        # main/urls.py mendaftarkan nama 'beranda' dua kali sehingga
-        # reverse('beranda') mengembalikan '/beranda', bukan '/'.
+        # (path, prioritas)
         return [
-            ('/', 1.0),
+            (reverse('beranda'), 1.0),
             (reverse('profil'), 0.9),
             (reverse('kegiatan:home'), 0.8),
             (reverse('blog_kajian'), 0.8),
@@ -33,8 +31,6 @@ class StaticViewSitemap(Sitemap):
             (reverse('birdep:pi_list'), 0.6),
             (reverse('birdep:ki_list'), 0.6),
             (reverse('birdep:mdc_list'), 0.6),
-            # (reverse('siwak:landing'), 0.7),           # Aktifkan bersamaan saat siwak/ kembali di-urlconf
-            # (reverse('siwak:kelompok_search'), 0.5),   # (lihat web_fuki/urls.py)
             (reverse('hubungi_kami'), 0.6),
         ]
 
@@ -68,9 +64,6 @@ class KegiatanSitemap(Sitemap):
     def items(self):
         return Kegiatan.objects.all()
 
-    def location(self, obj):
-        return reverse('kegiatan:detail', kwargs={'id': obj.id})
-
 
 class BirDepSitemap(Sitemap):
     changefreq = 'monthly'
@@ -79,11 +72,6 @@ class BirDepSitemap(Sitemap):
 
     def items(self):
         return BirDep.objects.filter(is_active=True)
-
-    def location(self, obj):
-        # Bukan obj.get_absolute_url(): method itu me-reverse
-        # 'main:birdep_tentang', namespace yang tidak ada (yang benar 'birdep').
-        return reverse('birdep:birdep_tentang', kwargs={'slug': obj.slug})
 
     def lastmod(self, obj):
         return obj.updated_at
@@ -96,9 +84,6 @@ class PengurusSitemap(Sitemap):
 
     def items(self):
         return PengurusInti.objects.filter(is_active=True).exclude(slug='')
-
-    def location(self, obj):
-        return reverse('birdep:pi_detail', kwargs={'slug': obj.slug})
 
     def lastmod(self, obj):
         return obj.updated_at

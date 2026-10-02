@@ -1,5 +1,6 @@
 from django_cas_ng import views as cas_views
 from django.urls import path
+from django.views.generic import RedirectView
 
 from . import auth_views, mentor_views, panel_views, sso, views
 
@@ -13,9 +14,13 @@ urlpatterns = [
     path("event/<int:pk>/", views.event_detail, name="event_detail"),
     path("kelompok/", views.kelompok_search, name="kelompok_search"),
 
-    # 7 — Authentication (sso ui cas2 + akun lokal khusus mentor non-SSO)
+    # 7 — Authentication (sso ui cas2 + Akun Khusus: mentor non-SSO, pengurus,
+    # pemindai QR)
     path("login/", auth_views.login_pilihan, name="login"),
-    path("login/mentor/", auth_views.MentorLoginView.as_view(), name="mentor_login"),
+    path("login/khusus/", auth_views.AkunKhususLoginView.as_view(), name="login_khusus"),
+    # Alamat lama pintu yang dulu khusus mentor; mentor mungkin masih
+    # menyimpannya. `next` ikut dibawa.
+    path("login/mentor/", RedirectView.as_view(pattern_name="siwak:login_khusus", query_string=True)),
     path("logout/", auth_views.logout_cerdas, name="logout"),
     path("sso-login/", sso.RoleRedirectLoginView.as_view(), name="cas_ng_login"),
     path("sso-logout/", cas_views.LogoutView.as_view(), name="cas_ng_logout"),
@@ -38,6 +43,12 @@ urlpatterns = [
         mentor_views.mentee_detail,
         name="mentor_mentee_detail",
     ),
+    # Catatan privat mentee: satu pintu untuk mentor kelompoknya dan pengurus.
+    path(
+        "mentee/<int:participant_id>/catatan/",
+        mentor_views.mentee_catatan,
+        name="mentee_catatan",
+    ),
     path(
         "mentor/kelompok/<int:group_id>/tugas/",
         mentor_views.assignments,
@@ -49,11 +60,17 @@ urlpatterns = [
     # 5.2 / 6 — RSVP & QR
     path("rsvp/<int:id>/", views.rsvp_event, name="rsvp"),
     path("qr/<str:signed>/", views.qr_verify, name="qr_verify"),
+    path("pindai/", views.pindai_beranda, name="pindai_beranda"),
+    # Daftar RSVP untuk panitia: lihat peserta dan betulkan status QR secara manual.
+    path("pindai/acara/<int:pk>/rsvp/", panel_views.pindai_rsvp, name="pindai_rsvp"),
+    path("pindai/rsvp/<int:pk>/status/", panel_views.pindai_rsvp_status, name="pindai_rsvp_status"),
 
     # 8 — Panel pengelola SIWAK (khusus pengurus)
     path("admin/", panel_views.panel_beranda, name="panel_beranda"),
     path("admin/bagian/<slug:bagian>/", panel_views.panel_bagian, name="panel_bagian"),
     path("admin/info/", panel_views.panel_info, name="panel_info"),
+    path("admin/kelompok/<int:pk>/", panel_views.panel_kelompok_detail, name="panel_kelompok_detail"),
+    path("admin/mentee/<int:pk>/", panel_views.panel_mentee_detail, name="panel_mentee_detail"),
     path("admin/acara/<int:pk>/rsvp/", panel_views.panel_rsvp, name="panel_rsvp"),
     path("admin/acara/<int:pk>/rsvp/csv/", panel_views.panel_rsvp_csv, name="panel_rsvp_csv"),
     path("admin/acara/<int:pk>/rsvp/buka-tutup/", panel_views.panel_rsvp_toggle, name="panel_rsvp_toggle"),

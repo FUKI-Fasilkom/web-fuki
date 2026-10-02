@@ -1,7 +1,8 @@
 {% extends 'base.html' %}
 
 {% comment %}
-  Halaman yang ditunjuk LOGIN_URL. Dua pintu masuk SIWAK bertemu di sini, dan
+  Halaman yang ditunjuk LOGIN_URL. Dua pintu masuk SIWAK (SSO UI dan Akun
+  Khusus) bertemu di sini, dan
   `next` diteruskan ke keduanya supaya deep link dari @login_required tidak
   hilang begitu metodenya dipilih.
 {% endcomment %}
@@ -36,11 +37,11 @@
         </span>
       </a>
 
-      <a href="{{ url_mentor }}{% if next %}?next={{ next|urlencode }}{% endif %}"
+      <a href="{{ url_khusus }}{% if next %}?next={{ next|urlencode }}{% endif %}"
          class="block rounded-2xl border-2 border-gold-light bg-white px-6 py-5 text-navy transition hover:border-gold hover:bg-cream-50">
-        <span class="block text-base font-semibold">Login akun mentor</span>
+        <span class="block text-base font-semibold">Login Akun Khusus</span>
         <span class="mt-1 block text-sm text-navy-400">
-          Untuk Mentor Non-SSO, memakai username dan password yang diberikan oleh admin.
+          Untuk Mentor Non-SSO, pengurus, dan panitia pemindai QR — memakai username dan password.
         </span>
       </a>
     </div>

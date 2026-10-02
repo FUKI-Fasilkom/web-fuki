@@ -3,6 +3,7 @@
 # tidak lagi bisa dipakai di file ini.
 from datetime import date, datetime, timezone
 import json
+import logging
 import os
 
 import requests
@@ -11,6 +12,8 @@ from django.shortcuts import render
 from django.views.decorators.http import require_POST
 
 from kegiatan.models import Kegiatan
+
+logger = logging.getLogger(__name__)
 
 def health_check(request):
     return JsonResponse({"status": "ok"})
@@ -29,7 +32,9 @@ def beranda(request):
         'canonical_path': '/',
         # Dibatasi 6: tab kategori disaring di sisi klien, jadi semua kartu ikut
         # dirender sekaligus dan daftar panjang akan memberatkan halaman.
-        'kegiatan_upcoming': Kegiatan.objects.filter(tanggal__gte=today)[:6],
+        # select_related: setiap kartu merender logo penyelenggaranya lewat
+        # Kegiatan.logo_url, yang menyentuh BirDep.
+        'kegiatan_upcoming': Kegiatan.objects.select_related('birdep').filter(tanggal__gte=today)[:6],
         'kategori_choices': Kegiatan.KATEGORI_CHOICES,
     }
     return render(request, 'beranda.html', context)
@@ -110,6 +115,8 @@ def lapor_submit(request):
         response = requests.post(webhook_url, files=files, timeout=15)
         response.raise_for_status()
     except requests.RequestException:
+        # Pengirim cukup tahu laporannya gagal; penyebabnya untuk log server.
+        logger.exception("Gagal meneruskan laporan ke webhook Discord")
         return JsonResponse(
             {'ok': False, 'error': 'Gagal mengirim laporan. Coba lagi nanti.'},
             status=502,

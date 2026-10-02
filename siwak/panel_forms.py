@@ -1,16 +1,20 @@
 """Form untuk panel pengelola SIWAK (/siwak/admin/).
 
-Semua form di sini mewarisi `PanelForm`, yang menempelkan kelas Tailwind ke
-widget sesuai jenisnya. Gaya isian dengan demikian ditulis sekali di satu
-tempat, bukan disalin ke belasan form — dan setiap field baru yang ditambahkan
-ke model otomatis ikut bergaya benar tanpa disentuh lagi.
+Semua form di sini mewarisi `PanelForm` (`main/panel.py`), yang menempelkan
+kelas Tailwind ke widget sesuai jenisnya. Gaya isian dengan demikian ditulis
+sekali di satu tempat, bukan disalin ke belasan form — dan setiap field baru
+yang ditambahkan ke model otomatis ikut bergaya benar tanpa disentuh lagi.
 """
 
 from django import forms
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Permission
 from django.contrib.auth.password_validation import validate_password
 from django.db import transaction
 
+from main.panel import BERKAS, CENTANG, ISIAN, PILIHAN, PanelForm  # noqa: F401
+
+from .forms import periksa_alasan_izin
 from .models import (
     AssessmentAspect,
     Choice,
@@ -31,76 +35,6 @@ from .models import (
 )
 
 User = get_user_model()
-
-ISIAN = (
-    "w-full rounded-xl border-2 border-gold-light bg-white px-4 py-3 text-[15px] text-navy "
-    "placeholder-navy-400/60 transition focus:border-gold focus:outline-none "
-    "focus:ring-4 focus:ring-gold/25"
-)
-PILIHAN = ISIAN + " appearance-none pr-10"
-CENTANG = (
-    "h-5 w-5 shrink-0 cursor-pointer rounded border-2 border-gold-light "
-    "accent-navy focus:ring-2 focus:ring-gold/40"
-)
-BERKAS = (
-    "w-full cursor-pointer rounded-xl border-2 border-dashed border-gold-light bg-cream-50 "
-    "px-4 py-3 text-sm text-navy file:mr-3 file:rounded-lg file:border-0 file:bg-navy "
-    "file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-navy-700"
-)
-
-
-class PanelForm(forms.ModelForm):
-    """Induk semua form panel: menyeragamkan tampilan widget."""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        for field in self.fields.values():
-            widget = field.widget
-
-            if isinstance(widget, forms.CheckboxInput):
-                widget.attrs.setdefault("class", CENTANG)
-                continue
-
-            if isinstance(widget, (forms.CheckboxSelectMultiple, forms.RadioSelect)):
-                # attrs di sini menempel ke setiap kotak centang anaknya.
-                widget.attrs.setdefault("class", CENTANG)
-                continue
-
-            if isinstance(widget, forms.ClearableFileInput):
-                widget.attrs.setdefault("class", BERKAS)
-                continue
-
-            if isinstance(widget, forms.SelectMultiple):
-                widget.attrs.setdefault("class", ISIAN)
-                continue
-
-            if isinstance(widget, forms.Select):
-                widget.attrs.setdefault("class", PILIHAN)
-                continue
-
-            if isinstance(widget, forms.Textarea):
-                widget.attrs.setdefault("rows", 4)
-                widget.attrs.setdefault("class", ISIAN)
-                continue
-
-            if isinstance(widget, forms.DateTimeInput):
-                # DateTimeInput bukan turunan DateInput, jadi harus diurus
-                # sendiri — tanpa ini deadline tugas jadi kotak teks biasa.
-                widget.input_type = "datetime-local"
-                widget.format = "%Y-%m-%dT%H:%M"
-                field.input_formats = ["%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"]
-                widget.attrs.setdefault("class", ISIAN)
-                continue
-
-            if isinstance(widget, forms.DateInput):
-                # Tanpa dua baris ini pemilih tanggal bawaan browser tidak muncul
-                # dan nilai lama tidak terbaca sebagai tanggal saat form dibuka.
-                widget.input_type = "date"
-                widget.format = "%Y-%m-%d"
-
-            widget.attrs.setdefault("class", ISIAN)
-
 
 # ---------------------------------------------------------------------------
 # Bagian 1 — Info SIWAK
@@ -265,26 +199,20 @@ class PesertaForm(PanelForm):
         self.fields["npm"].required = True
 
 
-class MentorLokalForm(PanelForm):
-    """Mentor non-SSO: satu form yang mengurus Profile sekaligus akun loginnya.
+class AkunLoginForm(PanelForm):
+    """Induk form yang ikut membuat akun login lokal (`auth.User`) buatan panel:
+    mentor non-SSO dan akun panitia SIWAK.
 
-    Beda dari form panel lain, form ini ikut membuat `auth.User` — mentor yang
-    tidak punya SSO UI aktif tidak akan pernah mendapat akun lewat jalur CAS.
-    `save()` sengaja di-override supaya view CRUD generik (`_simpan` di
-    panel_views.py) tetap bisa dipakai apa adanya, tanpa view tambah/ubah sendiri.
+    Username-nya selalu diberi awalan `USERNAME_PREFIX`. CAS mencocokkan User
+    lewat username, jadi awalan itulah yang menjamin akun buatan panel tidak
+    pernah kebetulan dipakai ulang oleh login SSO orang lain.
 
-    Password dikosongkan = tidak diubah. Itu yang membuat halaman ubah sekaligus
-    berfungsi sebagai reset password, jadi tidak perlu aksi baris terpisah.
+    Password wajib untuk akun baru; saat mengubah, kosong berarti password lama
+    tetap dipakai — halaman ubah sekaligus berfungsi sebagai reset password.
     """
 
-    username = forms.CharField(
-        max_length=150,
-        label="Username",
-        help_text=(
-            f"Dipakai mentor untuk login. Otomatis diawali “{Profile.USERNAME_LOKAL_PREFIX}” "
-            "supaya tidak pernah bentrok dengan akun SSO UI."
-        ),
-    )
+    USERNAME_PREFIX = ""
+
     password1 = forms.CharField(
         label="Password",
         widget=forms.PasswordInput(render_value=False),
@@ -296,12 +224,65 @@ class MentorLokalForm(PanelForm):
         widget=forms.PasswordInput(render_value=False),
         required=False,
     )
+
+    def akun_baru(self):
+        raise NotImplementedError
+
+    def username_berawalan(self, username):
+        username = (username or "").strip().lower()
+        if not username.startswith(self.USERNAME_PREFIX):
+            username = f"{self.USERNAME_PREFIX}{username}"
+        if username == self.USERNAME_PREFIX:
+            raise forms.ValidationError("Username tidak boleh hanya berisi awalannya.")
+        return username
+
+    def clean(self):
+        data = super().clean()
+        password1 = data.get("password1") or ""
+        password2 = data.get("password2") or ""
+        if self.akun_baru() and not password1:
+            self.add_error("password1", "Password wajib diisi untuk akun baru.")
+        elif password1 != password2:
+            self.add_error("password2", "Ulangan password tidak sama.")
+        elif password1:
+            try:
+                validate_password(password1)
+            except forms.ValidationError as exc:
+                self.add_error("password1", exc)
+        return data
+
+    def pasang_password(self, user):
+        if self.cleaned_data.get("password1"):
+            user.set_password(self.cleaned_data["password1"])
+
+
+class MentorLokalForm(AkunLoginForm):
+    """Mentor non-SSO: satu form yang mengurus Profile sekaligus akun loginnya.
+
+    Mentor yang tidak punya SSO UI aktif tidak akan pernah mendapat akun lewat
+    jalur CAS, jadi akunnya dibuat di sini. `save()` sengaja di-override supaya
+    view CRUD generik (`_simpan` di panel_views.py) tetap bisa dipakai apa
+    adanya, tanpa view tambah/ubah sendiri.
+    """
+
+    USERNAME_PREFIX = Profile.USERNAME_LOKAL_PREFIX
+
+    username = forms.CharField(
+        max_length=150,
+        label="Username",
+        help_text=(
+            f"Dipakai mentor untuk login. Otomatis diawali “{Profile.USERNAME_LOKAL_PREFIX}” "
+            "supaya tidak pernah bentrok dengan akun SSO UI."
+        ),
+    )
     akun_aktif = forms.BooleanField(
         label="Akun aktif",
         required=False,
         initial=True,
         help_text="Matikan untuk mencabut akses mentor tanpa menghapus datanya.",
     )
+
+    field_order = ["nama_lengkap", "kelompok", "username", "password1", "password2", "akun_aktif"]
 
     class Meta:
         model = Profile
@@ -324,37 +305,17 @@ class MentorLokalForm(PanelForm):
             self.fields["username"].initial = self.instance.user.username
             self.fields["akun_aktif"].initial = self.instance.user.is_active
 
-    def clean_username(self):
-        username = (self.cleaned_data["username"] or "").strip().lower()
-        prefix = Profile.USERNAME_LOKAL_PREFIX
-        if not username.startswith(prefix):
-            username = f"{prefix}{username}"
-        if username == prefix:
-            raise forms.ValidationError("Username tidak boleh hanya berisi awalannya.")
+    def akun_baru(self):
+        return not (self.instance.pk and self.instance.user_id)
 
+    def clean_username(self):
+        username = self.username_berawalan(self.cleaned_data["username"])
         bentrok = User.objects.filter(username=username)
         if self.instance.pk and self.instance.user_id:
             bentrok = bentrok.exclude(pk=self.instance.user_id)
         if bentrok.exists():
             raise forms.ValidationError("Username ini sudah dipakai akun lain.")
         return username
-
-    def clean(self):
-        data = super().clean()
-        password1 = data.get("password1") or ""
-        password2 = data.get("password2") or ""
-        akun_baru = not (self.instance.pk and self.instance.user_id)
-
-        if akun_baru and not password1:
-            self.add_error("password1", "Password wajib diisi untuk akun baru.")
-        elif password1 != password2:
-            self.add_error("password2", "Ulangan password tidak sama.")
-        elif password1:
-            try:
-                validate_password(password1)
-            except forms.ValidationError as exc:
-                self.add_error("password1", exc)
-        return data
 
     @transaction.atomic
     def save(self, commit=True):
@@ -363,8 +324,7 @@ class MentorLokalForm(PanelForm):
         user.is_active = self.cleaned_data["akun_aktif"]
         # Mentor bukan pengurus: panel SIWAK tetap tertutup untuk dia.
         user.is_staff = False
-        if self.cleaned_data.get("password1"):
-            user.set_password(self.cleaned_data["password1"])
+        self.pasang_password(user)
         user.save()
 
         self.instance.user = user
@@ -386,6 +346,87 @@ class EventForm(PanelForm):
             "rsvp_dibuka": "Saat dimatikan, maba tidak bisa RSVP baru. Yang sudah RSVP tetap bisa membuka QR-nya.",
             "urutan": "Angka lebih kecil tampil lebih dulu di halaman SIWAK.",
         }
+
+
+class AkunPemindaiForm(AkunLoginForm):
+    """Akun panitia SIWAK: login lokal untuk panitia yang memindai QR peserta.
+
+    Seperti `MentorLokalForm`, hanya saja tanpa Profile — pemindai bukan
+    peserta mentoring.
+    Aksesnya murni izin Django di EventRSVP: gatekeeper cukup QR registrasi
+    ulang, divisi konsumsi cukup QR kupon makan. `is_staff` selalu dimatikan,
+    jadi panel SIWAK dan /admin/ tetap tertutup untuknya.
+    """
+
+    USERNAME_PREFIX = EventRSVP.USERNAME_PEMINDAI_PREFIX
+
+    # Nilai pilihan = jenis QR (kunci EventRSVP.IZIN_PINDAI), bukan codename,
+    # supaya satu-satunya tempat nama izinnya ditulis tetap di model.
+    AKSES = [
+        ("registrasi", f"{EventRSVP.LABEL_PINDAI['registrasi']} (gatekeeper)"),
+        ("kupon", f"{EventRSVP.LABEL_PINDAI['kupon']} (konsumsi)"),
+    ]
+    KODE_IZIN = {
+        kind: izin.split(".", 1)[1] for kind, izin in EventRSVP.IZIN_PINDAI.items()
+    }
+
+    akses = forms.MultipleChoiceField(
+        label="Boleh memindai",
+        choices=AKSES,
+        widget=forms.CheckboxSelectMultiple,
+        help_text="Centang keduanya kalau satu akun dipakai di meja registrasi sekaligus konsumsi.",
+        error_messages={"required": "Pilih minimal satu jenis QR."},
+    )
+
+    field_order = ["username", "akses", "password1", "password2", "is_active"]
+
+    class Meta:
+        model = User
+        fields = ["username", "is_active"]
+        labels = {"username": "Username", "is_active": "Akun aktif"}
+        help_texts = {
+            "username": (
+                f"Dipakai panitia untuk masuk lewat “Login Akun Khusus”. Otomatis diawali "
+                f"“{EventRSVP.USERNAME_PEMINDAI_PREFIX}” supaya tidak pernah bentrok dengan akun SSO UI."
+            ),
+            "is_active": "Matikan untuk mencabut akses tanpa menghapus akunnya, mis. setelah acara selesai.",
+        }
+        error_messages = {"username": {"unique": "Username ini sudah dipakai akun lain."}}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance.pk:
+            dimiliki = set(self.instance.user_permissions.values_list("codename", flat=True))
+            self.fields["akses"].initial = [
+                kind for kind, kode in self.KODE_IZIN.items() if kode in dimiliki
+            ]
+
+    def akun_baru(self):
+        return not self.instance.pk
+
+    def clean_username(self):
+        # Keunikan dicek validasi model sesudah ini, terhadap nama yang sudah
+        # berawalan — bukan terhadap ketikan pengelola.
+        return self.username_berawalan(self.cleaned_data["username"])
+
+    @transaction.atomic
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        # Pemindai bukan pengurus. Ditulis ulang setiap simpan, bukan hanya
+        # saat dibuat, supaya akun ini tidak pernah bisa "naik" lewat form ini.
+        user.is_staff = False
+        user.is_superuser = False
+        self.pasang_password(user)
+        user.save()
+
+        izin = list(Permission.objects.filter(
+            content_type__app_label=EventRSVP._meta.app_label,
+            codename__in=self.KODE_IZIN.values(),
+        ))
+        dipilih = {self.KODE_IZIN[kind] for kind in self.cleaned_data["akses"]}
+        user.user_permissions.remove(*izin)
+        user.user_permissions.add(*[p for p in izin if p.codename in dipilih])
+        return user
 
 
 # ---------------------------------------------------------------------------
@@ -529,10 +570,7 @@ class RsvpProfilForm(forms.Form):
 
     def clean(self):
         data = super().clean()
-        kehadiran = data.get("kehadiran")
-        alasan = (data.get("alasan_izin") or "").strip()
-        if kehadiran == "izin" and not alasan:
-            self.add_error("alasan_izin", "Alasan izin wajib diisi jika kehadiran memilih Izin.")
-        # Seperti form web dan seed_rsvp: alasan hanya disimpan untuk Izin.
-        data["alasan_izin"] = alasan if kehadiran == "izin" else ""
+        alasan = periksa_alasan_izin(self, data)
+        # Seperti seed_rsvp: alasan hanya disimpan untuk Izin.
+        data["alasan_izin"] = alasan if data.get("kehadiran") == "izin" else ""
         return data

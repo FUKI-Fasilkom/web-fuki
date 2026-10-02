@@ -140,6 +140,10 @@
 {% elif sel.tipe == 'tag' %}
   <span class="inline-block rounded-full bg-badge/60 px-2.5 py-1 text-[11px] font-semibold text-navy">{{ sel.nilai }}</span>
 
+{% elif sel.tipe == 'status_presensi' %}
+  {% comment %}Nilainya pasangan (status, label); warnanya dari satu templat bersama.{% endcomment %}
+  {% include 'siwak/panel/_status_presensi.html' with status=sel.nilai.0 label=sel.nilai.1 %}
+
 {% elif sel.tipe == 'panjang' %}
   <span class="block max-w-[34ch] text-navy-400">{{ sel.nilai }}</span>
 

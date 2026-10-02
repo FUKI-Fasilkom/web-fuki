@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+
+{% comment %}
+  Dirender `siwak.akses.handler403` untuk setiap 403 di situs: user yang sudah
+  login tapi membuka bagian SIWAK milik peran lain. Kerangkanya sengaja sama
+  dengan templates/404.html, ditambah jalan ke bagian milik user sendiri.
+{% endcomment %}
+
+{% block title %}Akses Ditolak{% endblock %}
+{% block meta_robots %}noindex, nofollow{% endblock %}
+
+{% block content %}
+<div class="overflow-hidden bg-[#F9F8F5] text-[#3A3A3A] lg:bg-[#F6FAEB]">
+  {% include 'components/redesign_header.html' with page_title='Akses Ditolak' subtitle='SIWAK-NG' contact_header=True %}
+
+  <section aria-label="Akses ditolak"
+           class="mx-auto flex max-w-[948px] flex-col items-center gap-8 px-8 pb-[120px] pt-[5px] lg:pb-[168px] lg:pt-12">
+    <div class="space-y-3 text-center">
+      <p class="text-2xl font-bold leading-[1.4] text-[#001B3D] lg:text-4xl">{{ pesan }}</p>
+      {% if user.is_authenticated %}
+      <p class="text-sm text-navy-400 lg:text-base">
+        Anda masuk sebagai <span class="font-semibold text-navy">{{ user.get_username }}</span>.
+      </p>
+      {% endif %}
+    </div>
+
+    <div class="flex flex-wrap items-center justify-center gap-3">
+      <a href="{{ tujuan_url }}"
+         class="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#001B3D] px-6 py-2.5 text-xs font-medium text-white shadow-lg hover:bg-navy-700 sm:px-8 sm:py-3 sm:text-sm transition focus:outline-none focus-visible:ring-4 focus-visible:ring-gold/60">
+        {{ tujuan_label }}
+      </a>
+      {% if user.is_authenticated %}
+      <a href="{% url 'siwak:logout' %}"
+         class="inline-flex min-h-10 items-center rounded-lg border-2 border-[#001B3D] px-6 py-2 text-xs font-medium text-[#001B3D] hover:bg-cream-300 sm:px-8 sm:py-2.5 sm:text-sm transition focus:outline-none focus-visible:ring-4 focus-visible:ring-gold/60">
+        Keluar &amp; ganti akun
+      </a>
+      {% endif %}
+    </div>
+
+    <p class="text-center text-sm text-navy-400">
+      Merasa seharusnya punya akses?
+      <a href="{% if info.kontak_cp %}{{ info.kontak_cp }}{% else %}{% url 'hubungi_kami' %}{% endif %}"
+         {% if info.kontak_cp %}target="_blank" rel="noopener"{% endif %}
+         class="font-semibold text-navy underline underline-offset-2 hover:text-navy-700 transition">Hubungi CP SIWAK</a>.
+    </p>
+  </section>
+</div>
+{% endblock %}

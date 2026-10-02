@@ -189,7 +189,7 @@ class RsvpMentorLokalTests(TestCase):
         self.assertEqual(masuk.status_code, 302)
 
         hasil = self.client.post(
-            reverse("siwak:mentor_login") + f"?next={self.url}",
+            reverse("siwak:login_khusus") + f"?next={self.url}",
             {"username": "mentor-rahma", "password": "RahasiaKuat123"},
         )
         self.assertRedirects(hasil, self.url, fetch_redirect_response=False)

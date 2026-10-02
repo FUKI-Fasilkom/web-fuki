@@ -1,0 +1,198 @@
+{% comment %}
+  Isi daftar RSVP satu acara: ringkasan, tab peran, saringan, dan tabel
+  peserta. Dipakai panel pengurus (panel/rsvp.html) dan halaman panitia
+  (pindai_rsvp.html); konteksnya dari `panel_views._konteks_rsvp`.
+
+  Pemanggil menentukan apa yang boleh diubah: boleh_kehadiran / boleh_kupon
+  (dropdown status QR; tanpa izin tampil sebagai label saja), boleh_hapus
+  (tombol hapus RSVP), dan rute_status (URL penyimpan dropdown).
+{% endcomment %}
+
+<section class="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4" aria-label="Ringkasan RSVP">
+  {% for label, angka in ringkasan_rsvp %}
+  <div class="rounded-2xl border-2 border-gold-light bg-white px-4 py-4">
+    <p class="text-2xl font-bold leading-none text-navy sm:text-3xl">{{ angka }}</p>
+    <p class="mt-1.5 text-[11px] font-semibold uppercase tracking-wide text-navy-400 sm:text-xs">{{ label }}</p>
+  </div>
+  {% endfor %}
+</section>
+{% if rsvp_menunggu %}
+<p class="-mt-2 mb-5 text-xs leading-relaxed text-navy-400">
+  <strong class="text-navy">Menunggu login: {{ rsvp_menunggu }}.</strong>
+  RSVP yang sudah masuk lewat form lain tapi orangnya belum login SSO. Belum ada di daftar
+  di bawah dan belum dihitung di Total RSVP; masing-masing menjadi RSVP biasa (dengan QR yang
+  sama) begitu orangnya login.
+</p>
+{% endif %}
+
+{% comment %}
+  Tab peran sekaligus kartu hitungannya: tiap tab menyebut berapa yang sudah
+  check-in dari berapa yang terdaftar di peran itu. Angkanya selalu seluruh
+  acara, tidak ikut menyusut oleh pencarian — sama seperti ringkasan di atas.
+{% endcomment %}
+{% if ada_rsvp %}
+<nav class="mb-4" aria-label="Saring menurut peran">
+  <div class="grid grid-cols-3 gap-2 sm:gap-3">
+    {% for tab in tab_peran %}
+    <a href="{{ tab.url }}" {% if tab.aktif %}aria-current="page"{% endif %}
+       class="rounded-2xl border-2 px-3 py-3 transition sm:px-4
+              {% if tab.aktif %}border-navy bg-navy text-white{% else %}border-gold-light bg-white text-navy hover:border-gold hover:bg-cream-50{% endif %}">
+      <span class="block text-xs font-bold uppercase tracking-wide {% if tab.aktif %}text-cream-300{% else %}text-navy-400{% endif %}">{{ tab.label }}</span>
+      <span class="mt-1 block text-xl font-bold leading-none sm:text-2xl">
+        {{ tab.hadir }}<span class="text-sm font-semibold {% if tab.aktif %}text-cream-300{% else %}text-navy-400{% endif %}"> / {{ tab.terdaftar }}</span>
+      </span>
+      <span class="mt-1 block text-[11px] {% if tab.aktif %}text-cream-300{% else %}text-navy-400{% endif %}">hadir / terdaftar</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% if tanpa_peran %}
+  <p class="mt-2 text-xs text-navy-400">
+    {{ tanpa_peran }} peserta belum punya role, jadi hanya terhitung di “Semua”.
+  </p>
+  {% endif %}
+</nav>
+{% endif %}
+
+{% comment %}
+  Pencarian di sini memakai alamat halaman (bukan penyaring di sisi peramban)
+  supaya hasilnya bisa dikirim ke panitia lain, dan supaya dropdown status di
+  tiap baris bisa kembali ke hasil yang sama lewat `next`. Tab peran yang
+  sedang aktif ikut terbawa lewat input tersembunyi. Dropdown kelompok
+  menyaring daftarnya saja; tab dan ringkasan tetap menghitung seluruh acara.
+{% endcomment %}
+{% if ada_rsvp %}
+<form method="get" class="mb-4 flex flex-wrap gap-2" role="search">
+  {% if peran %}<input type="hidden" name="role" value="{{ peran }}" />{% endif %}
+  {% if pilihan_kelompok %}
+  <label for="saring-kelompok" class="sr-only">Kelompok</label>
+  <select id="saring-kelompok" name="kelompok" onchange="this.form.submit()"
+          class="min-h-[44px] w-full rounded-xl border-2 border-gold-light bg-white px-3 text-sm font-semibold text-navy transition focus:border-gold focus:outline-none focus:ring-4 focus:ring-gold/25 sm:w-auto">
+    <option value="">Semua kelompok</option>
+    {% for nilai, label in pilihan_kelompok %}
+    <option value="{{ nilai }}" {% if nilai == kelompok_dipilih %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  {% endif %}
+  <input type="search" name="q" value="{{ kata }}" placeholder="Cari nama atau NPM peserta…"
+         class="min-h-[44px] w-full flex-1 rounded-xl border-2 border-gold-light bg-white px-4 text-[15px] text-navy placeholder-navy-400/60 transition focus:border-gold focus:outline-none focus:ring-4 focus:ring-gold/25 sm:w-auto" />
+  <button type="submit"
+          class="min-h-[44px] rounded-xl bg-navy px-5 text-sm font-bold text-white transition hover:bg-navy-700">
+    Cari
+  </button>
+  {% if kata or kelompok_dipilih %}
+  <a href="{{ url_daftar }}{% if peran %}?role={{ peran }}{% endif %}"
+     class="inline-flex min-h-[44px] items-center rounded-xl border-2 border-navy px-5 text-sm font-bold text-navy transition hover:bg-cream-300">
+    Bersihkan
+  </a>
+  {% endif %}
+</form>
+{% endif %}
+
+{% if halaman.object_list %}
+{% if kata %}
+<p class="mb-3 text-sm text-navy-400">
+  <span class="font-semibold text-navy">{{ halaman.paginator.count }} {% if peran %}{{ label_peran|lower }}{% else %}peserta{% endif %}</span> cocok dengan
+  “{{ kata }}”. Ringkasan di atas tetap menghitung seluruh peserta acara.
+</p>
+{% endif %}
+{% comment %}
+  Kolom QR di sini bisa disunting. Biasanya statusnya berubah sendiri saat QR
+  dipindai, tapi pemindaian bisa gagal atau terlewat — dropdown ini yang
+  dipakai panitia untuk membetulkannya tanpa masuk ke /admin/.
+{% endcomment %}
+<p class="mb-3 text-sm leading-relaxed text-navy-400">
+  Status QR di bawah biasanya terisi sendiri saat QR peserta dipindai. Kalau ada yang
+  terlewat, ubah langsung lewat dropdown-nya — jam check-in dan jam penukaran ikut
+  menyesuaikan.
+</p>
+
+<div class="overflow-hidden rounded-2xl border-2 border-gold-light bg-white">
+  <div class="hidden bg-navy px-4 py-3 text-xs font-bold uppercase tracking-wide text-cream-300 lg:grid lg:gap-4 {% if boleh_hapus %}lg:grid-cols-[minmax(0,1.5fr)_120px_110px_165px_150px_72px]{% else %}lg:grid-cols-[minmax(0,1.5fr)_120px_110px_165px_150px]{% endif %}">
+    <span>Nama</span><span>NPM</span><span>Kehadiran</span><span>QR Kehadiran</span><span>QR Kupon</span>{% if boleh_hapus %}<span class="sr-only">Aksi</span>{% endif %}
+  </div>
+
+  {% for rsvp in halaman.object_list %}
+  <div class="border-b border-gold-light/70 p-4 last:border-b-0 even:bg-cream-50 lg:grid lg:items-center lg:gap-4 {% if boleh_hapus %}lg:grid-cols-[minmax(0,1.5fr)_120px_110px_165px_150px_72px]{% else %}lg:grid-cols-[minmax(0,1.5fr)_120px_110px_165px_150px]{% endif %}">
+    <p class="font-semibold text-navy">
+      {{ rsvp.user.profil.nama_lengkap|default:rsvp.user.username }}
+      {% if not peran and rsvp.user.profil.role %}
+      <span class="ml-1 inline-block rounded-full bg-cream-300 px-2 py-0.5 align-middle text-[10px] font-bold uppercase tracking-wide text-navy">{{ rsvp.user.profil.get_role_display }}</span>
+      {% endif %}
+    </p>
+
+    <p class="mt-0.5 text-sm text-navy-400 lg:mt-0 lg:text-navy">
+      <span class="lg:hidden">NPM </span>{{ rsvp.user.profil.npm|default:"—" }}
+    </p>
+
+    <p class="mt-2 lg:mt-0">
+      {% include 'siwak/panel/_status_presensi.html' with status=rsvp.kehadiran label=rsvp.get_kehadiran_display %}
+    </p>
+
+    <div class="mt-3 lg:mt-0">
+      <span class="mb-1 block text-[11px] font-bold uppercase tracking-wide text-navy-400 lg:hidden">QR Kehadiran</span>
+      {% if boleh_kehadiran %}
+      {% include 'siwak/panel/_dropdown_status.html' with rsvp=rsvp medan='kehadiran' pilihan=pilihan_kehadiran sekarang=rsvp.status_kehadiran aktif_saat='hadir' aria='Status QR kehadiran' %}
+      {% else %}
+      {% include 'siwak/panel/_label_status_qr.html' with sekarang=rsvp.status_kehadiran aktif_saat='hadir' label=rsvp.get_status_kehadiran_display %}
+      {% endif %}
+    </div>
+
+    <div class="mt-3 lg:mt-0">
+      <span class="mb-1 block text-[11px] font-bold uppercase tracking-wide text-navy-400 lg:hidden">QR Kupon</span>
+      {% if boleh_kupon %}
+      {% include 'siwak/panel/_dropdown_status.html' with rsvp=rsvp medan='kupon' pilihan=pilihan_kupon sekarang=rsvp.status_kupon|default:'unused' aktif_saat='redeemed' aria='Status QR kupon' %}
+      {% else %}
+      {% include 'siwak/panel/_label_status_qr.html' with sekarang=rsvp.status_kupon aktif_saat='redeemed' label=rsvp.get_status_kupon_display %}
+      {% endif %}
+    </div>
+
+    {% if boleh_hapus %}
+    <form method="post" action="{% url 'siwak:panel_rsvp_hapus' rsvp.pk %}" class="mt-3 lg:mt-0"
+          onsubmit="return confirm('Hapus RSVP {{ rsvp.user.profil.nama_lengkap|default:rsvp.user.username|escapejs }}? Tindakan ini tidak bisa dibatalkan.');">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ url_kembali }}" />
+      <button type="submit"
+              class="rounded-lg border-2 border-red-300 px-3 py-1.5 text-xs font-bold text-red-700 transition hover:bg-red-50">
+        Hapus
+      </button>
+    </form>
+    {% endif %}
+
+    {% if rsvp.alasan_izin %}
+    <p class="mt-2 text-xs italic text-navy-400 lg:col-span-full lg:mt-1">Alasan izin: {{ rsvp.alasan_izin }}</p>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+{% include 'siwak/panel/_paginasi.html' %}
+
+{% else %}
+<div class="rounded-2xl border-2 border-dashed border-gold-light bg-white px-6 py-14 text-center">
+  {% if kata or kelompok_dipilih %}
+  <p class="text-base font-bold text-navy">Tidak ada {% if peran %}{{ label_peran|lower }}{% else %}peserta{% endif %}{% if kelompok_dipilih %} dari {{ label_kelompok }}{% endif %}{% if kata %} yang cocok dengan “{{ kata }}”{% endif %}.</p>
+  <p class="mx-auto mt-1.5 max-w-md text-sm leading-relaxed text-navy-400">
+    {% if kata %}Coba potongan namanya saja, atau NPM-nya.{% else %}Peserta kelompok lain tetap ada tanpa saringan kelompok.{% endif %}
+  </p>
+  <a href="{{ url_daftar }}"
+     class="mt-4 inline-flex min-h-[44px] items-center rounded-xl bg-navy px-5 text-sm font-bold text-white transition hover:bg-navy-700">
+    Tampilkan semua peserta
+  </a>
+  {% elif peran %}
+  <p class="text-base font-bold text-navy">Belum ada {{ label_peran|lower }} yang RSVP untuk acara ini.</p>
+  <p class="mx-auto mt-1.5 max-w-md text-sm leading-relaxed text-navy-400">
+    Peserta lain tetap ada di tab lainnya.
+  </p>
+  <a href="{{ url_daftar }}"
+     class="mt-4 inline-flex min-h-[44px] items-center rounded-xl bg-navy px-5 text-sm font-bold text-white transition hover:bg-navy-700">
+    Tampilkan semua peserta
+  </a>
+  {% else %}
+  <p class="text-base font-bold text-navy">Belum ada yang RSVP untuk acara ini.</p>
+  <p class="mx-auto mt-1.5 max-w-md text-sm leading-relaxed text-navy-400">
+    {% if event.rsvp_dibuka %}Pendaftaran sudah dibuka — nama akan muncul di sini begitu ada maba yang mendaftar.
+    {% else %}RSVP acara ini masih ditutup, jadi belum ada yang bisa mendaftar.{% endif %}
+  </p>
+  {% endif %}
+</div>
+{% endif %}

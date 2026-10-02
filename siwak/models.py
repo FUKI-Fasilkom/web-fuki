@@ -1,4 +1,6 @@
+import os
 import uuid
+from dataclasses import dataclass
 
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
@@ -103,6 +105,17 @@ class Profile(models.Model):
         related_name="anggota",
         verbose_name="Kelompok",
         help_text="Mentee: kelompok tempat dia jadi peserta. Mentor: kelompok yang dia pegang.",
+    )
+    # Catatan privat tentang mentee ini. Hanya mentor kelompoknya yang boleh
+    # menyuntingnya; pengurus dan mentor itu yang boleh membacanya (lihat
+    # services.mentor.boleh_ubah_catatan / boleh_baca_catatan). Mentee itu
+    # sendiri tidak pernah melihatnya, jadi jangan pernah menampilkannya di
+    # halaman yang terbuka untuk mentee.
+    notes = models.TextField(
+        blank=True,
+        default="",
+        verbose_name="Catatan privat",
+        help_text="Hanya terlihat oleh pengurus dan mentor kelompok mentee ini.",
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -680,6 +693,18 @@ class AssignmentReviewHistory(models.Model):
 def _new_token():
     return uuid.uuid4().hex
 
+
+@dataclass(frozen=True)
+class JenisQR:
+    """Kolom-kolom `EventRSVP` milik satu jenis QR (registrasi ulang / kupon)."""
+
+    field_token: str
+    field_status: str
+    field_waktu: str
+    # Nilai status yang berarti QR ini sudah dipakai (check-in / kupon ditukar).
+    status_terpakai: str
+    pilihan_status: list
+
 class Answer(models.Model):
     submission = models.ForeignKey(
         TugasSubmission,
@@ -713,6 +738,15 @@ class Answer(models.Model):
     def __str__(self):
         return f"{self.submission} - {self.question}"
 
+    @property
+    def isi_teks(self):
+        """Jawaban sebagai teks, apa pun tipenya: teks pilihan, nama berkas, atau isian."""
+        if self.selected_choice_id:
+            return self.selected_choice.teks
+        if self.file_answer:
+            return os.path.basename(self.file_answer.name)
+        return self.text_answer
+
 
 class EventRSVP(models.Model):
     """RSVP + QR registrasi ulang & QR kupon makan (PRD 5.2, 6.1, 6.2)."""
@@ -730,6 +764,33 @@ class EventRSVP(models.Model):
         ("hadir", "Hadir"),
         ("belum_hadir", "Belum Hadir"),
     ]
+
+    # Izin memindai QR, dipisah per jenis QR-nya: gatekeeper cukup registrasi
+    # ulang, divisi konsumsi cukup kupon makan. Superuser otomatis lolos
+    # `has_perm()`, jadi perilaku lamanya (hanya superuser) tetap berlaku.
+    IZIN_PINDAI = {
+        "registrasi": "siwak.pindai_registrasi",
+        "kupon": "siwak.pindai_kupon",
+    }
+    LABEL_PINDAI = {
+        "registrasi": "QR registrasi ulang",
+        "kupon": "QR kupon makan",
+    }
+    # Awalan username akun panitia SIWAK (pemindai QR) buatan panel. Fungsinya
+    # sama dengan Profile.USERNAME_LOKAL_PREFIX: CAS mencocokkan User lewat
+    # username, jadi awalan ini yang menjauhkan akun panitia dari login SSO
+    # orang lain.
+    USERNAME_PEMINDAI_PREFIX = "panitia-"
+
+    # Satu-satunya tempat kolom tiap jenis QR ditulis: dipakai halaman pindai
+    # (`qr_verify`) dan koreksi status manual dari daftar RSVP.
+    JENIS_QR = {
+        "registrasi": JenisQR(
+            "qr_registrasi_token", "status_kehadiran", "checked_in_at", "hadir",
+            KEHADIRAN_STATUS_CHOICES,
+        ),
+        "kupon": JenisQR("qr_kupon_token", "status_kupon", "redeemed_at", "redeemed", QR_CHOICES),
+    }
 
     event = models.ForeignKey(SiwakEvent, on_delete=models.CASCADE, related_name="rsvp_list")
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="event_rsvps")
@@ -750,9 +811,34 @@ class EventRSVP(models.Model):
     class Meta:
         verbose_name = "RSVP Event"
         unique_together = [("event", "user")]
+        permissions = [
+            ("pindai_registrasi", "Bisa memindai QR registrasi ulang (gatekeeper)"),
+            ("pindai_kupon", "Bisa memindai QR kupon makan (konsumsi)"),
+        ]
 
     def __str__(self):
         return f"{self.user} - {self.event}"
+
+    def qr_terpakai(self, kind):
+        jenis = self.JENIS_QR[kind]
+        return getattr(self, jenis.field_status) == jenis.status_terpakai
+
+    def ubah_status_qr(self, kind, nilai):
+        """Simpan status QR `kind` beserta cap waktunya.
+
+        Baris ini harus tetap sama bentuknya dengan hasil pindai QR: status yang
+        baru dinaikkan ke "terpakai" mendapat waktu sekarang, status yang tetap
+        terpakai mempertahankan waktunya, dan status yang diturunkan kehilangan
+        cap waktunya — tanpa itu ada baris "belum hadir" yang menyimpan jam check-in.
+        """
+        jenis = self.JENIS_QR[kind]
+        sudah = self.qr_terpakai(kind)
+        setattr(self, jenis.field_status, nilai)
+        if nilai != jenis.status_terpakai:
+            setattr(self, jenis.field_waktu, None)
+        elif not sudah or getattr(self, jenis.field_waktu) is None:
+            setattr(self, jenis.field_waktu, timezone.now())
+        self.save(update_fields=[jenis.field_status, jenis.field_waktu])
 
 
 class RSVPTertunda(models.Model):

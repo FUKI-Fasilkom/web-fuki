@@ -1,0 +1,12 @@
+{% comment %}
+  Lencana status Hadir / Izin / Tidak Hadir. Satu templat untuk semua halaman
+  panel yang menampilkan enum ini (detail mentee, kisi detail kelompok, daftar
+  Presensi, daftar RSVP), supaya tiap status selalu berwarna sama dan jelas
+  berbeda satu sama lain: hijau, kuning, merah — sama dengan portal mentor.
+  Parameter: status (nilai enum), label (teks tampilannya).
+{% endcomment %}
+{% if status == 'hadir' %}<span class="inline-block whitespace-nowrap rounded-full bg-green-100 px-2.5 py-1 text-[11px] font-bold text-green-800 ring-1 ring-inset ring-green-600/30">{{ label }}</span>
+{% elif status == 'izin' %}<span class="inline-block whitespace-nowrap rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-bold text-amber-800 ring-1 ring-inset ring-amber-600/30">{{ label }}</span>
+{% elif status == 'tidak_hadir' %}<span class="inline-block whitespace-nowrap rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-bold text-red-800 ring-1 ring-inset ring-red-600/30">{{ label }}</span>
+{% else %}<span class="text-navy-400" title="Belum dicatat">{{ label|default:"—" }}</span>
+{% endif %}

@@ -1,19 +1,4 @@
-"""
-URL configuration for web_fuki project.
-
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/4.2/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
+"""URLconf utama: setiap app di-include di bawah prefiksnya sendiri."""
 from django.contrib import admin
 from django.contrib.sitemaps.views import sitemap
 from django.http import HttpResponseNotFound
@@ -26,8 +11,16 @@ from .sitemaps import SITEMAPS
 
 
 def protected_submission_media(request, path):
-    """Never expose SIWAK task files through Django's DEBUG media helper."""
+    """Never expose SIWAK task files through Django's DEBUG media helper.
+
+    They are only reachable through `siwak:answer_download`, which checks that
+    the viewer is the owner, the mentee's mentor, or staff.
+    """
     return HttpResponseNotFound()
+
+
+# Halaman 403 bergaya SIWAK yang menunjukkan jalan ke bagian milik user sendiri.
+handler403 = 'siwak.akses.handler403'
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -37,6 +30,9 @@ urlpatterns = [
     path('profil/', include('profil.urls')),
     path('kajian/', include('blog_kajian.urls')),
     path('siwak/', include('siwak.urls')),
+    path('ki/', include('ki.urls')),
+    # Lampiran jawaban tugas (siwak/jawaban/, dan siwak/tugas/ dari versi lama).
+    path('media/siwak/jawaban/<path:path>', protected_submission_media),
     path('media/siwak/tugas/<path:path>', protected_submission_media),
 
     # SEO: dua berkas yang dicari perayap di akar domain.

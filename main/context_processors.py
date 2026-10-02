@@ -1,9 +1,11 @@
-"""Context processor SEO.
+"""Context processor SEO dan monitoring.
 
-Menyediakan konstanta situs ke seluruh template supaya `templates/base.html`
-bisa menyusun <title>, meta description, canonical, Open Graph, dan JSON-LD
-tanpa nilai yang ditulis ulang di tiap halaman. Nilainya berasal dari
-settings.py (lihat blok "SEO" di sana).
+`seo` menyediakan konstanta situs ke seluruh template supaya
+`templates/base.html` bisa menyusun <title>, meta description, canonical, Open
+Graph, dan JSON-LD tanpa nilai yang ditulis ulang di tiap halaman. Nilainya
+berasal dari settings.py (lihat blok "SEO" di sana).
+
+`monitoring` menentukan apakah halaman ini boleh memuat Microsoft Clarity.
 """
 
 from django.conf import settings
@@ -25,4 +27,21 @@ def seo(request):
         'SITE_OG_IMAGE': og_image,
         'SITE_SOCIAL_PROFILES': settings.SITE_SOCIAL_PROFILES,
         'GOOGLE_SITE_VERIFICATION': settings.GOOGLE_SITE_VERIFICATION,
+    }
+
+
+def monitoring(request):
+    # Clarity merekam sesi, termasuk teks halaman, jadi hanya untuk tamu
+    # (belum login) di production. Siapa pun yang sudah login bisa melihat data
+    # mahasiswa lain atau datanya sendiri, dan staging/lokal tidak perlu direkam.
+    # CLARITY_EXCLUDED_PREFIXES tetap dicek sebagai jaring kedua. `path_info`,
+    # bukan `path`, supaya awalan tetap cocok kalau situs dipasang di bawah
+    # SCRIPT_NAME.
+    user = getattr(request, 'user', None)
+    return {
+        'CLARITY_AKTIF': (
+            settings.DEPLOY_ENV == 'production'
+            and not (user is not None and user.is_authenticated)
+            and not request.path_info.startswith(settings.CLARITY_EXCLUDED_PREFIXES)
+        ),
     }

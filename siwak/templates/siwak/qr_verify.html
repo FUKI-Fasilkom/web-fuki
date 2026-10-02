@@ -8,14 +8,14 @@
   {% include 'components/redesign_header.html' with page_title="Verifikasi QR" subtitle="Scan QR kehadiran & kupon makan peserta" ringkas=True %}
 
   {# Back button #}
-  {% include 'siwak/_back_button.html' with href=back_url label="Kembali ke halaman SIWAK-NG" %}
+  {% include 'siwak/_back_button.html' with href=back_url label="Kembali ke halaman pemindai" %}
 </div>
 
 <section class="w-full bg-[#F9F8F5] py-12 sm:py-16">
   <div class="mx-auto w-full max-w-[1118px] px-6">
 
     {% if error %}
-    {# ---- QR rusak / kedaluwarsa / data tidak ditemukan ---- #}
+    {# ---- QR rusak / kedaluwarsa / data tidak ditemukan / jenis QR di luar izin akun ---- #}
     <div class="mx-auto max-w-xl">
       <div class="rounded-[12px] border-[3px] border-[#C0392B] bg-red-50 p-6 sm:p-10 text-center shadow-sm">
         <span class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
@@ -24,7 +24,7 @@
           </svg>
         </span>
         <h2 class="mt-4 text-[24px] sm:text-[28px] font-bold text-[#8B1E15]">
-          QR Tidak Valid
+          {{ error_judul|default:"QR Tidak Valid" }}
         </h2>
         <p class="mt-2 text-base leading-relaxed text-[#8B1E15]/80">{{ error }}</p>
       </div>
@@ -128,6 +128,28 @@
     </div>
     {% endif %}
     {% endif %}
+
+    {% comment %}
+      Jalan pulang yang jelas, bukan hanya panah kecil di header: panitia yang
+      baru selesai memindai biasanya kembali ke halaman pemindai, atau membuka
+      daftar RSVP acaranya untuk membetulkan status yang terlewat. Semua yang
+      sampai di halaman ini lolos `pemindai_required`, jadi keduanya terbuka.
+    {% endcomment %}
+    <nav aria-label="Navigasi pemindai" class="mx-auto mt-8 flex max-w-3xl flex-wrap items-center justify-center gap-3">
+      <a href="{{ back_url }}"
+         class="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-navy px-6 text-sm font-semibold text-white shadow transition hover:bg-navy-700">
+        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+        </svg>
+        Kembali ke Pemindai QR
+      </a>
+      {% if rsvp %}
+      <a href="{% url 'siwak:pindai_rsvp' rsvp.event_id %}"
+         class="inline-flex min-h-[44px] items-center rounded-xl border-2 border-navy px-6 text-sm font-semibold text-navy transition hover:bg-cream-300">
+        Lihat RSVP {{ rsvp.event.judul }}
+      </a>
+      {% endif %}
+    </nav>
 
   </div>
 </section>
