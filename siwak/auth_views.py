@@ -55,10 +55,17 @@ def boleh_masuk_akun_khusus(user):
     Yang tidak termasuk justru yang punya pintunya sendiri: mentee dan mentor
     ber-SSO masuk lewat SSO UI. Superuser lolos lewat `boleh_memindai()` walau
     `is_staff`-nya mati.
+
+    Pengurus KI ikut di sini karena akunnya sengaja bukan staf (lihat
+    `ki/akses.py`), jadi login /admin/ menolaknya dan pintu inilah jalan masuknya
+    ke panel Kontrol Internal.
     """
+    from ki.akses import boleh_kelola_kegiatan
+
     return (
         user.is_staff
         or boleh_memindai(user)
+        or boleh_kelola_kegiatan(user)
         or Profile.objects.filter(
             user=user,
             role=Profile.ROLE_MENTOR,

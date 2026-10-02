@@ -27,11 +27,28 @@
     {% endfor %}
   </div>
 
-  <div class="mt-7 flex flex-col gap-2.5 border-t-2 border-gold-light pt-5 sm:flex-row sm:items-center">
+  {% comment %}flex-wrap supaya baris tombol tidak meluber kalau tombol simpan tambahan ikut tampil.{% endcomment %}
+  <div class="mt-7 flex flex-col gap-2.5 border-t-2 border-gold-light pt-5 sm:flex-row sm:flex-wrap sm:items-center">
     <button type="submit"
             class="inline-flex min-h-[48px] items-center justify-center rounded-xl bg-navy px-8 text-sm font-bold text-white transition hover:bg-navy-700 sm:min-w-[160px]">
       Simpan
     </button>
+    {% comment %}
+      Dua tombol simpan tambahan, menirukan "Save and continue editing" /
+      "Save and add another" di Django admin. Namanya pun sama (_continue,
+      _addanother) supaya view-nya membaca niat yang sama. Hanya muncul di panel
+      yang menyalakan simpan_lanjutan, jadi panel SIWAK tidak berubah.
+    {% endcomment %}
+    {% if simpan_lanjutan %}
+    <button type="submit" name="_continue" value="1"
+            class="inline-flex min-h-[48px] items-center justify-center rounded-xl border-2 border-navy-400 px-6 text-sm font-bold text-navy transition hover:bg-cream-300">
+      Simpan &amp; lanjut ubah
+    </button>
+    <button type="submit" name="_addanother" value="1"
+            class="inline-flex min-h-[48px] items-center justify-center rounded-xl border-2 border-navy-400 px-6 text-sm font-bold text-navy transition hover:bg-cream-300">
+      Simpan &amp; tambah lagi
+    </button>
+    {% endif %}
     <a href="{{ url_batal }}"
        class="inline-flex min-h-[48px] items-center justify-center rounded-xl border-2 border-navy px-8 text-sm font-bold text-navy transition hover:bg-cream-300">
       Batal

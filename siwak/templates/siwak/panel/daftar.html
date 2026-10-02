@@ -1,5 +1,12 @@
 {% extends 'siwak/panel/base.html' %}
 
+{% comment %}
+  Halaman daftar generik — dipakai panel SIWAK dan panel Kontrol Internal.
+  Semua alamat (tambah, ubah, hapus, bersihkan saringan) datang dari konteks
+  yang disusun view, bukan dari `{% templatetag openblock %} url 'siwak:…'
+  {% templatetag closeblock %}`, supaya satu templat ini melayani keduanya.
+{% endcomment %}
+
 {% block panel %}
 <header class="mb-5 flex flex-wrap items-start justify-between gap-3">
   <div class="min-w-0">
@@ -42,7 +49,7 @@
     {% if sumber_data.pencarian %}Cari{% else %}Terapkan{% endif %}
   </button>
   {% if kata or ada_saringan %}
-  <a href="{% url 'siwak:panel_daftar' sumber_data.slug %}"
+  <a href="{{ url_bersih }}"
      class="inline-flex min-h-[44px] items-center rounded-xl border-2 border-navy px-5 text-sm font-bold text-navy transition hover:bg-cream-300">
     Bersihkan
   </a>
@@ -114,13 +121,13 @@
             </a>
             {% endfor %}
             {% if sumber_data.boleh_ubah %}
-            <a href="{% url 'siwak:panel_ubah' sumber_data.slug item.pk %}"
+            <a href="{{ item.url_ubah }}"
                class="rounded-lg bg-navy px-3 py-1.5 text-xs font-bold text-white transition hover:bg-navy-700">
               Ubah
             </a>
             {% endif %}
             {% if sumber_data.boleh_hapus %}
-            <form method="post" action="{% url 'siwak:panel_hapus' sumber_data.slug item.pk %}"
+            <form method="post" action="{{ item.url_hapus }}"
                   onsubmit="return confirm('Hapus {{ sumber_data.label|escapejs }} ini? Tindakan ini tidak bisa dibatalkan.');">
               {% csrf_token %}
               <button type="submit"
@@ -185,13 +192,13 @@
       </a>
       {% endfor %}
       {% if sumber_data.boleh_ubah %}
-      <a href="{% url 'siwak:panel_ubah' sumber_data.slug item.pk %}"
+      <a href="{{ item.url_ubah }}"
          class="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-navy text-sm font-bold text-white transition hover:bg-navy-700">
         Ubah
       </a>
       {% endif %}
       {% if sumber_data.boleh_hapus %}
-      <form method="post" action="{% url 'siwak:panel_hapus' sumber_data.slug item.pk %}"
+      <form method="post" action="{{ item.url_hapus }}"
             onsubmit="return confirm('Hapus {{ sumber_data.label|escapejs }} ini? Tindakan ini tidak bisa dibatalkan.');">
         {% csrf_token %}
         <button type="submit"

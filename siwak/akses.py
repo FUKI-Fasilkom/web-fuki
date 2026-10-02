@@ -30,6 +30,10 @@ from .services.pemindai import boleh_memindai
 BAGIAN = {
     "admin": ("Admin Panel SIWAK", "Admin Panel", "siwak:panel_beranda"),
     "pemindai": ("Pemindai QR", "Pemindai QR", "siwak:pindai_beranda"),
+    # Panel Kontrol Internal tinggal di app `ki`, tapi halaman penolakan dan
+    # aturan tujuan setelah login satu untuk seluruh situs, jadi didaftarkan
+    # di sini bersama bagian SIWAK.
+    "ki": ("Admin Panel Kontrol Internal", "Panel Kontrol Internal", "ki:panel_daftar"),
     "mentee": ("Tugas Mentoring", "Tugas Mentoring", "siwak:tugas_list"),
     "mentor": ("Mentor", "Portal Mentor", "siwak:mentor_dashboard"),
 }
@@ -45,10 +49,14 @@ class AksesDitolak(PermissionDenied):
 
 
 def bagian_utama(user):
-    """Bagian SIWAK tempat `user` bekerja, atau None kalau tidak punya.
+    """Bagian tempat `user` bekerja, atau None kalau tidak punya.
 
     Urutannya sama dengan `sso.role_landing_url` (yang memakai fungsi ini):
     pengurus lebih dulu karena superuser juga lolos `boleh_memindai()`.
+
+    Pengurus KI diperiksa sesudah pemindai supaya akun yang kebetulan punya
+    keduanya tetap mendarat di tempat yang sama seperti sebelumnya; akun KI
+    sendiri tidak punya `is_staff` maupun izin pindai, jadi sampai ke sini.
     """
     if not user or not user.is_authenticated:
         return None
@@ -56,6 +64,12 @@ def bagian_utama(user):
         return "admin"
     if boleh_memindai(user):
         return "pemindai"
+    # Diimpor di sini, bukan di level modul: `ki.akses` mengimpor AksesDitolak
+    # dari berkas ini, jadi impor di atas akan berputar.
+    from ki.akses import boleh_kelola_kegiatan
+
+    if boleh_kelola_kegiatan(user):
+        return "ki"
     role = Profile.objects.filter(user=user).values_list("role", flat=True).first()
     return {Profile.ROLE_MENTEE: "mentee", Profile.ROLE_MENTOR: "mentor"}.get(role)
 

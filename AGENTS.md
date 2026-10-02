@@ -1,13 +1,14 @@
 # AGENTS.md
 
-Django 6.0 (Python 3.12) + PostgreSQL website for FUKI Fasilkom UI. Settings live in `web_fuki/`; apps: `main`, `kegiatan`, `birdep`, `profil`, `blog_kajian`, `siwak`.
+Django 6.0 (Python 3.12) + PostgreSQL website for FUKI Fasilkom UI. Settings live in `web_fuki/`; apps: `main`, `kegiatan`, `birdep`, `profil`, `blog_kajian`, `siwak`, `ki`.
 
 ## Local dev
 
 - Copy `.env.example` to `.env` and fill in `DJANGO_SECRET`, `DEBUG=True`, and Postgres creds (`DB_NAME`/`DB_USER`/`DB_PASSWORD`). There is no SQLite fallback; Postgres is required. `DATABASE_URL` overrides the discrete vars if set.
 - `DEBUG` is only true when exactly `"True"`, and `DJANGO_SECRET` is required (also fails fast in `entrypoint.sh`).
 - Commands: `pip install -r requirements.txt` (fully pinned), `python manage.py migrate`, `python manage.py runserver`. Seed demo data for `siwak` with `python manage.py seed_siwak`.
-- `python manage.py check --deploy --fail-level ERROR` is the CI gate, but it is not the only verification: `siwak` has a real suite (~580 tests in `siwak/tests.py` and `siwak/test_*.py`) covering CAS/SSO sync, the panel, QR/RSVP, and tugas upload. Run `python manage.py test siwak` before touching any of those. `main/tests.py` also covers URL/SEO/media behaviour and Sentry privacy; `kegiatan`, `birdep`, and `blog_kajian` have smaller suites. `python manage.py test` runs everything.
+- `python manage.py check --deploy --fail-level ERROR` is the CI gate, but it is not the only verification: `siwak` has a real suite (~587 tests in `siwak/tests.py` and `siwak/test_*.py`) covering CAS/SSO sync, the panel, QR/RSVP, and tugas upload. Run `python manage.py test siwak` before touching any of those. `main/tests.py` also covers URL/SEO/media behaviour and Sentry privacy; `kegiatan`, `birdep`, `blog_kajian`, and `ki` have smaller suites. `python manage.py test` runs everything. A change to the shared panel engine or its templates must run `test siwak ki` — both panels render from them.
+- Known pre-existing failure: `birdep.tests.CsvBawaanTests.test_tidak_ada_foto_yatim_di_folder_fungsionaris` — `static/images/fungsionaris/lefi-hengker.jpg` was committed without a row in `birdep/seed/fungsionaris_foto.csv`. Add the row (or drop the photo) to fix it; it is unrelated to whatever else you are touching.
 - The suite is expected to be fully green. Several tests assert exact template whitespace (e.g. the `_back_button.html` include), so a purely cosmetic template edit can fail them — that is the test doing its job, not noise to silence.
 
 ## Migrations
@@ -28,6 +29,9 @@ CI/deploy runs `migrate` but **never** `makemigrations`. Run `python manage.py m
 - `settings.py` is the source of truth for auth wiring, not the stale swap-notes at the bottom of `siwak/sso.py`.
 - QR state lives on the model: `EventRSVP.JENIS_QR` maps each QR kind to its token/status/timestamp fields, and `qr_terpakai()` / `ubah_status_qr()` are what both the scanner (`qr_verify`) and the panel's manual status dropdowns use. Small view helpers shared across SIWAK (safe `?next=`, text search, display name) are in `siwak/utils.py`.
 - Shared templates (`base.html`, `navbar.html`, `footer.html`, `robots.txt`) live in root `templates/`; app templates in each app's `templates/`.
+- **Panel engine.** Two admin panels share one engine in `main/panel.py`: the `Bagian`/`Sumber`/`Kolom`/`AksiBaris`/`Saringan` dataclasses, `PanelForm` (the Tailwind widget styling), and the list helpers (`terapkan_saringan`, `terapkan_urutan`, `kepala_kolom`, `pilihan_urut`, `sel_baris`, `aksi_baris`, `PER_HALAMAN`). A panel is *declared*, not written: one `Sumber` buys a list page with search, filter dropdowns, click-to-sort headers, pagination, and add/edit/delete forms.
+  - `siwak` (`/siwak/admin/`, `staf_required`, five sections) and `ki` (`/ki/admin/`, `ki_required`, one section: Kegiatan) both render the same templates under `siwak/templates/siwak/panel/`. Those templates carry **no** `{% url 'siwak:…' %}` any more — panel name and every address arrive via context from each app's `_kerangka()` (`panel_nama`, `panel_url_beranda`, `panel_url_situs`, `panel_label_situs`, `url_tambah`, `url_bersih`, and per-row `item.url_ubah`/`item.url_hapus`), and `_menu.html` reads `kelompok.url`. Keep it that way, or the KI panel starts linking into SIWAK. Per-panel extras to the shared form are gated the same way: `simpan_lanjutan` (KI only) adds the `_continue`/`_addanother` save buttons, so a test on each side asserts they are present there and absent in SIWAK. They still live under `siwak/` only because ~20 other SIWAK templates include them by that path.
+- The `ki` app has **no models** — it is purely the Kontrol Internal panel over `kegiatan.Kegiatan`, so it has no migrations. Access is the `kegiatan.change_kegiatan` permission (`ki/akses.py`), deliberately **not** `is_staff`: a KI account can manage Kegiatan without reaching the SIWAK panel or `/admin/`, and SIWAK staff do not get Kegiatan for free. Because KI accounts are not staff, `/admin/` login refuses them — they come in through "Login Akun Khusus", which is why `boleh_masuk_akun_khusus` (`siwak/auth_views.py`) lists them. Their 403 page and post-login landing are registered as the `"ki"` entry in `siwak/akses.BAGIAN` + `bagian_utama`, the same single source every other role uses.
 
 ## Static files gotcha
 

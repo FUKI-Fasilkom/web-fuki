@@ -750,6 +750,16 @@ class PanelAccessTests(TestCase):
             with self.subTest(url=url):
                 self.assertEqual(self.client.get(url).status_code, 200)
 
+    def test_the_shared_form_shows_no_extra_save_buttons_here(self):
+        """"Simpan & lanjut ubah"/"& tambah lagi" belong to the KI panel, which
+        shares this template. Without the gate they would leak in here."""
+        self.client.force_login(User.objects.create_user(username="pengurus", is_staff=True))
+
+        response = self.client.get(reverse("siwak:panel_tambah", args=["peserta"]))
+
+        self.assertNotContains(response, 'name="_continue"')
+        self.assertNotContains(response, 'name="_addanother"')
+
     def test_the_logout_button_leaves_through_siwak_to_the_main_page(self):
         """Staff now sign in through Login Akun Khusus, so the panel's "Keluar"
         must not drop them on Django admin's "Logged out" page."""

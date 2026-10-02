@@ -1,9 +1,9 @@
 """Form untuk panel pengelola SIWAK (/siwak/admin/).
 
-Semua form di sini mewarisi `PanelForm`, yang menempelkan kelas Tailwind ke
-widget sesuai jenisnya. Gaya isian dengan demikian ditulis sekali di satu
-tempat, bukan disalin ke belasan form — dan setiap field baru yang ditambahkan
-ke model otomatis ikut bergaya benar tanpa disentuh lagi.
+Semua form di sini mewarisi `PanelForm` (`main/panel.py`), yang menempelkan
+kelas Tailwind ke widget sesuai jenisnya. Gaya isian dengan demikian ditulis
+sekali di satu tempat, bukan disalin ke belasan form — dan setiap field baru
+yang ditambahkan ke model otomatis ikut bergaya benar tanpa disentuh lagi.
 """
 
 from django import forms
@@ -11,6 +11,8 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Permission
 from django.contrib.auth.password_validation import validate_password
 from django.db import transaction
+
+from main.panel import BERKAS, CENTANG, ISIAN, PILIHAN, PanelForm  # noqa: F401
 
 from .forms import periksa_alasan_izin
 from .models import (
@@ -33,76 +35,6 @@ from .models import (
 )
 
 User = get_user_model()
-
-ISIAN = (
-    "w-full rounded-xl border-2 border-gold-light bg-white px-4 py-3 text-[15px] text-navy "
-    "placeholder-navy-400/60 transition focus:border-gold focus:outline-none "
-    "focus:ring-4 focus:ring-gold/25"
-)
-PILIHAN = ISIAN + " appearance-none pr-10"
-CENTANG = (
-    "h-5 w-5 shrink-0 cursor-pointer rounded border-2 border-gold-light "
-    "accent-navy focus:ring-2 focus:ring-gold/40"
-)
-BERKAS = (
-    "w-full cursor-pointer rounded-xl border-2 border-dashed border-gold-light bg-cream-50 "
-    "px-4 py-3 text-sm text-navy file:mr-3 file:rounded-lg file:border-0 file:bg-navy "
-    "file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-navy-700"
-)
-
-
-class PanelForm(forms.ModelForm):
-    """Induk semua form panel: menyeragamkan tampilan widget."""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        for field in self.fields.values():
-            widget = field.widget
-
-            if isinstance(widget, forms.CheckboxInput):
-                widget.attrs.setdefault("class", CENTANG)
-                continue
-
-            if isinstance(widget, (forms.CheckboxSelectMultiple, forms.RadioSelect)):
-                # attrs di sini menempel ke setiap kotak centang anaknya.
-                widget.attrs.setdefault("class", CENTANG)
-                continue
-
-            if isinstance(widget, forms.ClearableFileInput):
-                widget.attrs.setdefault("class", BERKAS)
-                continue
-
-            if isinstance(widget, forms.SelectMultiple):
-                widget.attrs.setdefault("class", ISIAN)
-                continue
-
-            if isinstance(widget, forms.Select):
-                widget.attrs.setdefault("class", PILIHAN)
-                continue
-
-            if isinstance(widget, forms.Textarea):
-                widget.attrs.setdefault("rows", 4)
-                widget.attrs.setdefault("class", ISIAN)
-                continue
-
-            if isinstance(widget, forms.DateTimeInput):
-                # DateTimeInput bukan turunan DateInput, jadi harus diurus
-                # sendiri — tanpa ini deadline tugas jadi kotak teks biasa.
-                widget.input_type = "datetime-local"
-                widget.format = "%Y-%m-%dT%H:%M"
-                field.input_formats = ["%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"]
-                widget.attrs.setdefault("class", ISIAN)
-                continue
-
-            if isinstance(widget, forms.DateInput):
-                # Tanpa dua baris ini pemilih tanggal bawaan browser tidak muncul
-                # dan nilai lama tidak terbaca sebagai tanggal saat form dibuka.
-                widget.input_type = "date"
-                widget.format = "%Y-%m-%d"
-
-            widget.attrs.setdefault("class", ISIAN)
-
 
 # ---------------------------------------------------------------------------
 # Bagian 1 — Info SIWAK

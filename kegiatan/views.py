@@ -14,11 +14,15 @@ def kegiatan_page(request):
     kegiatan_upcoming = []
     kegiatan_past = []
 
+    # select_related: setiap kartu merender logo penyelenggaranya lewat
+    # Kegiatan.logo_url, yang menyentuh BirDep.
     if active_tab in ['all', 'upcoming']:
-        kegiatan_upcoming = Kegiatan.objects.filter(tanggal__gte=today).order_by('tanggal')
+        kegiatan_upcoming = Kegiatan.objects.select_related('birdep').filter(
+            tanggal__gte=today).order_by('tanggal')
 
     if active_tab in ['all', 'past']:
-        kegiatan_past = Kegiatan.objects.filter(tanggal__lt=today).order_by('-tanggal')
+        kegiatan_past = Kegiatan.objects.select_related('birdep').filter(
+            tanggal__lt=today).order_by('-tanggal')
 
     context = {
         'kegiatan_upcoming': kegiatan_upcoming,
@@ -29,7 +33,7 @@ def kegiatan_page(request):
 
 
 def kegiatan_detail(request, id):
-    kegiatan = get_object_or_404(Kegiatan, pk=id)
+    kegiatan = get_object_or_404(Kegiatan.objects.select_related('birdep'), pk=id)
     return render(request, "kegiatan_detail.html", {
         'kegiatan': kegiatan,
         'is_past': kegiatan.tanggal < datetime.date.today(),
