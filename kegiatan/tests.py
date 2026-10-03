@@ -57,6 +57,21 @@ class KegiatanRedesignTests(TestCase):
         Kegiatan.objects.all().delete()
         self.assertContains(self.client.get(reverse('kegiatan:home')), 'Belum Ada Kegiatan')
 
+    def test_beranda_memuat_semua_kegiatan_upcoming(self):
+        # Tab kategori beranda disaring di sisi klien, jadi daftar yang dipotong
+        # menghilangkan kegiatan dari tabnya meski masih ada di halaman Kegiatan.
+        today = datetime.date.today()
+        for hari in range(1, 11):
+            Kegiatan.objects.create(
+                judul=f'Kegiatan tambahan {hari}',
+                tanggal=today + datetime.timedelta(days=hari),
+            )
+        beranda = self.client.get(reverse('beranda'))
+        upcoming = self.client.get(reverse('kegiatan:home'), {'tab': 'upcoming'})
+        self.assertContains(beranda, '<article ', count=11)
+        self.assertContains(upcoming, '<article ', count=11)
+        self.assertNotContains(beranda, self.past.judul)
+
 
 class KegiatanLogoTests(TestCase):
     """Logo penyelenggara menggantikan poster yang dulu diunggah per kegiatan."""

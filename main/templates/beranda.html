@@ -160,8 +160,8 @@
     <h2 class="text-2xl sm:text-4xl font-bold text-navy-700 text-center">Upcoming Event</h2>
 
     {% comment %}
-      Penyaringan dikerjakan di sisi klien: beranda hanya merender <=6 kartu,
-      dan reload server (?tab=) akan membuang posisi scroll pengunjung.
+      Penyaringan dikerjakan di sisi klien: semua kegiatan mendatang sudah
+      dirender, dan reload server (?tab=) akan membuang posisi scroll pengunjung.
     {% endcomment %}
     <div class="mt-6 flex flex-wrap justify-center gap-0.5 sm:gap-3 text-[10px] sm:text-sm">
       <button @click="filter = 'all'"
