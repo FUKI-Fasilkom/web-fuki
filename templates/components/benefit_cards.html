@@ -1,0 +1,146 @@
+{% comment %}
+  Kartu benefit dua kolom: kepala emas di atas badan krem, keduanya sedikit
+  miring berselang-seling supaya terlihat seperti kertas tempel. Dipakai bersama
+  landing SIWAK-NG dan halaman AM-FM.
+  `items`: objek dengan judul dan deskripsi. `kosong`: teks bila belum ada isinya.
+{% endcomment %}
+<style>
+  .benefit-card {
+    position: relative;
+    isolation: isolate;
+  }
+
+  /* Jumlah benefit ganjil: kartu terakhir sendirian di baris terakhir. Bentangkan
+     ke kedua kolom lalu tengahkan selebar satu kolom, supaya tidak menempel di kiri. */
+  .benefit-card:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+    justify-self: center;
+    width: calc(50% - 0.625rem);
+  }
+
+  @media (min-width: 640px) {
+    .benefit-card:last-child:nth-child(odd) {
+      width: calc(50% - 0.75rem);
+    }
+  }
+
+  .benefit-header {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    min-height: 64px;
+    align-items: center;
+    justify-content: center;
+    margin-inline: 4px;
+    padding: 14px 24px 19px;
+  }
+
+  .benefit-header::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: 21px;
+    background: linear-gradient(100deg, #e9c86f 0%, #c4a65c 100%);
+    box-shadow: 0 7px 18px rgba(82, 62, 16, 0.13);
+    transform-origin: center;
+  }
+
+  .benefit-body {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    min-height: 164px;
+    align-items: center;
+    justify-content: center;
+    margin-top: -13px;
+    padding: 38px 38px 28px;
+  }
+
+  .benefit-body::before {
+    content: "";
+    position: absolute;
+    inset: 0 5px 3px;
+    z-index: -1;
+    border-radius: 24px 20px 23px 21px;
+    background: #faf5e3;
+    box-shadow: 0 12px 28px rgba(54, 45, 25, 0.13);
+    transform-origin: center;
+  }
+
+  .benefit-card:nth-child(4n + 1) .benefit-header::before {
+    transform: rotate(-1.15deg);
+  }
+
+  .benefit-card:nth-child(4n + 1) .benefit-body::before {
+    border-radius: 23px 21px 24px 22px;
+    transform: rotate(-0.35deg);
+  }
+
+  .benefit-card:nth-child(4n + 2) .benefit-header::before {
+    transform: rotate(1.05deg);
+  }
+
+  .benefit-card:nth-child(4n + 2) .benefit-body::before {
+    border-radius: 21px 24px 22px 25px;
+    transform: rotate(-0.55deg);
+  }
+
+  .benefit-card:nth-child(4n + 3) .benefit-header::before {
+    transform: rotate(0.8deg);
+  }
+
+  .benefit-card:nth-child(4n + 3) .benefit-body::before {
+    border-radius: 24px 21px 23px 25px;
+    transform: rotate(-0.65deg);
+  }
+
+  .benefit-card:nth-child(4n + 4) .benefit-header::before {
+    transform: rotate(-0.8deg);
+  }
+
+  .benefit-card:nth-child(4n + 4) .benefit-body::before {
+    border-radius: 21px 25px 24px 22px;
+    transform: rotate(0.55deg);
+  }
+
+  @media (max-width: 639px) {
+    .benefit-header {
+      min-height: 44px;
+      margin-inline: 0;
+      padding: 10px 12px 14px;
+    }
+
+    .benefit-body {
+      min-height: 140px;
+      margin-top: -8px;
+      padding: 28px 16px 18px;
+    }
+
+    .benefit-header::before {
+      border-radius: 15px;
+    }
+
+    .benefit-body::before {
+      inset: 0 2px 2px;
+      border-radius: 15px;
+    }
+  }
+</style>
+
+<div class="grid grid-cols-2 gap-x-5 gap-y-4 sm:gap-x-6 sm:gap-y-4 max-w-[760px] mx-auto">
+  {% for benefit in items %}
+  <article class="benefit-card">
+    <h3 class="benefit-header text-center text-[10px] sm:text-base font-bold text-[#281F0C]">
+      {{ benefit.judul }}
+    </h3>
+    <div class="benefit-body text-center">
+      <p class="max-w-[290px] text-[9px] sm:text-sm text-[#333333] text-center leading-relaxed">{{ benefit.deskripsi }}</p>
+    </div>
+  </article>
+  {% empty %}
+  <p class="col-span-2 text-center text-navy-400 text-sm">
+    {{ kosong }}
+  </p>
+  {% endfor %}
+</div>

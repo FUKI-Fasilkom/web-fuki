@@ -31,6 +31,7 @@ urlpatterns = [
     path('kajian/', include('blog_kajian.urls')),
     path('siwak/', include('siwak.urls')),
     path('ki/', include('ki.urls')),
+    path('amfm/', include('amfm.urls')),
     # Lampiran jawaban tugas (siwak/jawaban/, dan siwak/tugas/ dari versi lama).
     path('media/siwak/jawaban/<path:path>', protected_submission_media),
     path('media/siwak/tugas/<path:path>', protected_submission_media),

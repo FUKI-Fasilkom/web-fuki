@@ -9,6 +9,11 @@
       {% if subtitle %}
       <p class="mt-2 sm:mt-3 text-xs sm:text-lg lg:text-xl font-semibold italic text-navy">{{ subtitle }}</p>
       {% endif %}
+      {# Opsional. Deskripsi disembunyikan di mobile (design-nya begitu: hero mobile terlalu pendek); aksi_template = template tombol milik halaman pemanggil. #}
+      {% if deskripsi %}
+      <p class="mt-4 hidden max-w-[600px] text-base leading-relaxed text-navy sm:block lg:text-xl">{{ deskripsi }}</p>
+      {% endif %}
+      {% if aksi_template %}{% include aksi_template %}{% endif %}
     </div>
     {% include 'components/hero_logo.html' with variant='upright' %}
   </div>
