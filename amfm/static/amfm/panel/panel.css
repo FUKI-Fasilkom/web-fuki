@@ -17,7 +17,8 @@
 .amfm-panel .chart-diterima { background:#0DA582; }
 .amfm-panel .chart-ditolak { background:#EB6D68; }
 .amfm-panel .panel-table { width:100%; text-align:left; border-collapse:separate; border-spacing:0; font-size:14px; color:#12284C; }
-.amfm-panel .panel-table th { background:linear-gradient(135deg,#0048A3,#001B3D); color:white; padding:12px; font-weight:600; white-space:nowrap; }
+.amfm-panel .panel-table thead { background:linear-gradient(135deg,#0048A3,#001B3D); clip-path:inset(0 round 12px); }
+.amfm-panel .panel-table th { background:transparent; color:white; padding:12px; font-weight:600; white-space:nowrap; }
 .amfm-panel .panel-table th:first-child { border-radius:12px 0 0 12px; }
 .amfm-panel .panel-table th:last-child { border-radius:0 12px 12px 0; }
 .amfm-panel .panel-table td { padding:16px 12px; border-bottom:1px solid #C6BC9A; vertical-align:middle; }

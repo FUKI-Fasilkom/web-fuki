@@ -7,7 +7,7 @@ from django.utils.html import format_html
 
 from .models import AmfmBenefit, AmfmInfo, AmfmTimeline, Pendaftaran
 from .panel_forms import KeputusanForm
-from .services.seleksi import ubah_status_massal
+from .services.seleksi import simpan_keputusan, ubah_status_massal
 
 
 @admin.register(AmfmInfo)
@@ -52,6 +52,9 @@ class PendaftaranAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return False
+
+    def save_model(self, request, obj, form, change):
+        simpan_keputusan(obj.pk, obj.status, obj.penempatan_id)
 
     def get_urls(self):
         return [path("<int:pk>/bukti/", self.admin_site.admin_view(self.unduh_bukti),

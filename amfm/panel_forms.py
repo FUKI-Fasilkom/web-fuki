@@ -17,6 +17,7 @@ class KeputusanForm(PanelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["status"].choices = [(value, STATUS[value]) for value in ("diterima", "menunggu", "ditolak")]
         self.fields["penempatan"].queryset = self.fields["penempatan"].queryset.filter(
             pk__in=[self.instance.pilihan_1_id, self.instance.pilihan_2_id],
         )

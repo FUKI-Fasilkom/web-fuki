@@ -203,7 +203,7 @@ def panel_pengaturan(request):
     return render(request, "amfm/panel/form.html", _konteks(
         request, "Pengaturan Pendaftaran", "pengaturan", form=form,
         deskripsi="Atur jadwal, guidebook, dan folder kurikulum. Perubahan langsung berlaku pada formulir peserta.",
-        status_saat_ini=info.status_saat_ini,
+        status_saat_ini=dict(info._meta.get_field("status_pendaftaran").choices)[info.status_saat_ini],
     ))
 
 

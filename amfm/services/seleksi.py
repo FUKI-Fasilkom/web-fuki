@@ -21,7 +21,9 @@ def validasi_keputusan(pendaftaran, status, penempatan_id):
 
 @transaction.atomic
 def simpan_keputusan(pk, status, penempatan_id):
-    obj = Pendaftaran.objects.select_for_update().get(pk=pk)
+    obj = Pendaftaran.objects.select_for_update().filter(pk=pk).first()
+    if obj is None:
+        raise ValidationError("Data pendaftar telah dihapus. Muat ulang daftar pendaftar.")
     obj.penempatan_id = validasi_keputusan(obj, status, penempatan_id)
     obj.status = status
     obj.save(update_fields=["status", "penempatan"])

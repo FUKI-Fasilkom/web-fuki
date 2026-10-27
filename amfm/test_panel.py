@@ -233,3 +233,55 @@ class PanelTests(PanelFixture):
         self.assertEqual(client.post(reverse("amfm:panel_keputusan", args=[self.obj.pk]), {"status": "ditolak"}).status_code, 403)
         response = self.client.post(reverse("amfm:panel_massal"), {"next": "https://evil.example/"})
         self.assertEqual(response.url, reverse("amfm:panel_daftar"))
+
+    def test_pagination_mempertahankan_filter(self):
+        from django.urls import reverse
+        for i in range(26):
+            user = get_user_model().objects.create_user(username=f"pagination-{i}")
+            Pendaftaran.objects.create(user=user, npm=f"2700000{i:03}", nama_lengkap=f"Peserta {i}", jurusan="IK", jenis_kelamin="L", kontak="kontak", pilihan_1=self.itf, pilihan_2=self.medkre, motivasi="Belajar")
+        response = self.client.get(reverse("amfm:panel_daftar"), {"q": "Peserta", "birdept": self.itf.pk, "page": 2})
+        self.assertEqual(response.context["halaman"].number, 2)
+        self.assertContains(response, "q=Peserta")
+        self.assertContains(response, "26.")
+
+    def test_login_tanpa_izin_dan_next_eksternal(self):
+        from django.urls import reverse
+        self.client.logout()
+        self.peserta.set_password("test-password-123")
+        self.peserta.save()
+        response = self.client.post(reverse("amfm:panel_login"), {"username": self.peserta.username, "password": "test-password-123"})
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("_auth_user_id", self.client.session)
+        response = self.client.post(reverse("amfm:panel_login"), {"username": self.admin.username, "password": "test-password-123", "next": "https://evil.example/"})
+        self.assertRedirects(response, reverse("amfm:panel_beranda"))
+
+    def test_clarity_tidak_dimuat_di_login_admin_production(self):
+        from django.urls import reverse
+        self.client.logout()
+        with self.settings(DEPLOY_ENV="production"):
+            self.assertNotContains(self.client.get(reverse("amfm:panel_login")), "clarity.ms")
+
+    def test_django_admin_validasi_penempatan_dan_bulk_tetap_sama(self):
+        from django.urls import reverse
+        from django.contrib.messages.storage.fallback import FallbackStorage
+        from django.contrib import admin
+        from django.test import RequestFactory
+        from .admin import PendaftaranAdmin
+        self.admin.is_staff = True
+        self.admin.save()
+        response = self.client.get(reverse("admin:amfm_pendaftaran_change", args=[self.obj.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Penempatan Birdept")
+        response = self.client.post(reverse("admin:amfm_pendaftaran_change", args=[self.obj.pk]), {"status": "diterima", "penempatan": self.itf.pk, "_save": "Simpan"})
+        self.assertEqual(response.status_code, 302)
+        self.obj.refresh_from_db()
+        self.assertEqual(self.obj.status, "diterima")
+        self.assertEqual(self.obj.penempatan_id, self.itf.pk)
+        request = RequestFactory().post("/admin/")
+        request.user = self.admin
+        request.session = {}
+        request._messages = FallbackStorage(request)
+        PendaftaranAdmin(Pendaftaran, admin.site).tolak(request, Pendaftaran.objects.filter(pk=self.obj.pk))
+        self.obj.refresh_from_db()
+        self.assertEqual(self.obj.status, "ditolak")
+        self.assertIsNone(self.obj.penempatan)

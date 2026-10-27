@@ -9,7 +9,7 @@
   </form>
   <form method="post" action="{% url 'amfm:panel_massal' %}">
     {% csrf_token %}<input type="hidden" name="next" value="{{ url_kembali }}">
-    <div class="overflow-x-auto">
+    <div class="relative overflow-x-auto">
       <table class="panel-table min-w-[900px]">
         <caption class="sr-only">Daftar pendaftar AM-FM dan keputusan seleksi</caption>
         <thead><tr>{% if boleh_ubah %}<th><span class="sr-only">Pilih peserta</span></th>{% endif %}<th>No.</th><th>Nama</th><th>Prodi</th><th>Birdept 1</th><th>Birdept 2</th><th>Status</th><th>Penempatan</th><th><span class="sr-only">Aksi</span></th></tr></thead>
