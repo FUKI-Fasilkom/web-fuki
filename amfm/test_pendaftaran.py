@@ -1,0 +1,279 @@
+"""Kontrak SSO, identitas tepercaya, deadline, dan privasi pendaftaran."""
+import datetime
+from concurrent.futures import ThreadPoolExecutor
+from io import BytesIO
+from unittest.mock import patch
+from urllib.parse import parse_qs, urlparse
+
+from PIL import Image
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Permission
+from django.core.files.storage import default_storage
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import IntegrityError, connections, transaction
+from django.test import Client, TestCase, TransactionTestCase
+from django.urls import resolve, reverse
+from django.utils import timezone
+
+from birdep.models import BirDep
+from siwak.models import Profile
+from web_fuki.urls import protected_submission_media
+
+from .models import AmfmInfo, Pendaftaran
+
+CAS_BACKEND = "django_cas_ng.backends.CASBackend"
+ATTRIBUTES = {"nama": "Mahasiswa FUKI", "npm": "2600000001", "kd_org": "01.00.12.01"}
+
+
+def gambar(format="PNG"):
+    buf = BytesIO()
+    Image.new("RGB", (2, 2), "white").save(buf, format=format)
+    return SimpleUploadedFile("follow.png", buf.getvalue(), content_type="image/png")
+
+
+def masuk(client, user, attributes=None):
+    client.force_login(user, backend=CAS_BACKEND)
+    session = client.session
+    session["attributes"] = ATTRIBUTES if attributes is None else attributes
+    session.save()
+
+
+class PendaftaranTests(TestCase):
+    def setUp(self):
+        self.url = reverse("amfm:daftar")
+        self.user = get_user_model().objects.create_user(username="mahasiswa")
+        self.profile = Profile.objects.create(
+            user=self.user, npm=ATTRIBUTES["npm"], nama_lengkap=ATTRIBUTES["nama"], jurusan="IK",
+        )
+        self.info = AmfmInfo.get_solo()
+        self.info.status_pendaftaran = "dibuka"
+        self.info.save()
+        self.itf = BirDep.objects.create(nama="ITF", logo_filename="")
+        self.medkre = BirDep.objects.create(nama="Medkre", logo_filename="")
+        masuk(self.client, self.user)
+
+    def data(self, **overrides):
+        return {"jenis_kelamin": "L", "kontak": "line-mahasiswa", "pilihan_1": self.itf.pk,
+                "pilihan_2": self.medkre.pk, "motivasi": "Belajar dan berkontribusi bersama FUKI.",
+                "bukti_follow": gambar(), **overrides}
+
+    def daftar(self, **overrides):
+        return self.client.post(self.url, self.data(**overrides))
+
+    def test_informasi_publik_dan_registrasi_selalu_meminta_sso(self):
+        self.client.logout()
+        for state in ("belum_dibuka", "dibuka", "ditutup"):
+            self.info.status_pendaftaran = state
+            self.info.save()
+            self.assertEqual(self.client.get(reverse("amfm:beranda")).status_code, 200)
+            for method in (self.client.get, self.client.post):
+                response = method(self.url)
+                self.assertEqual(response.status_code, 302)
+                self.assertEqual(urlparse(response.url).path, reverse("siwak:cas_ng_login"))
+                self.assertEqual(parse_qs(urlparse(response.url).query)["next"], [self.url])
+        self.assertFalse(Pendaftaran.objects.exists())
+
+    def test_callback_cas_mengisi_profil_dan_kembali_ke_amfm(self):
+        self.client.logout()
+        self.profile.delete()
+        with patch("django_cas_ng.backends.get_cas_client") as client:
+            client.return_value.verify_ticket.return_value = (self.user.username, ATTRIBUTES, None)
+            response = self.client.get(reverse("siwak:cas_ng_login"), {"ticket": "ST-test", "next": self.url})
+        self.assertRedirects(response, self.url)
+        self.assertEqual(self.client.session["_auth_user_backend"], CAS_BACKEND)
+        self.assertEqual(self.client.session["attributes"], ATTRIBUTES)
+        self.assertEqual(Profile.objects.get(user=self.user).jurusan, "IK")
+
+    def test_sesi_lokal_tidak_lolos_dan_tidak_berputar_ke_cas(self):
+        self.client.force_login(self.user, backend="django.contrib.auth.backends.ModelBackend")
+        self.assertContains(self.client.get(self.url), "Masuk dengan SSO UI", status_code=403)
+        self.assertEqual(self.daftar().status_code, 403)
+        response = self.client.post(reverse("amfm:masuk_sso"))
+        self.assertEqual(response.status_code, 302)
+        self.assertNotIn("_auth_user_id", self.client.session)
+        self.assertEqual(self.client.get(reverse("amfm:masuk_sso")).status_code, 405)
+
+    def test_pengguna_tanpa_role_langsung_mendapat_tiga_identitas_disabled(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(self.profile.role)
+        for field, expected in (("nama_lengkap", ATTRIBUTES["nama"]), ("npm", ATTRIBUTES["npm"]), ("jurusan", "IK")):
+            self.assertTrue(response.context["form"].fields[field].disabled)
+            self.assertEqual(response.context["form"][field].value(), expected)
+        self.assertContains(response, "Ilmu Komputer")
+        self.assertEqual([value for value, _ in response.context["form"].fields["jenis_kelamin"].choices], ["L", "P"])
+        self.assertContains(response, 'data-step="3"')
+        self.assertIn("no-store", response["Cache-Control"])
+        self.assertContains(response, "noindex, nofollow")
+
+    def test_manipulasi_identitas_diabaikan_dan_pengiriman_idempoten(self):
+        self.assertEqual(self.daftar(npm="9999999999", nama_lengkap="Orang lain", jurusan="SI", user=999).status_code, 302)
+        obj = Pendaftaran.objects.get()
+        self.assertEqual((obj.user_id, obj.npm, obj.nama_lengkap, obj.jurusan),
+                         (self.user.pk, ATTRIBUTES["npm"], ATTRIBUTES["nama"], "IK"))
+        filename = obj.bukti_follow.name
+        self.assertNotIn(obj.npm, filename)
+        with patch.object(default_storage, "save") as save:
+            self.assertEqual(self.daftar().status_code, 200)
+            save.assert_not_called()
+        self.assertEqual(Pendaftaran.objects.count(), 1)
+        self.info.status_pendaftaran = "ditutup"
+        self.info.save()
+        self.assertContains(self.client.get(self.url), "Pendaftaran terkirim")
+
+    def test_identitas_hilang_atau_berbeda_diblokir(self):
+        for attributes in ({}, {**ATTRIBUTES, "npm": "2600000002"}, {**ATTRIBUTES, "kd_org": "99.00"}, {**ATTRIBUTES, "nama": [None]}):
+            masuk(self.client, self.user, attributes)
+            self.assertContains(self.client.get(self.url), "Identitas SSO belum lengkap", status_code=403)
+            self.assertEqual(self.daftar().status_code, 403)
+        masuk(self.client, self.user)
+        self.profile.delete()
+        self.assertEqual(self.daftar().status_code, 403)
+        self.assertFalse(Pendaftaran.objects.exists())
+
+    def test_profil_lokal_tetap_ditolak_meski_backend_cas(self):
+        self.profile.auth_source = Profile.SOURCE_LOKAL
+        self.profile.save()
+        self.assertEqual(self.daftar().status_code, 403)
+
+    def test_sesi_kedaluwarsa_kembali_ke_sso_tanpa_menyimpan(self):
+        session = self.client.session
+        session.set_expiry(-1)
+        session.save()
+        self.assertEqual(self.daftar().status_code, 302)
+        self.assertFalse(Pendaftaran.objects.exists())
+
+    def test_csrf_diwajibkan_untuk_kirim_dan_ganti_sesi(self):
+        client = Client(enforce_csrf_checks=True)
+        masuk(client, self.user)
+        self.assertEqual(client.post(self.url, self.data()).status_code, 403)
+        self.assertEqual(client.post(reverse("amfm:masuk_sso")).status_code, 403)
+        self.assertFalse(Pendaftaran.objects.exists())
+
+    def test_status_jadwal_dan_penutupan_manual_ditegakkan_pada_post(self):
+        now = timezone.now()
+        cases = [("dibuka", now + datetime.timedelta(hours=1), None, "belum dibuka"),
+                 ("dibuka", None, now, "sudah ditutup"),
+                 ("ditutup", None, None, "sudah ditutup")]
+        for state, start, end, text in cases:
+            self.info.status_pendaftaran, self.info.dibuka_pada, self.info.ditutup_pada = state, start, end
+            self.info.save()
+            self.assertContains(self.daftar(), text)
+        self.assertFalse(Pendaftaran.objects.exists())
+
+    def test_deadline_diperiksa_lagi_setelah_upload_dan_file_dibersihkan(self):
+        now = timezone.now()
+        self.info.ditutup_pada = now + datetime.timedelta(seconds=1)
+        self.info.save()
+        clock = [now]
+        original_save = default_storage.save
+        names = []
+
+        def upload(*args, **kwargs):
+            name = original_save(*args, **kwargs)
+            names.append(name)
+            clock[0] = now + datetime.timedelta(seconds=2)
+            return name
+
+        with patch("amfm.models.timezone.now", side_effect=lambda: clock[0]), patch.object(default_storage, "save", side_effect=upload):
+            response = self.daftar()
+        self.assertEqual(response.status_code, 409)
+        self.assertFalse(Pendaftaran.objects.exists())
+        self.assertEqual(len(names), 1)
+        self.assertFalse(default_storage.exists(names[0]))
+
+    def test_validasi_pilihan_berbeda_dan_birdept_aktif(self):
+        response = self.daftar(pilihan_2=self.itf.pk)
+        self.assertIn("pilihan_2", response.context["form"].errors)
+        self.medkre.is_active = False
+        self.medkre.save()
+        self.assertIn("pilihan_2", self.daftar().context["form"].errors)
+        self.assertFalse(Pendaftaran.objects.exists())
+
+    def test_validasi_upload_isi_format_ukuran_dan_isian_wajib(self):
+        files = [SimpleUploadedFile("fake.png", b"not an image", content_type="image/png"), gambar("GIF")]
+        large = gambar()
+        large.size = 2 * 1024 * 1024 + 1
+        # Test ukuran pada form, karena test client menghitung ulang ukuran stream.
+        from .forms import PendaftaranForm
+        form = PendaftaranForm(self.data(), {"bukti_follow": large}, profile=self.profile)
+        self.assertFalse(form.is_valid())
+        self.assertIn("bukti_follow", form.errors)
+        for file in files:
+            self.assertIn("bukti_follow", self.daftar(bukti_follow=file).context["form"].errors)
+        for field in ("jenis_kelamin", "kontak", "motivasi"):
+            self.assertIn(field, self.daftar(**{field: ""}).context["form"].errors)
+        self.assertFalse(Pendaftaran.objects.exists())
+
+    def test_portofolio_opsional_untuk_itf_medkre(self):
+        self.assertEqual(self.daftar(portofolio="https://example.com/portfolio").status_code, 302)
+        self.assertEqual(Pendaftaran.objects.get().portofolio, "https://example.com/portfolio")
+
+    def test_npm_tetap_unik_di_database(self):
+        self.daftar()
+        obj = Pendaftaran.objects.get()
+        obj.pk = None
+        obj.user = get_user_model().objects.create_user(username="lain")
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            obj.save()
+
+    def test_npm_milik_akun_lain_tidak_membocorkan_jawaban(self):
+        self.daftar()
+        obj = Pendaftaran.objects.get()
+        obj.user = get_user_model().objects.create_user(username="pemilik-lama")
+        obj.save()
+        response = self.client.get(self.url)
+        self.assertContains(response, "NPM sudah terdaftar", status_code=409)
+        self.assertNotContains(response, obj.kontak, status_code=409)
+
+    def test_bukti_hanya_bisa_diunduh_admin_dengan_izin_model(self):
+        self.daftar()
+        obj = Pendaftaran.objects.get()
+        url = reverse("admin:amfm_pendaftaran_bukti", args=[obj.pk])
+        self.assertEqual(self.client.get(url).status_code, 302)
+        staff = get_user_model().objects.create_user(username="pengelola", is_staff=True)
+        self.client.force_login(staff)
+        self.assertEqual(self.client.get(url).status_code, 403)
+        staff.user_permissions.add(Permission.objects.get(codename="view_pendaftaran"))
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("no-store", response["Cache-Control"])
+        self.assertTrue(b"".join(response.streaming_content).startswith(b"\x89PNG"))
+        self.assertEqual(resolve("/media/" + obj.bukti_follow.name).func, protected_submission_media)
+        self.assertEqual(self.client.get("/media/" + obj.bukti_follow.name).status_code, 404)
+
+    def test_bukti_dihapus_setelah_penghapusan_data_commit(self):
+        self.daftar()
+        obj = Pendaftaran.objects.get()
+        name = obj.bukti_follow.name
+        with self.captureOnCommitCallbacks(execute=True):
+            obj.delete()
+        self.assertFalse(default_storage.exists(name))
+
+
+class PengirimanBersamaanTests(TransactionTestCase):
+    def test_dua_post_bersamaan_hanya_membuat_satu_pendaftaran(self):
+        user = get_user_model().objects.create_user(username="mahasiswa")
+        Profile.objects.create(user=user, npm=ATTRIBUTES["npm"], nama_lengkap=ATTRIBUTES["nama"], jurusan="IK")
+        info = AmfmInfo.get_solo()
+        info.status_pendaftaran = "dibuka"
+        info.save()
+        a = BirDep.objects.create(nama="ITF", logo_filename="")
+        b = BirDep.objects.create(nama="Medkre", logo_filename="")
+        clients = [Client(), Client()]
+        for client in clients:
+            masuk(client, user)
+
+        def send(client):
+            connections.close_all()
+            try:
+                return client.post(reverse("amfm:daftar"), {
+                    "jenis_kelamin": "P", "kontak": "line-id", "pilihan_1": a.pk,
+                    "pilihan_2": b.pk, "motivasi": "Ingin belajar", "bukti_follow": gambar(),
+                }).status_code
+            finally:
+                connections.close_all()
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            self.assertTrue(all(status in (200, 302) for status in pool.map(send, clients)))
+        self.assertEqual(Pendaftaran.objects.count(), 1)

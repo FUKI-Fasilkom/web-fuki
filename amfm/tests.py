@@ -40,13 +40,11 @@ class BerandaAmfmTests(TestCase):
         self.assertContains(response, "Pendaftaran Dibuka")
         self.assertNotContains(response, "Tahap Arsip")
 
-    def test_tombol_daftar_nonaktif_selama_formulir_belum_ada(self):
+    def test_kedua_tombol_menuju_pendaftaran_yang_dijaga_sso(self):
         response = self.client.get(self.url)
 
-        # Hero dan kartu "Siap Bergabung?" sama-sama tanpa tautan pendaftaran.
-        self.assertContains(response, "Segera Dibuka", count=2)
-        self.assertContains(response, 'aria-disabled="true"', count=2)
-        self.assertNotContains(response, "Daftar Sekarang")
+        self.assertContains(response, f'href="{reverse("amfm:daftar")}"', count=2)
+        self.assertContains(response, "Daftar Sekarang", count=2)
         self.assertContains(response, 'href="#apa-itu"')
         self.assertContains(response, 'id="apa-itu"')
 

@@ -403,6 +403,8 @@ if SENTRY_AKTIF:
 # main/context_processors.monitoring). Django's own /admin/ does not extend
 # templates/base.html, so it never loads Clarity in the first place.
 CLARITY_EXCLUDED_PREFIXES = (
+    "/amfm/daftar/",
+    "/amfm/masuk-sso/",
     "/siwak/admin/",   # panel pengurus
     "/siwak/mentor/",  # portal mentor: daftar & detail mentee
     "/siwak/qr/",      # konfirmasi scan QR: nama + NPM peserta
