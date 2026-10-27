@@ -36,3 +36,27 @@ def identitas_valid(request, profile):
         and profile.npm == npm and profile.nama_lengkap == nama
         and profile.jurusan and profile.jurusan == KD_ORG_PROGRAM_MAP.get(kode)
     )
+
+
+def boleh_kelola_amfm(user):
+    """Izin model AMFM, tanpa memberikan akses panel SIWAK lewat is_staff."""
+    return bool(user and user.is_authenticated and user.is_active and (
+        user.has_perm("amfm.view_pendaftaran") or user.has_perm("amfm.change_pendaftaran")
+    ))
+
+
+def amfm_required(permission=None):
+    from django.views.decorators.cache import never_cache
+    from siwak.akses import AksesDitolak
+
+    def decorate(view):
+        @never_cache
+        @wraps(view)
+        def wrapped(request, *args, **kwargs):
+            if not request.user.is_authenticated:
+                return redirect_to_login(request.get_full_path(), reverse("amfm:panel_login"))
+            if not boleh_kelola_amfm(request.user) or (permission and not request.user.has_perm(permission)):
+                raise AksesDitolak("amfm")
+            return view(request, *args, **kwargs)
+        return wrapped
+    return decorate

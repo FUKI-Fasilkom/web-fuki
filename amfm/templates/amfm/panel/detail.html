@@ -1,0 +1,39 @@
+{% extends 'amfm/panel/base.html' %}
+{% load static %}
+{% block panel %}
+<a href="{{ url_kembali }}" class="mb-8 inline-flex items-center gap-3 text-sm text-navy"><span aria-hidden="true">←</span> Kembali ke List Pendaftar</a>
+<div class="grid items-start gap-8 lg:grid-cols-[minmax(0,776fr)_minmax(0,520fr)]">
+  <div class="min-w-0 space-y-6">
+    <section class="panel-card flex flex-wrap items-center justify-between gap-4">
+      <div class="flex min-w-0 items-center gap-3"><img src="{% static 'amfm/panel/avatar.png' %}" alt="" width="81" height="81" class="shrink-0 rounded-full"><div class="min-w-0"><h2 class="break-words text-2xl font-bold">{{ obj.nama_lengkap }}</h2><p class="mt-1 text-sm sm:text-base">{{ obj.npm }} · {{ prodi }}</p></div></div>
+      {% include 'amfm/panel/_badge.html' %}
+    </section>
+    <section class="panel-card"><h2 class="panel-title">Data Diri</h2>
+      <dl class="grid gap-x-8 gap-y-6 sm:grid-cols-2">
+        <div><dt>Nama Lengkap</dt><dd>{{ obj.nama_lengkap }}</dd></div><div><dt>NPM</dt><dd>{{ obj.npm }}</dd></div>
+        <div><dt>Jenis Kelamin</dt><dd>{{ obj.get_jenis_kelamin_display }}</dd></div><div><dt>Prodi</dt><dd>{{ prodi }}</dd></div>
+        <div><dt>WA/ID Line</dt><dd>{{ obj.kontak }}</dd></div><div><dt>Link Portofolio</dt><dd>{% if obj.portofolio %}<a class="text-navy underline" href="{{ obj.portofolio }}" target="_blank" rel="noopener noreferrer">{{ obj.portofolio }}</a>{% else %}—{% endif %}</dd></div>
+      </dl>
+    </section>
+    <section class="panel-card"><h2 class="panel-title">Pilihan Birdept</h2><dl class="grid gap-6 sm:grid-cols-2"><div><dt>Pilihan 1</dt><dd>{{ obj.pilihan_1.nama }}</dd></div><div><dt>Pilihan 2</dt><dd>{{ obj.pilihan_2.nama }}</dd></div><div class="sm:col-span-2"><dt>Motivasi</dt><dd class="whitespace-pre-wrap border-l-2 border-gold pl-4">{{ obj.motivasi }}</dd></div></dl></section>
+    <section class="panel-card"><h2 class="panel-title">Bukti Follow Instagram</h2><p class="mb-4 text-sm text-navy-400">@fukifasilkom dan @lifeatfuki · satu berkas bukti pendaftaran</p>
+      {% if obj.bukti_follow %}<a href="{% url 'amfm:panel_bukti' obj.pk %}" class="flex items-center justify-between gap-3 rounded-xl border border-[#999] bg-white p-4 text-navy"><span>Unduh bukti follow Instagram</span><i data-lucide="download" class="h-5 w-5 shrink-0" aria-hidden="true"></i></a>{% else %}<p>Belum ada berkas bukti.</p>{% endif %}
+    </section>
+    {% if boleh_hapus %}<a href="{% url 'amfm:panel_hapus' obj.pk %}?next={{ url_kembali|urlencode }}" class="inline-block text-sm text-red-800 underline underline-offset-4">Hapus data pendaftar</a>{% endif %}
+  </div>
+  <aside class="panel-card lg:sticky lg:top-28" aria-labelledby="decision-title">
+    <h2 id="decision-title" class="panel-title">Keputusan</h2>
+    {% if boleh_ubah %}
+    <form method="post" action="{% url 'amfm:panel_keputusan' obj.pk %}">{% csrf_token %}<input type="hidden" name="next" value="{{ url_kembali }}">
+      {{ form.non_field_errors }}
+      <fieldset class="space-y-3"><legend class="mb-3 text-lg font-semibold">Status Penerimaan</legend>
+        {% for radio in form.status %}<label class="choice-row" for="{{ radio.id_for_label }}">{{ radio.tag }}<span class="status-badge status-{{ radio.data.value }}">{{ radio.choice_label }}</span></label>{% endfor %}
+        {{ form.status.errors }}
+      </fieldset>
+      <div class="mb-8 mt-8">{% include 'amfm/_field.html' with field=form.penempatan %}<p class="text-xs text-navy-400">Wajib untuk status Diterima. Pilih salah satu birdept pilihan peserta.</p></div>
+      <button class="panel-btn w-full" type="submit">Simpan Keputusan</button>
+    </form>
+    {% else %}<p class="mb-4 text-sm">Anda memiliki akses baca.</p><dl><dt>Status Penerimaan</dt><dd class="mb-4">{{ obj.get_status_display }}</dd><dt>Penempatan Birdept</dt><dd>{{ obj.penempatan.nama|default:'—' }}</dd></dl>{% endif %}
+  </aside>
+</div>
+{% endblock %}

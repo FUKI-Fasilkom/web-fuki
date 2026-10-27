@@ -29,7 +29,7 @@ def simpan_keputusan(pk, status, penempatan_id):
 
 
 @transaction.atomic
-def ubah_status_massal(ids, status):
+def ubah_status_massal(ids, status, penempatan_id=None):
     # Validasi seluruh pilihan sebelum menulis satu pun perubahan. Batch tidak
     # boleh berhasil sebagian, atau mengambil baris di luar pilihan pengguna.
     ids = set(ids)
@@ -40,7 +40,7 @@ def ubah_status_massal(ids, status):
         raise ValidationError("Sebagian data telah dihapus. Muat ulang daftar pendaftar.")
     for row in rows:
         try:
-            row.penempatan_id = validasi_keputusan(row, status, row.penempatan_id)
+            row.penempatan_id = validasi_keputusan(row, status, penempatan_id or row.penempatan_id)
         except ValidationError as error:
             raise ValidationError(f"{row.nama_lengkap}: {error.messages[0]} Buka detail untuk mengatur penempatan.") from error
         row.status = status

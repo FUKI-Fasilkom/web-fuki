@@ -1,0 +1,7 @@
+{% if halaman.paginator.num_pages > 1 %}
+<nav aria-label="Halaman daftar" class="mt-6 flex flex-wrap items-center justify-between gap-3 text-sm text-navy">
+  {% if halaman.has_previous %}<a class="panel-btn panel-btn-secondary" href="?{% if kueri %}{{ kueri }}&amp;{% endif %}page={{ halaman.previous_page_number }}">Sebelumnya</a>{% else %}<span></span>{% endif %}
+  <span>Halaman {{ halaman.number }} dari {{ halaman.paginator.num_pages }} · {{ halaman.paginator.count }} data</span>
+  {% if halaman.has_next %}<a class="panel-btn panel-btn-secondary" href="?{% if kueri %}{{ kueri }}&amp;{% endif %}page={{ halaman.next_page_number }}">Berikutnya</a>{% else %}<span></span>{% endif %}
+</nav>
+{% endif %}

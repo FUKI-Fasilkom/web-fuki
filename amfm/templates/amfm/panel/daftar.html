@@ -1,0 +1,41 @@
+{% extends 'amfm/panel/base.html' %}
+{% block panel %}
+<section class="panel-card">
+  <form method="get" class="mb-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_1fr_1fr_auto_auto]">
+    <div><label for="search" class="sr-only">Cari nama atau NPM</label><input id="search" class="panel-input" type="search" name="q" placeholder="Cari nama atau NPM" value="{{ kata }}"></div>
+    <div><label class="sr-only" for="birdept">Birdept</label><select id="birdept" name="birdept" class="panel-input"><option value="">Semua Birdept</option>{% for b in birdept %}<option value="{{ b.pk }}" {% if pilihan_birdept == b.pk|stringformat:'s' %}selected{% endif %}>{{ b.nama }}</option>{% endfor %}</select></div>
+    <div><label class="sr-only" for="status-filter">Status</label><select id="status-filter" name="status" class="panel-input"><option value="">Semua Status</option>{% for value,label in statuses %}<option value="{{ value }}" {% if status_terpilih == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+    <button class="panel-btn" type="submit">Cari</button><a class="panel-btn panel-btn-secondary" href="{% url 'amfm:panel_daftar' %}">Reset</a>
+  </form>
+  <form method="post" action="{% url 'amfm:panel_massal' %}">
+    {% csrf_token %}<input type="hidden" name="next" value="{{ url_kembali }}">
+    <div class="overflow-x-auto">
+      <table class="panel-table min-w-[900px]">
+        <caption class="sr-only">Daftar pendaftar AM-FM dan keputusan seleksi</caption>
+        <thead><tr>{% if boleh_ubah %}<th><span class="sr-only">Pilih peserta</span></th>{% endif %}<th>No.</th><th>Nama</th><th>Prodi</th><th>Birdept 1</th><th>Birdept 2</th><th>Status</th><th>Penempatan</th><th><span class="sr-only">Aksi</span></th></tr></thead>
+        <tbody>{% for obj in halaman %}<tr>
+          {% if boleh_ubah %}<td><input type="checkbox" name="ids" value="{{ obj.pk }}" aria-label="Pilih {{ obj.nama_lengkap }}" class="h-4 w-4 accent-navy"></td>{% endif %}
+          <td>{{ forloop.counter0|add:halaman.start_index }}.</td>
+          <td><span class="block font-medium">{{ obj.nama_lengkap }}</span><span class="text-xs text-navy-400">{{ obj.npm }}</span></td>
+          <td>{{ obj.prodi_label }}</td><td>{{ obj.pilihan_1.nama }}</td><td>{{ obj.pilihan_2.nama }}</td>
+          <td>{% include 'amfm/panel/_badge.html' %}</td><td>{{ obj.penempatan.nama|default:'—' }}</td>
+          <td><a class="panel-btn panel-btn-secondary" href="{% url 'amfm:panel_detail' obj.pk %}?next={{ url_kembali|urlencode }}">Detail<span class="sr-only"> {{ obj.nama_lengkap }}</span></a></td>
+        </tr>{% empty %}<tr><td colspan="9" class="text-center">Tidak ada pendaftar yang cocok.</td></tr>{% endfor %}</tbody>
+      </table>
+    </div>
+    {% if boleh_ubah and halaman.paginator.count %}
+    <fieldset class="mt-6 rounded-xl border border-gold-light p-4">
+      <legend class="px-2 font-semibold text-navy">Ubah status peserta terpilih</legend>
+      <p class="mb-3 text-xs text-navy-400">Pilih peserta pada halaman ini. Untuk Diterima, pilih birdept penempatan yang termasuk pilihan setiap peserta; kosongkan untuk mempertahankan penempatan yang sudah ada.</p>
+      <div class="flex flex-wrap items-center gap-3">
+        <label for="bulk-status" class="sr-only">Status baru</label><select id="bulk-status" name="status" required class="panel-input sm:!w-auto"><option value="">Pilih status</option>{% for value,label in statuses %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
+        <label for="bulk-penempatan" class="sr-only">Penempatan untuk status Diterima</label><select id="bulk-penempatan" name="penempatan" class="panel-input sm:!w-auto"><option value="">Pertahankan penempatan</option>{% for b in birdept %}<option value="{{ b.pk }}">{{ b.nama }}</option>{% endfor %}</select>
+        <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="konfirmasi" required class="h-4 w-4 accent-navy">Saya konfirmasi perubahan peserta terpilih</label>
+        <button type="submit" class="panel-btn">Terapkan</button>
+      </div>
+    </fieldset>
+    {% endif %}
+  </form>
+  {% include 'amfm/panel/_pagination.html' %}
+</section>
+{% endblock %}

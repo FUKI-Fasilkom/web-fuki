@@ -3,6 +3,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 
 from main.panel import PanelForm
+from birdep.models import BirDep
 from .models import AmfmBenefit, AmfmInfo, AmfmTimeline, Pendaftaran
 from .services.seleksi import STATUS, validasi_keputusan
 
@@ -39,6 +40,7 @@ class StatusMassalForm(forms.Form):
     ids = forms.ModelMultipleChoiceField(queryset=Pendaftaran.objects.all())
     status = forms.ChoiceField(choices=list(STATUS.items()))
     konfirmasi = forms.BooleanField()
+    penempatan = forms.ModelChoiceField(queryset=BirDep.objects.all(), required=False)
 
 
 class PengaturanForm(PanelForm):

@@ -28,6 +28,7 @@ from .services.pemindai import boleh_memindai
 
 # bagian -> (nama halaman di kalimat penolakan, label tombol, nama URL berandanya)
 BAGIAN = {
+    "amfm": ("Admin Panel AM-FM", "Panel AM-FM", "amfm:panel_beranda"),
     "admin": ("Admin Panel SIWAK", "Admin Panel", "siwak:panel_beranda"),
     "pemindai": ("Pemindai QR", "Pemindai QR", "siwak:pindai_beranda"),
     # Panel Kontrol Internal tinggal di app `ki`, tapi halaman penolakan dan
@@ -70,6 +71,10 @@ def bagian_utama(user):
 
     if boleh_kelola_kegiatan(user):
         return "ki"
+    from amfm.akses import boleh_kelola_amfm
+
+    if boleh_kelola_amfm(user):
+        return "amfm"
     role = Profile.objects.filter(user=user).values_list("role", flat=True).first()
     return {Profile.ROLE_MENTEE: "mentee", Profile.ROLE_MENTOR: "mentor"}.get(role)
 
