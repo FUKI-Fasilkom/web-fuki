@@ -30,7 +30,7 @@
         {% for radio in form.status %}<label class="choice-row" for="{{ radio.id_for_label }}">{{ radio.tag }}<span class="status-badge status-{{ radio.data.value }}">{{ radio.choice_label }}</span></label>{% endfor %}
         {{ form.status.errors }}
       </fieldset>
-      <div class="mb-8 mt-8">{% include 'amfm/_field.html' with field=form.penempatan %}<p class="text-xs text-navy-400">Wajib untuk status Diterima. Pilih salah satu birdept pilihan peserta.</p></div>
+      <div class="mb-8 mt-8">{% include 'siwak/panel/_field.html' with field=form.penempatan %}<p class="text-xs text-navy-400">Wajib untuk status Diterima. Pilih salah satu birdept pilihan peserta.</p></div>
       <button class="panel-btn w-full" type="submit">Simpan Keputusan</button>
     </form>
     {% else %}<p class="mb-4 text-sm">Anda memiliki akses baca.</p><dl><dt>Status Penerimaan</dt><dd class="mb-4">{{ obj.get_status_display }}</dd><dt>Penempatan Birdept</dt><dd>{{ obj.penempatan.nama|default:'—' }}</dd></dl>{% endif %}

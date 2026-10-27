@@ -15,19 +15,24 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from birdep.models import BirDep
-from main.panel import PER_HALAMAN, sel_baris
+from main.panel import ISIAN, PER_HALAMAN, sel_baris
 from siwak.akses import AksesDitolak
 from siwak.models import JURUSAN_CHOICES
 from siwak.utils import cari_teks, kueri_tanpa_halaman, next_aman
 from .akses import amfm_required, boleh_kelola_amfm
 from .models import AmfmInfo, Pendaftaran
 from .panel import KONTEN, PENDAFTAR
-from .panel_forms import KeputusanForm, KontenForm, PengaturanForm, StatusMassalForm
+from .panel_forms import FilterPendaftarForm, KeputusanForm, KontenForm, PengaturanForm, StatusMassalForm
 from .services.seleksi import STATUS, simpan_keputusan, ubah_status_massal
 from .services.statistik import statistik_panel
 
 
 class LoginAdminForm(AuthenticationForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs["class"] = ISIAN
+
     def confirm_login_allowed(self, user):
         super().confirm_login_allowed(user)
         if not boleh_kelola_amfm(user):
@@ -97,6 +102,8 @@ def panel_daftar(request):
     return render(request, "amfm/panel/daftar.html", _konteks(
         request, "List Pendaftar", halaman=halaman, kata=kata, birdept=birdept,
         pilihan_birdept=pilihan_birdept, status_terpilih=status, statuses=STATUS.items(),
+        filter_form=FilterPendaftarForm(initial={"q": kata, "birdept": pilihan_birdept, "status": status}, auto_id="filter-%s"),
+        massal_form=StatusMassalForm(auto_id="bulk-%s"),
         url_kembali=request.get_full_path(), kueri=kueri_tanpa_halaman(request),
     ))
 
