@@ -82,3 +82,43 @@ Periksa login, dashboard kosong/berisi, filter dan pagination, detail, keputusan
 bulk gagal/sukses, pengaturan, CRUD konten, dan konfirmasi hapus. Periksa desktop
 1440px, tablet 768px, dan ponsel 390px. Tabel di ponsel bergulir di dalam kartu;
 halaman keseluruhan tidak boleh melebar.
+
+## Mencoba panel dengan pendaftar contoh (tanpa SSO)
+
+Dari folder repo, gunakan terminal berikut. `.env` lokal harus memakai
+`DEBUG=True`, PostgreSQL lokal, dan `AWS_STORAGE_BUCKET_NAME` kosong.
+
+```sh
+env/bin/python manage.py migrate
+# Lewati ini jika sudah punya akun superuser lokal.
+env/bin/python manage.py createsuperuser
+env/bin/python manage.py seed_amfm_pendaftar --jumlah 30
+env/bin/python manage.py runserver
+```
+
+1. Buka http://127.0.0.1:8000/amfm/admin/login/ dan login dengan superuser lokal.
+2. Dashboard menampilkan data contoh dengan ketiga status. Buka **List Pendaftar**;
+   30 contoh cukup untuk mencoba pagination (25 data per halaman).
+3. Cari `Peserta Contoh` atau NPM contoh, lalu coba filter birdept/status dan Reset.
+4. Buka **Detail**: periksa identitas, pilihan, motivasi, portofolio, dan unduh
+   bukti follow. Bukti tersebut adalah gambar dummy bertanda DEMO.
+5. Pilih **Diterima** dan salah satu birdept pilihan, lalu **Simpan Keputusan**.
+   Kembali ke daftar dan dashboard untuk melihat perubahan. Coba juga simpan
+   Diterima tanpa penempatan untuk memeriksa validasi.
+6. Centang beberapa peserta, pilih status baru, centang konfirmasi, lalu Terapkan.
+   Untuk bulk Diterima, pilih penempatan yang termasuk pilihan setiap peserta.
+7. Coba Pengaturan Pendaftaran (guidebook, kurikulum, jadwal) dan Kelola Konten.
+8. Untuk menguji hapus, gunakan satu data `Peserta Contoh`, buka detail, lalu
+   konfirmasi Hapus. Akun peserta tetap ada; bukti follow dihapus setelah commit.
+
+Perintah seed menambahkan sampai jumlah contoh yang diminta, bukan menambahkan
+jumlah itu setiap kali. Menjalankan ulang tidak menimpa keputusan/data yang sudah
+ada. Akun `demo-amfm-*` tidak aktif dan tidak memiliki password yang bisa dipakai;
+login panel menggunakan akun pengelola Anda, bukan akun demo peserta. Jika data
+contoh dihapus lalu seed dijalankan ulang, data contoh yang hilang dibuat kembali.
+Seed tidak membuka pendaftaran dan tidak mengubah jadwal atau konten landing.
+
+Untuk pendaftar sungguhan, buka pendaftaran lewat Pengaturan, kemudian kunjungi
+`/amfm/daftar/` dan login dengan SSO UI. Identitas berasal dari CAS. Django admin
+sengaja tidak menyediakan tombol Tambah Pendaftaran agar identitas SSO tidak
+diisi secara manual; seed di atas khusus membantu pengujian lokal.
