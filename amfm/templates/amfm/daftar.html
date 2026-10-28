@@ -2,6 +2,7 @@
 {% load static %}
 {% block title %}Pendaftaran AM-FM{% endblock %}
 {% block meta_robots %}noindex, nofollow{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'amfm/controls.css' %}">{% endblock %}
 {% block content %}
 <style>
   input.amfm-input:not([type=radio]), select.amfm-input, textarea.amfm-input { width:100%; border:2px solid #A77A1F; border-radius:12px; padding:10px 16px; background:transparent; color:#12284C; }
@@ -13,8 +14,8 @@
   #id_jenis_kelamin > div { flex:1; min-width:160px; padding:10px 16px; border:2px solid #A77A1F; border-radius:12px; }
 </style>
 {{ portfolio_ids|json_script:'amfm-portfolio-ids' }}
-<script src="{% static 'amfm/pendaftaran.js' %}"></script>
-<section class="relative isolate bg-cream-50 px-5 py-16 text-navy sm:py-24" x-data="amfmForm({{ step }})">
+<script src="{% static 'amfm/pendaftaran-v2.js' %}"></script>
+<section class="amfm-registration relative isolate bg-cream-50 px-5 py-16 text-navy sm:py-24" x-data="amfmForm({{ step }})">
   <div aria-hidden="true" class="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[650px] bg-gradient-to-b from-[#F2E5BB] to-cream-50"></div>
   <img src="{% static 'images/redesign/satin.png' %}" alt="" class="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[650px] w-full object-cover opacity-60 mix-blend-multiply [mask-image:linear-gradient(black,transparent)]">
   <div class="mx-auto max-w-[1056px]">
@@ -25,21 +26,23 @@
       </template>
     </ol>
     <noscript><p class="mb-5 rounded-lg bg-cream p-4">JavaScript tidak aktif. Isi Data Diri dan Pilihan Birdept, lalu periksa jawabanmu sebelum menekan Kirim.</p></noscript>
-    <form method="post" enctype="multipart/form-data" class="mx-auto max-w-[930px] rounded-[28px] border-2 border-[#A77A1F] bg-white px-6 py-8 sm:px-20 sm:py-20" x-ref="form" novalidate @submit="submit($event)">
+    <form method="post" action="{% url 'amfm:daftar' %}" enctype="multipart/form-data" class="mx-auto max-w-[930px] rounded-[28px] border-2 border-[#A77A1F] bg-white px-6 py-8 sm:px-20 sm:py-20" x-ref="form" novalidate @submit="submit($event)" @input="clearError($event.target.name)" @change="clearError($event.target.name)" :aria-busy="sending">
       {% csrf_token %}
       {% for error in form.non_field_errors %}<p role="alert" class="mb-6 text-red-700">{{ error }}</p>{% endfor %}
-      {% if form.errors %}<p role="alert" class="mb-6 text-red-700">Periksa isian yang ditandai. Pilih ulang bukti follow sebelum mengirim.</p>{% endif %}
+      {% if form.errors %}<p role="alert" class="mb-6 text-red-700">Periksa isian yang ditandai.</p>{% endif %}
+      <p role="alert" x-show="Object.keys(errors).length" x-cloak class="mb-6 text-red-700">Periksa isian yang ditandai. File bukti follow tetap tersimpan di halaman ini.</p>
+      <p role="alert" x-show="requestError" x-text="requestError" x-cloak class="mb-6 text-red-700"></p>
+      <template x-for="message in errors.__all__ || []"><p role="alert" class="mb-6 text-red-700" x-text="message"></p></template>
       <div data-step="1" x-show="step === 1">
         <h2 tabindex="-1" class="mb-6 text-xl font-bold">Data Diri</h2>
         <div class="mb-10 flex flex-wrap items-center justify-between gap-5 rounded-[20px] border border-[#E0BE6B] bg-[#FAF5E3] p-6 sm:py-12">
           <div><h3 class="font-bold">Baca guidebook dulu</h3><p class="mt-2 text-sm text-gray-600">Berisi alur kegiatan dan ketentuan AM-FM.</p></div>
           {% if info.guidebook_url %}<a href="{{ info.guidebook_url }}" target="_blank" rel="noopener noreferrer" class="rounded-lg bg-navy px-4 py-3 text-sm text-white">Buka guidebook</a>{% else %}<p class="text-sm text-gold-dark">Guidebook segera tersedia.</p>{% endif %}
         </div>
-        <p class="mb-5 text-sm text-gold-dark">Nama, NPM, dan Program Studi otomatis dari SSO UI dan tidak dapat diubah.</p>
-        {% include 'amfm/_field.html' with field=form.nama_lengkap %}
-        {% include 'amfm/_field.html' with field=form.npm %}
+        {% include 'amfm/_identity.html' with field=form.nama_lengkap %}
+        {% include 'amfm/_identity.html' with field=form.npm %}
         <p class="-mt-3 mb-6 text-sm text-gold-dark">Satu NPM hanya bisa mendaftar satu kali.</p>
-        {% include 'amfm/_field.html' with field=form.jurusan %}
+        {% include 'amfm/_identity.html' with field=form.jurusan %}
         {% include 'amfm/_field.html' with field=form.jenis_kelamin %}
         {% include 'amfm/_field.html' with field=form.kontak %}
       </div>
@@ -49,8 +52,9 @@
           <div><h3 class="font-bold">Kurikulum birdept</h3><p class="mt-2 text-sm text-gray-600">Pelajari kurikulum terlebih dahulu sebelum memilih birdept.</p></div>
           {% if info.kurikulum_url %}<a href="{{ info.kurikulum_url }}" target="_blank" rel="noopener noreferrer" class="rounded-lg bg-navy px-4 py-3 text-sm text-white">Buka folder kurikulum</a>{% else %}<p class="text-sm text-gold-dark">Kurikulum segera tersedia.</p>{% endif %}
         </div>
-        {% include 'amfm/_field.html' with field=form.bukti_follow %}
-        <p class="-mt-2 mb-6 text-sm text-gray-600">Screenshot yang menunjukkan kamu sudah follow @lifeatfuki dan @fukifasilkom. JPG atau PNG, maksimal 2 MB.</p>
+        <p class="mb-4 text-sm text-gray-600">Bukti follow @lifeatfuki dan @fukifasilkom. Unggah minimal satu gambar gabungan atau dua gambar terpisah. JPG atau PNG, maksimal 2 MB per gambar.</p>
+        {% include 'amfm/_upload.html' with field=form.bukti_follow index=0 %}
+        {% include 'amfm/_upload.html' with field=form.bukti_follow_2 index=1 %}
         <div @change="updatePortfolio()">
           {% include 'amfm/_field.html' with field=form.pilihan_1 %}
           {% include 'amfm/_field.html' with field=form.pilihan_2 %}
@@ -67,7 +71,7 @@
         <template x-for="section in review" :key="section.title">
           <section class="mb-6 overflow-hidden rounded-[20px] border border-gold-dark">
             <div class="flex items-center justify-between bg-gold-dark px-6 py-5 text-white"><h3 class="font-bold" x-text="section.title"></h3><button type="button" class="underline" @click="go(section.step)">Ubah<span class="sr-only" x-text="' ' + section.title"></span></button></div>
-            <dl class="space-y-5 bg-[#FCFAF3] p-6"><template x-for="row in section.rows"><div><dt class="text-sm text-gold-dark" x-text="row.label"></dt><dd class="mt-1 break-words whitespace-pre-wrap" x-text="row.value"></dd></div></template></dl>
+            <dl class="space-y-5 bg-[#FCFAF3] p-6"><template x-for="row in section.rows"><div><dt class="text-sm text-gold-dark" x-text="row.label"></dt><dd class="mt-1 break-words whitespace-pre-wrap"><template x-if="row.href"><a class="amfm-file-link" :href="row.href" target="_blank" rel="noopener noreferrer" x-text="row.value"></a></template><template x-if="!row.href"><span x-text="row.value"></span></template></dd></div></template></dl>
           </section>
         </template>
       </div>

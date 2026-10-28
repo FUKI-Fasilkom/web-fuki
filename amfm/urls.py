@@ -12,6 +12,7 @@ urlpatterns = [
     path("admin/pendaftar/<int:pk>/", panel_views.panel_detail, name="panel_detail"),
     path("admin/pendaftar/<int:pk>/keputusan/", panel_views.panel_keputusan, name="panel_keputusan"),
     path("admin/pendaftar/<int:pk>/bukti/", panel_views.panel_bukti, name="panel_bukti"),
+    path("admin/pendaftar/<int:pk>/bukti/<int:nomor>/", panel_views.panel_bukti, name="panel_bukti_nomor"),
     path("admin/pendaftar/<int:pk>/hapus/", panel_views.panel_hapus, name="panel_hapus"),
     path("admin/pengaturan/", panel_views.panel_pengaturan, name="panel_pengaturan"),
     path("admin/konten/", panel_views.panel_konten, name="panel_konten"),

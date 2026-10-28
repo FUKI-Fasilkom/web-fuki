@@ -3,7 +3,7 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404
 from django.urls import path, reverse
-from django.utils.html import format_html
+from django.utils.html import format_html_join
 
 from .models import AmfmBenefit, AmfmInfo, AmfmTimeline, Pendaftaran
 from .panel_forms import KeputusanForm
@@ -45,7 +45,7 @@ class PendaftaranAdmin(admin.ModelAdmin):
     list_filter = ["status", "pilihan_1", "pilihan_2", "penempatan"]
     search_fields = ["nama_lengkap", "npm"]
     list_select_related = ["pilihan_1", "pilihan_2", "penempatan"]
-    exclude = ["bukti_follow"]
+    exclude = ["bukti_follow", "bukti_follow_2"]
     readonly_fields = ["user", "npm", "nama_lengkap", "jurusan", "jenis_kelamin", "kontak",
                        "bukti_terlindungi", "pilihan_1", "pilihan_2", "motivasi", "portofolio", "created_at"]
     actions = ["terima", "tolak", "tunggu"]
@@ -58,21 +58,31 @@ class PendaftaranAdmin(admin.ModelAdmin):
 
     def get_urls(self):
         return [path("<int:pk>/bukti/", self.admin_site.admin_view(self.unduh_bukti),
-                     name="amfm_pendaftaran_bukti")] + super().get_urls()
+                     name="amfm_pendaftaran_bukti"),
+                path("<int:pk>/bukti/<int:nomor>/", self.admin_site.admin_view(self.unduh_bukti),
+                     name="amfm_pendaftaran_bukti_nomor")] + super().get_urls()
 
     @admin.display(description="Bukti follow Instagram")
     def bukti_terlindungi(self, obj):
-        return format_html('<a href="{}">Unduh bukti follow</a>', reverse("admin:amfm_pendaftaran_bukti", args=[obj.pk]))
+        return format_html_join(" · ", '<a href="{}">Unduh bukti follow {}</a>', (
+            (reverse("admin:amfm_pendaftaran_bukti_nomor", args=[obj.pk, nomor]), nomor)
+            for nomor, file in enumerate((obj.bukti_follow, obj.bukti_follow_2), 1) if file
+        )) or "—"
 
-    def unduh_bukti(self, request, pk):
+    def unduh_bukti(self, request, pk, nomor=1):
         obj = get_object_or_404(Pendaftaran, pk=pk)
         if not self.has_view_or_change_permission(request, obj):
             raise PermissionDenied
+        if nomor not in (1, 2):
+            raise Http404
+        bukti = obj.bukti_follow if nomor == 1 else obj.bukti_follow_2
+        if not bukti:
+            raise Http404
         try:
-            file = obj.bukti_follow.open("rb")
+            file = bukti.open("rb")
         except FileNotFoundError:
             raise Http404 from None
-        response = FileResponse(file, as_attachment=True, filename="bukti-follow" + (".png" if obj.bukti_follow.name.endswith(".png") else ".jpg"))
+        response = FileResponse(file, as_attachment=True, filename=f"bukti-follow-{nomor}" + (".png" if bukti.name.endswith(".png") else ".jpg"))
         response["Cache-Control"] = "private, no-store"
         response["X-Content-Type-Options"] = "nosniff"
         return response

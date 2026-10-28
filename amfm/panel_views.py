@@ -179,15 +179,18 @@ def panel_hapus(request, pk):
 
 @amfm_required()
 @require_GET
-def panel_bukti(request, pk):
+def panel_bukti(request, pk, nomor=1):
     obj = _obj(pk)
-    if not obj.bukti_follow:
+    if nomor not in (1, 2):
+        raise Http404
+    bukti = obj.bukti_follow if nomor == 1 else obj.bukti_follow_2
+    if not bukti:
         raise Http404
     try:
-        file = obj.bukti_follow.open("rb")
+        file = bukti.open("rb")
     except FileNotFoundError:
         raise Http404 from None
-    response = FileResponse(file, as_attachment=True, filename="bukti-follow" + (".png" if obj.bukti_follow.name.endswith(".png") else ".jpg"))
+    response = FileResponse(file, as_attachment=True, filename=f"bukti-follow-{nomor}" + (".png" if bukti.name.endswith(".png") else ".jpg"))
     response["Cache-Control"] = "private, no-store"
     response["X-Content-Type-Options"] = "nosniff"
     return response

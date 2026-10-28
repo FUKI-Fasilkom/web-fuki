@@ -60,9 +60,11 @@ Pengaturan tetap berada di singleton `AmfmInfo`; pengubahan jadwal memakai kunci
 baris yang sama dengan pengiriman formulir. Jadwal menggunakan zona Asia/Jakarta.
 Panel konten mengelola hero, tentang, tujuan, CTA, benefit, dan timeline.
 
-Model sekarang menyimpan satu bukti follow gabungan, dua pilihan wajib, dan
-motivasi maksimal 50 karakter. Panel menampilkan data sesuai kontrak tersebut;
-tidak menambahkan berkas kedua atau mengubah formulir peserta secara diam-diam.
+Model menyimpan satu atau dua gambar bukti follow (minimal satu, JPG/PNG,
+maksimal 2 MB per gambar), dua pilihan wajib, dan motivasi maksimal 50 karakter.
+Peserta dapat membuka preview tiap gambar di tab baru atau menghapusnya sebelum
+pengiriman. Validasi server dikirim sebagai JSON agar input file tetap berada di
+browser ketika ada isian yang harus diperbaiki; tidak ada penyimpanan draft di server.
 Bukti hanya tersedia lewat endpoint terotorisasi, tidak melalui URL storage.
 Panel memakai `no-store`, `noindex`, serta pengecualian Clarity.
 

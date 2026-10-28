@@ -74,6 +74,45 @@ class PanelTests(PanelFixture):
     def setUp(self):
         self.client.force_login(self.admin)
 
+    def test_navbar_menampilkan_panel_untuk_permission_dari_grup(self):
+        from django.contrib.auth.models import Group
+        from django.urls import reverse
+        url = reverse("amfm:beranda")
+        self.client.logout()
+        self.assertNotContains(self.client.get(url), "Admin Panel AM-FM")
+        self.client.force_login(self.peserta)
+        self.assertNotContains(self.client.get(url), "Admin Panel AM-FM")
+        group = Group.objects.create(name="Pengelola AM-FM")
+        group.permissions.add(Permission.objects.get(content_type__app_label="amfm", codename="view_pendaftaran"))
+        self.peserta.groups.add(group)
+        self.assertContains(self.client.get(url), "Admin Panel AM-FM", count=2)
+
+    def test_navigasi_pengaturan_ringkas_dan_dashboard_memakai_dua_tab(self):
+        from django.urls import reverse
+        for name in ("panel_pengaturan", "panel_konten"):
+            response = self.client.get(reverse("amfm:" + name))
+            self.assertNotContains(response, 'aria-label="Navigasi admin AM-FM"')
+            self.assertContains(response, 'aria-label="Pengelolaan AM-FM"')
+            self.assertContains(response, '>Dashboard</a>')
+        response = self.client.get(reverse("amfm:panel_beranda"))
+        self.assertContains(response, 'aria-label="Navigasi admin AM-FM"')
+        self.assertNotContains(response, 'aria-label="Pengelolaan AM-FM"')
+
+    def test_panel_bukti_kedua_tetap_terotorisasi(self):
+        from django.urls import reverse
+        from .test_pendaftaran import gambar
+        self.obj.bukti_follow_2.save("bukti.png", gambar())
+        url = reverse("amfm:panel_bukti_nomor", args=[self.obj.pk, 2])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(b"".join(response.streaming_content).startswith(b"\x89PNG"))
+        self.assertContains(self.client.get(reverse("amfm:panel_detail", args=[self.obj.pk])), url)
+        self.assertEqual(self.client.get(reverse("amfm:panel_bukti_nomor", args=[self.obj.pk, 3])).status_code, 404)
+        self.client.force_login(self.peserta)
+        self.assertEqual(self.client.get(url).status_code, 403)
+        self.client.logout()
+        self.assertEqual(self.client.get(url).status_code, 302)
+
     def test_seluruh_halaman_panel_render_dan_tidak_diindeks(self):
         from django.urls import reverse
         for name, args in [

@@ -97,7 +97,7 @@ class PendaftaranTests(TestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200)
         self.assertIsNone(self.profile.role)
-        for field, expected in (("nama_lengkap", ATTRIBUTES["nama"]), ("npm", ATTRIBUTES["npm"]), ("jurusan", "IK")):
+        for field, expected in (("nama_lengkap", ATTRIBUTES["nama"]), ("npm", ATTRIBUTES["npm"]), ("jurusan", "Ilmu Komputer")):
             self.assertTrue(response.context["form"].fields[field].disabled)
             self.assertEqual(response.context["form"][field].value(), expected)
         self.assertContains(response, "Ilmu Komputer")
@@ -249,6 +249,118 @@ class PendaftaranTests(TestCase):
         with self.captureOnCommitCallbacks(execute=True):
             obj.delete()
         self.assertFalse(default_storage.exists(name))
+
+    def test_dua_bukti_tersimpan_dan_keduanya_dihapus_setelah_commit(self):
+        response = self.daftar(bukti_follow_2=gambar("JPEG"))
+        self.assertEqual(response.status_code, 302)
+        obj = Pendaftaran.objects.get()
+        names = [obj.bukti_follow.name, obj.bukti_follow_2.name]
+        self.assertNotEqual(*names)
+        self.assertTrue(all(default_storage.exists(name) for name in names))
+        with self.captureOnCommitCallbacks(execute=True):
+            obj.delete()
+        self.assertTrue(all(not default_storage.exists(name) for name in names))
+
+    def test_boleh_hanya_menggunakan_slot_kedua(self):
+        response = self.client.post(self.url, self.data(bukti_follow="", bukti_follow_2=gambar()))
+        self.assertEqual(response.status_code, 302)
+        obj = Pendaftaran.objects.get()
+        self.assertFalse(obj.bukti_follow)
+        self.assertTrue(obj.bukti_follow_2)
+
+    def test_json_validasi_tidak_mengunggah_file_dan_bisa_dikirim_ulang(self):
+        with patch.object(default_storage, "save", wraps=default_storage.save) as save:
+            response = self.client.post(self.url, self.data(pilihan_2=self.itf.pk, bukti_follow_2=gambar()), HTTP_ACCEPT="application/json")
+            self.assertEqual(response.status_code, 400)
+            self.assertIn("pilihan_2", response.json()["errors"])
+            self.assertEqual(response.json()["step"], 2)
+            save.assert_not_called()
+            self.assertFalse(Pendaftaran.objects.exists())
+        response = self.client.post(self.url, self.data(bukti_follow_2=gambar()), HTTP_ACCEPT="application/json")
+        self.assertEqual(response.json(), {"redirect": self.url})
+        self.assertEqual(Pendaftaran.objects.count(), 1)
+        self.assertTrue(Pendaftaran.objects.get().bukti_follow_2)
+
+    def test_json_memvalidasi_minimal_satu_bukti_dan_format_slot_kedua(self):
+        response = self.client.post(self.url, self.data(bukti_follow=""), HTTP_ACCEPT="application/json")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("bukti_follow", response.json()["errors"])
+        response = self.client.post(self.url, self.data(bukti_follow_2=gambar("GIF")), HTTP_ACCEPT="application/json")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("bukti_follow_2", response.json()["errors"])
+        self.assertFalse(Pendaftaran.objects.exists())
+
+    def test_slot_kedua_juga_maksimal_dua_mb(self):
+        from .forms import PendaftaranForm
+        file = gambar()
+        file.size = 2 * 1024 * 1024 + 1
+        form = PendaftaranForm(self.data(), {"bukti_follow": gambar(), "bukti_follow_2": file}, profile=self.profile)
+        self.assertFalse(form.is_valid())
+        self.assertIn("bukti_follow_2", form.errors)
+
+    def test_json_sesi_hilang_meminta_sso_dan_csrf_tetap_diwajibkan(self):
+        self.client.logout()
+        response = self.client.post(self.url, {}, HTTP_ACCEPT="application/json")
+        self.assertEqual(response.status_code, 401)
+        destination = response.json()["redirect"]
+        self.assertEqual(urlparse(destination).path, reverse("siwak:cas_ng_login"))
+        self.assertEqual(parse_qs(urlparse(destination).query)["next"], [self.url])
+        client = Client(enforce_csrf_checks=True)
+        masuk(client, self.user)
+        self.assertEqual(client.post(self.url, self.data(), HTTP_ACCEPT="application/json").status_code, 403)
+        self.assertFalse(Pendaftaran.objects.exists())
+
+    def test_dua_bukti_dibersihkan_jika_deadline_lewat_saat_upload(self):
+        now = timezone.now()
+        self.info.ditutup_pada = now + datetime.timedelta(seconds=1)
+        self.info.save()
+        clock = [now]
+        original_save = default_storage.save
+        names = []
+
+        def upload(*args, **kwargs):
+            name = original_save(*args, **kwargs)
+            names.append(name)
+            clock[0] = now + datetime.timedelta(seconds=2)
+            return name
+
+        with patch("amfm.models.timezone.now", side_effect=lambda: clock[0]), patch.object(default_storage, "save", side_effect=upload):
+            response = self.daftar(bukti_follow_2=gambar())
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(len(names), 2)
+        self.assertTrue(all(not default_storage.exists(name) for name in names))
+        self.assertFalse(Pendaftaran.objects.exists())
+
+    def test_bukti_pertama_dibersihkan_jika_upload_kedua_gagal(self):
+        original_save = default_storage.save
+        names = []
+
+        def upload(*args, **kwargs):
+            if names:
+                raise OSError("storage unavailable")
+            name = original_save(*args, **kwargs)
+            names.append(name)
+            return name
+
+        with patch.object(default_storage, "save", side_effect=upload), self.assertRaises(OSError):
+            self.daftar(bukti_follow_2=gambar())
+        self.assertFalse(default_storage.exists(names[0]))
+        self.assertFalse(Pendaftaran.objects.exists())
+
+    def test_dua_bukti_di_django_admin_memerlukan_izin(self):
+        self.daftar(bukti_follow_2=gambar())
+        obj = Pendaftaran.objects.get()
+        url = reverse("admin:amfm_pendaftaran_bukti_nomor", args=[obj.pk, 2])
+        self.assertEqual(self.client.get(url).status_code, 302)
+        staff = get_user_model().objects.create_user(username="pengelola-kedua", is_staff=True)
+        self.client.force_login(staff)
+        self.assertEqual(self.client.get(url).status_code, 403)
+        staff.user_permissions.add(Permission.objects.get(codename="view_pendaftaran"))
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("no-store", response["Cache-Control"])
+        self.assertTrue(b"".join(response.streaming_content).startswith(b"\x89PNG"))
+        self.assertEqual(self.client.get(reverse("admin:amfm_pendaftaran_bukti_nomor", args=[obj.pk, 3])).status_code, 404)
 
 
 class PengirimanBersamaanTests(TransactionTestCase):

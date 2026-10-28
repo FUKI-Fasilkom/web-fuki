@@ -2,8 +2,9 @@
 {% load static %}
 {% block title %}Pendaftaran AM-FM{% endblock %}
 {% block meta_robots %}noindex, nofollow{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'amfm/controls.css' %}">{% endblock %}
 {% block content %}
-<section class="relative isolate min-h-[650px] bg-cream-50 px-5 py-16 sm:py-24">
+<section class="amfm-registration relative isolate min-h-[650px] bg-cream-50 px-5 py-16 sm:py-24">
   <div aria-hidden="true" class="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[500px] bg-gradient-to-b from-[#F2E5BB] to-cream-50"></div>
   <img src="{% static 'images/redesign/satin.png' %}" alt="" class="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[500px] w-full object-cover opacity-60 mix-blend-multiply [mask-image:linear-gradient(black,transparent)]">
   <div class="mx-auto max-w-[1056px]">
@@ -37,7 +38,7 @@
         {% if state == 'perlu_sso' or state == 'identitas_tidak_lengkap' %}
         <form method="post" action="{% url 'amfm:masuk_sso' %}">{% csrf_token %}<button class="rounded-lg bg-navy px-5 py-3 text-white">Masuk ulang dengan SSO UI</button></form>
         {% elif state != 'terkirim' %}
-        <a href="https://www.instagram.com/fukifasilkom/" class="rounded-lg border-2 border-navy px-4 py-2 text-navy">Instagram FUKI</a>
+        <a href="https://www.instagram.com/fukifasilkom/" target="_blank" rel="noopener noreferrer" class="rounded-lg border-2 border-navy px-4 py-2 text-navy">Instagram FUKI</a>
         {% endif %}
         <a href="{% if state == 'terkirim' %}{% url 'beranda' %}{% else %}{% url 'amfm:beranda' %}{% endif %}" class="rounded-lg bg-navy px-5 py-3 text-white">{% if state == 'terkirim' %}Kembali ke beranda{% else %}Lihat Info AM-FM{% endif %}</a>
       </div>

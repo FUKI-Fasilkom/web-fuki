@@ -7,6 +7,6 @@ from .models import Pendaftaran
 
 @receiver(post_delete, sender=Pendaftaran)
 def hapus_bukti(sender, instance, **kwargs):
-    file = instance.bukti_follow
-    if file.name:
-        transaction.on_commit(lambda: file.storage.delete(file.name))
+    for file in (instance.bukti_follow, instance.bukti_follow_2):
+        if file.name:
+            transaction.on_commit(lambda storage=file.storage, name=file.name: storage.delete(name))

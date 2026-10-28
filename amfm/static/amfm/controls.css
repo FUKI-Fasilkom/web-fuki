@@ -1,0 +1,31 @@
+/* Isyarat interaksi khusus AM-FM; tidak mengubah komponen SIWAK/KI. */
+.amfm-button, .amfm-registration :is(button, a:not(.amfm-file-link)) {
+  transition: transform 160ms ease, filter 160ms ease, box-shadow 160ms ease;
+}
+.amfm-button:hover, .amfm-registration :is(button, a:not(.amfm-file-link)):hover {
+  transform: translateY(-2px);
+  filter: brightness(1.08);
+  box-shadow: 0 6px 14px #001b3d24;
+}
+.amfm-button:active, .amfm-registration :is(button, a:not(.amfm-file-link)):active { transform: translateY(0); }
+.amfm-registration button:disabled { transform: none; filter: none; box-shadow: none; cursor: wait; }
+.amfm-registration .amfm-file-link { color: #12284c; text-decoration: underline; text-underline-offset: 3px; overflow-wrap: anywhere; }
+.amfm-registration .amfm-file-link:hover { color: #7a6425; }
+.amfm-panel select:not([multiple]), .amfm-registration select:not([multiple]):not(:disabled) {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='m5 7.5 5 5 5-5' stroke='%2312284c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-position: right 14px center;
+  background-size: 20px;
+  background-repeat: no-repeat;
+  padding-right: 44px;
+  cursor: pointer;
+}
+.amfm-registration input.amfm-input.amfm-identity-input {
+  width: 100%; border: 0; border-bottom: 2px solid #d1d1d1;
+  background: transparent; padding: 0 0 8px; color: #6b7280;
+  font-size: 20px; line-height: 1.5; opacity: 1; cursor: not-allowed;
+}
+@media (prefers-reduced-motion: reduce) {
+  .amfm-button, .amfm-registration :is(button, a) { transition: none; }
+  .amfm-button:hover, .amfm-registration :is(button, a):hover { transform: none; }
+}
