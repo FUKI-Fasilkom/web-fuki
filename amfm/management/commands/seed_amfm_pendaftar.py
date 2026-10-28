@@ -60,7 +60,7 @@ class Command(BaseCommand):
                     obj = Pendaftaran(
                         user=user, npm=npm, nama_lengkap=f"Peserta Contoh AM-FM {i:02d}",
                         jurusan=("IK", "SI")[i % 2], jenis_kelamin=("L", "P")[i % 2],
-                        kontak="ID Line: demo-amfm", pilihan_1=first, pilihan_2=second,
+                        id_line="demo-amfm", pilihan_1=first, pilihan_2=second,
                         motivasi="Belajar dan berkontribusi bersama FUKI.",
                         portofolio="https://example.com/portfolio-demo", status=status,
                         penempatan=first if status == "diterima" else None,
@@ -71,6 +71,8 @@ class Command(BaseCommand):
                     image.save(buffer, format="PNG")
                     obj.bukti_follow.save("bukti-demo.png", ContentFile(buffer.getvalue()), save=False)
                     files.append(obj.bukti_follow)
+                    obj.bukti_follow_2.save("bukti-demo.png", ContentFile(buffer.getvalue()), save=False)
+                    files.append(obj.bukti_follow_2)
                     obj.full_clean()
                     obj.save()
                     dibuat += 1

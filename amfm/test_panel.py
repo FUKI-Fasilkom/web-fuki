@@ -19,7 +19,7 @@ class PanelFixture(TestCase):
         cls.peserta = get_user_model().objects.create_user(username="peserta-amfm")
         cls.obj = Pendaftaran.objects.create(
             user=cls.peserta, npm="2600000001", nama_lengkap="Peserta AMFM", jurusan="IK",
-            jenis_kelamin="L", kontak="kontak", pilihan_1=cls.itf, pilihan_2=cls.medkre, motivasi="Belajar",
+            jenis_kelamin="L", id_line="id_line", pilihan_1=cls.itf, pilihan_2=cls.medkre, motivasi="Belajar",
         )
 
 
@@ -40,7 +40,7 @@ class SeleksiTests(PanelFixture):
         user = get_user_model().objects.create_user(username="kedua")
         kedua = Pendaftaran.objects.create(
             user=user, npm="2600000002", nama_lengkap="Kedua", jurusan="SI", jenis_kelamin="P",
-            kontak="kontak", pilihan_1=self.itf, pilihan_2=self.medkre,
+            id_line="id_line", pilihan_1=self.itf, pilihan_2=self.medkre,
             motivasi="Belajar", penempatan=self.itf,
         )
         with self.assertRaises(ValidationError):
@@ -106,7 +106,7 @@ class PanelTests(PanelFixture):
         from django.urls import reverse
         user = get_user_model().objects.create_user(username="nama-urut")
         Pendaftaran.objects.create(user=user, npm="2600000002", nama_lengkap="Anisa", jurusan="SI",
-                                    jenis_kelamin="P", kontak="kontak", pilihan_1=self.medkre,
+                                    jenis_kelamin="P", id_line="id_line", pilihan_1=self.medkre,
                                     pilihan_2=self.itf, motivasi="Belajar", status="diterima", penempatan=self.itf)
         url = reverse("amfm:panel_daftar")
         response = self.client.get(url, {"urut": "nama", "q": "a", "birdept": self.itf.pk, "page": "2"})
@@ -136,12 +136,18 @@ class PanelTests(PanelFixture):
     def test_panel_bukti_kedua_tetap_terotorisasi(self):
         from django.urls import reverse
         from .test_pendaftaran import gambar
+        self.obj.nomor_whatsapp = "08123456789"
+        self.obj.save(update_fields=["nomor_whatsapp"])
         self.obj.bukti_follow_2.save("bukti.png", gambar())
         url = reverse("amfm:panel_bukti_nomor", args=[self.obj.pk, 2])
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertTrue(b"".join(response.streaming_content).startswith(b"\x89PNG"))
-        self.assertContains(self.client.get(reverse("amfm:panel_detail", args=[self.obj.pk])), url)
+        detail = self.client.get(reverse("amfm:panel_detail", args=[self.obj.pk]))
+        self.assertContains(detail, url)
+        self.assertContains(detail, "08123456789")
+        self.assertContains(detail, self.obj.id_line)
+        self.assertContains(detail, "@fukifasilkom")
         self.assertEqual(self.client.get(reverse("amfm:panel_bukti_nomor", args=[self.obj.pk, 3])).status_code, 404)
         self.client.force_login(self.peserta)
         self.assertEqual(self.client.get(url).status_code, 403)
@@ -312,7 +318,7 @@ class PanelTests(PanelFixture):
         from django.urls import reverse
         for i in range(26):
             user = get_user_model().objects.create_user(username=f"pagination-{i}")
-            Pendaftaran.objects.create(user=user, npm=f"2700000{i:03}", nama_lengkap=f"Peserta {i}", jurusan="IK", jenis_kelamin="L", kontak="kontak", pilihan_1=self.itf, pilihan_2=self.medkre, motivasi="Belajar")
+            Pendaftaran.objects.create(user=user, npm=f"2700000{i:03}", nama_lengkap=f"Peserta {i}", jurusan="IK", jenis_kelamin="L", id_line="id_line", pilihan_1=self.itf, pilihan_2=self.medkre, motivasi="Belajar")
         response = self.client.get(reverse("amfm:panel_daftar"), {"q": "Peserta", "birdept": self.itf.pk, "page": 2})
         self.assertEqual(response.context["halaman"].number, 2)
         self.assertContains(response, "q=Peserta")

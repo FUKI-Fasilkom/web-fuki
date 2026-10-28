@@ -20,6 +20,8 @@ class SeedPendaftarTests(TestCase):
         obj = Pendaftaran.objects.get(status="menunggu")
         file_name = obj.bukti_follow.name
         self.assertTrue(obj.bukti_follow.storage.exists(file_name))
+        self.assertTrue(obj.bukti_follow_2.storage.exists(obj.bukti_follow_2.name))
+        self.assertEqual(obj.id_line, "demo-amfm")
         obj.status = "ditolak"
         obj.save()
         self.seed()

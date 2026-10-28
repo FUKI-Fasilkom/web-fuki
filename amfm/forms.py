@@ -11,11 +11,11 @@ class PendaftaranForm(forms.ModelForm):
     npm = forms.CharField(label="NPM", disabled=True)
     jurusan = forms.CharField(label="Program Studi", disabled=True)
     bukti_follow = forms.ImageField(
-        label="Bukti Follow Instagram 1", required=False,
+        label="Bukti follow Instagram @lifeatfuki", required=False,
         widget=forms.FileInput(attrs={"accept": "image/jpeg,image/png", "class": "sr-only"}),
     )
     bukti_follow_2 = forms.ImageField(
-        label="Bukti Follow Instagram 2 (opsional)", required=False,
+        label="Bukti follow Instagram @fukifasilkom", required=False,
         widget=forms.FileInput(attrs={"accept": "image/jpeg,image/png", "class": "sr-only"}),
     )
     hapus_bukti_follow = forms.BooleanField(required=False, widget=forms.HiddenInput)
@@ -23,7 +23,7 @@ class PendaftaranForm(forms.ModelForm):
 
     class Meta:
         model = Pendaftaran
-        fields = ["jenis_kelamin", "kontak", "bukti_follow", "bukti_follow_2",
+        fields = ["jenis_kelamin", "nomor_whatsapp", "id_line", "bukti_follow", "bukti_follow_2",
                   "pilihan_1", "pilihan_2", "motivasi", "portofolio"]
         labels = {"pilihan_1": "Pilihan birdept 1", "pilihan_2": "Pilihan birdept 2",
                   "motivasi": "Motivasi join AM-FM", "portofolio": "Link portofolio (opsional)"}
@@ -61,13 +61,13 @@ class PendaftaranForm(forms.ModelForm):
 
     def clean(self):
         data = super().clean()
+        if not data.get("nomor_whatsapp") and not data.get("id_line"):
+            self.add_error("nomor_whatsapp", "Isi nomor WhatsApp atau ID LINE, minimal salah satu.")
         for name in ("bukti_follow", "bukti_follow_2"):
             if data.get(f"hapus_{name}"):
                 data[name] = False
-        if not data.get("bukti_follow") and not data.get("bukti_follow_2") and not any(
-            name in self.errors for name in ("bukti_follow", "bukti_follow_2")
-        ):
-            self.add_error("bukti_follow", "Unggah minimal satu gambar bukti follow Instagram.")
+            if not data.get(name) and name not in self.errors:
+                self.add_error(name, f"Unggah {self.fields[name].label}.")
         if not any(self.portfolio_birdept(data.get(name)) for name in ("pilihan_1", "pilihan_2")):
             data["portofolio"] = ""
         return data

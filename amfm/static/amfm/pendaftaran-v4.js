@@ -23,9 +23,8 @@ function amfmForm(initialStep, editMode) {
         url: URL.createObjectURL(new Blob([file], { type: file.type === 'image/jpeg' ? 'image/jpeg' : 'image/png' })),
       } : null;
       this.$refs.form.elements[`hapus_${input.name}`].value = '0';
-      this.fileInput(0).setCustomValidity('');
+      input.setCustomValidity('');
       this.clearError(input.name);
-      if (file) this.clearError('bukti_follow');
     },
     removeFile(index) {
       const input = this.fileInput(index);
@@ -33,11 +32,15 @@ function amfmForm(initialStep, editMode) {
       input.value = '';
       this.files[index] = null;
       this.$refs.form.elements[`hapus_${input.name}`].value = '1';
-      this.fileInput(0).setCustomValidity('');
+      input.setCustomValidity('');
       this.clearError(input.name);
     },
     clearError(name) {
       delete this.errors[name];
+      if (name === 'nomor_whatsapp' || name === 'id_line') {
+        this.$refs.form.elements.nomor_whatsapp.setCustomValidity('');
+        delete this.errors.nomor_whatsapp;
+      }
     },
     updatePortfolio() {
       const ids = JSON.parse(document.getElementById('amfm-portfolio-ids').textContent);
@@ -50,14 +53,25 @@ function amfmForm(initialStep, editMode) {
       this.$nextTick(() => this.$refs.form.querySelector(`[data-step="${step}"] h2`).focus());
     },
     valid(step) {
-      if (step === 2) {
-        const first = this.fileInput(0);
-        first.setCustomValidity('');
-        if (!this.files.some(Boolean)) {
-          const message = 'Unggah minimal satu gambar bukti follow Instagram.';
-          this.errors.bukti_follow = [message];
-          first.setCustomValidity(message);
+      if (step === 1) {
+        const fields = this.$refs.form.elements;
+        fields.nomor_whatsapp.setCustomValidity('');
+        if (!fields.nomor_whatsapp.value.trim() && !fields.id_line.value.trim()) {
+          const message = 'Isi nomor WhatsApp atau ID LINE, minimal salah satu.';
+          this.errors.nomor_whatsapp = [message];
+          fields.nomor_whatsapp.setCustomValidity(message);
         }
+      }
+      if (step === 2) {
+        [0, 1].forEach(index => {
+          const input = this.fileInput(index);
+          input.setCustomValidity('');
+          if (!this.files[index]) {
+            const message = `Unggah bukti follow Instagram ${index === 0 ? '@lifeatfuki' : '@fukifasilkom'}.`;
+            this.errors[input.name] = [message];
+            input.setCustomValidity(message);
+          }
+        });
       }
       const fields = this.$refs.form.querySelectorAll(`[data-step="${step}"] input, [data-step="${step}"] select, [data-step="${step}"] textarea`);
       const invalid = Array.from(fields).find(field => !field.checkValidity());
@@ -83,9 +97,9 @@ function amfmForm(initialStep, editMode) {
       };
       const rows = pairs => pairs.map(([name, label]) => ({ label, value: value(name) }));
       this.review = [
-        { title: 'Data Diri', step: 1, rows: rows([['nama_lengkap', 'Nama Lengkap'], ['npm', 'NPM'], ['jurusan', 'Program Studi'], ['jenis_kelamin', 'Jenis Kelamin'], ['kontak', 'Kontak']]) },
+        { title: 'Data Diri', step: 1, rows: rows([['nama_lengkap', 'Nama Lengkap'], ['npm', 'NPM'], ['jurusan', 'Program Studi'], ['jenis_kelamin', 'Jenis Kelamin'], ['nomor_whatsapp', 'Nomor WhatsApp'], ['id_line', 'ID LINE']]) },
         { title: 'Pilihan Birdept', step: 2, rows: [
-          ...this.files.flatMap((file, index) => file ? [{ label: `Bukti Follow Instagram ${index + 1}`, value: file.name, href: file.url }] : []),
+          ...this.files.flatMap((file, index) => file ? [{ label: `Bukti follow Instagram ${index === 0 ? '@lifeatfuki' : '@fukifasilkom'}`, value: file.name, href: file.url }] : []),
           ...rows([['pilihan_1', 'Birdept 1'], ['pilihan_2', 'Birdept 2'], ['motivasi', 'Motivasi'], ...(this.portfolioVisible ? [['portofolio', 'Portofolio']] : [])]),
         ] },
       ];

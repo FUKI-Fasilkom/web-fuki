@@ -60,12 +60,16 @@ Pengaturan tetap berada di singleton `AmfmInfo`; pengubahan jadwal memakai kunci
 baris yang sama dengan pengiriman formulir. Jadwal menggunakan zona Asia/Jakarta.
 Panel konten mengelola hero, tentang, tujuan, CTA, benefit, dan timeline.
 
-Model menyimpan satu atau dua gambar bukti follow (minimal satu, JPG/PNG,
+Model menyimpan nomor WhatsApp dan ID LINE terpisah (minimal salah satu wajib),
+dua gambar bukti follow wajib untuk @lifeatfuki dan @fukifasilkom (JPG/PNG,
 maksimal 2 MB per gambar), dua pilihan wajib, dan motivasi maksimal 50 karakter.
+Migrasi `0005` memindahkan kontak lama ke kolom yang sesuai tanpa menghapus
+nilainya. Pendaftar lama dengan satu bukti tetap tersimpan; saat revisi,
+keduanya harus tersedia.
 Peserta dapat membuka preview tiap gambar di tab baru atau menghapusnya. Selama
 pendaftaran terbuka dan belum melewati deadline, peserta dapat membuka kembali
 formulir dan mengirim revisi pada record yang sama. Berkas lama yang diganti atau
-dihapus dibersihkan setelah perubahan database berhasil. Validasi server dikirim
+dibersihkan setelah perubahan database berhasil. Validasi server dikirim
 sebagai JSON agar input file tetap berada di browser ketika ada isian yang harus
 diperbaiki; tidak ada penyimpanan draft di server.
 Bukti hanya tersedia lewat endpoint terotorisasi, tidak melalui URL storage.
@@ -74,7 +78,8 @@ Panel memakai `no-store`, `noindex`, serta pengecualian Clarity.
 ## Verifikasi lokal
 
 Gunakan interpreter dari environment proyek (contoh `env/bin/python`), PostgreSQL,
-dan konfigurasi `.env` sebagaimana README utama. Tidak ada migrasi baru untuk panel.
+dan konfigurasi `.env` sebagaimana README utama. Jalankan migrasi `amfm.0005`
+sebelum membuka versi formulir baru.
 
 ```sh
 env/bin/python manage.py test amfm siwak ki main

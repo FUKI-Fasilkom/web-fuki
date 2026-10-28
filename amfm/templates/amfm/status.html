@@ -42,7 +42,7 @@
         {% elif state != 'terkirim' %}
         <a href="https://www.instagram.com/fukifasilkom/" target="_blank" rel="noopener noreferrer" class="rounded-lg border-2 border-navy px-4 py-2 text-navy">Instagram FUKI</a>
         {% endif %}
-        <a href="{% if state == 'terkirim' %}{% url 'beranda' %}{% else %}{% url 'amfm:beranda' %}{% endif %}" class="rounded-lg bg-navy px-5 py-3 text-white">{% if state == 'terkirim' %}Kembali ke beranda{% else %}Lihat Info AM-FM{% endif %}</a>
+        <a href="{% url 'amfm:beranda' %}" class="rounded-lg bg-navy px-5 py-3 text-white">{% if state == 'terkirim' %}Kembali ke beranda AM-FM{% else %}Lihat Info AM-FM{% endif %}</a>
       </div>
     </div>
   </div>

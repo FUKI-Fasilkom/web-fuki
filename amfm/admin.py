@@ -46,7 +46,7 @@ class PendaftaranAdmin(admin.ModelAdmin):
     search_fields = ["nama_lengkap", "npm"]
     list_select_related = ["pilihan_1", "pilihan_2", "penempatan"]
     exclude = ["bukti_follow", "bukti_follow_2"]
-    readonly_fields = ["user", "npm", "nama_lengkap", "jurusan", "jenis_kelamin", "kontak",
+    readonly_fields = ["user", "npm", "nama_lengkap", "jurusan", "jenis_kelamin", "nomor_whatsapp", "id_line",
                        "bukti_terlindungi", "pilihan_1", "pilihan_2", "motivasi", "portofolio", "created_at"]
     actions = ["terima", "tolak", "tunggu"]
 
@@ -65,8 +65,8 @@ class PendaftaranAdmin(admin.ModelAdmin):
     @admin.display(description="Bukti follow Instagram")
     def bukti_terlindungi(self, obj):
         return format_html_join(" · ", '<a href="{}">Unduh bukti follow {}</a>', (
-            (reverse("admin:amfm_pendaftaran_bukti_nomor", args=[obj.pk, nomor]), nomor)
-            for nomor, file in enumerate((obj.bukti_follow, obj.bukti_follow_2), 1) if file
+            (reverse("admin:amfm_pendaftaran_bukti_nomor", args=[obj.pk, nomor]), akun)
+            for nomor, (file, akun) in enumerate(((obj.bukti_follow, "@lifeatfuki"), (obj.bukti_follow_2, "@fukifasilkom")), 1) if file
         )) or "—"
 
     def unduh_bukti(self, request, pk, nomor=1):

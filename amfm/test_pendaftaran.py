@@ -53,9 +53,9 @@ class PendaftaranTests(TestCase):
         masuk(self.client, self.user)
 
     def data(self, **overrides):
-        return {"jenis_kelamin": "L", "kontak": "line-mahasiswa", "pilihan_1": self.itf.pk,
+        return {"jenis_kelamin": "L", "id_line": "line-mahasiswa", "pilihan_1": self.itf.pk,
                 "pilihan_2": self.medkre.pk, "motivasi": "Belajar dan berkontribusi bersama FUKI.",
-                "bukti_follow": gambar(), **overrides}
+                "bukti_follow": gambar(), "bukti_follow_2": gambar(), **overrides}
 
     def daftar(self, **overrides):
         return self.client.post(self.url, self.data(**overrides))
@@ -125,11 +125,11 @@ class PendaftaranTests(TestCase):
         filename = obj.bukti_follow.name
         self.assertNotIn(obj.npm, filename)
         with patch.object(default_storage, "save") as save:
-            self.assertEqual(self.daftar(bukti_follow="", kontak="line-baru", npm="9999999999").status_code, 302)
+            self.assertEqual(self.daftar(bukti_follow="", bukti_follow_2="", id_line="line-baru", npm="9999999999").status_code, 302)
             save.assert_not_called()
         self.assertEqual(Pendaftaran.objects.count(), 1)
         obj.refresh_from_db()
-        self.assertEqual((obj.pk, obj.npm, obj.kontak, obj.bukti_follow.name), (pk, ATTRIBUTES["npm"], "line-baru", filename))
+        self.assertEqual((obj.pk, obj.npm, obj.id_line, obj.bukti_follow.name), (pk, ATTRIBUTES["npm"], "line-baru", filename))
         self.info.status_pendaftaran = "ditutup"
         self.info.save()
         self.assertContains(self.client.get(self.url), "Pendaftaran terkirim")
@@ -140,35 +140,52 @@ class PendaftaranTests(TestCase):
         self.assertContains(self.client.get(response.url), "Ubah Pendaftaran")
         form_response = self.client.get(self.url)
         self.assertContains(form_response, "Kirim Ulang")
-        self.assertEqual(form_response.context["form"]["kontak"].value(), "line-mahasiswa")
+        self.assertEqual(form_response.context["form"]["id_line"].value(), "line-mahasiswa")
+        self.assertContains(form_response, "Bukti follow Instagram @lifeatfuki")
+        self.assertContains(form_response, "Bukti follow Instagram @fukifasilkom")
         self.assertEqual(form_response.context["form"]["pilihan_1"].value(), self.itf.pk)
         self.assertContains(form_response, reverse("amfm:bukti_peserta", args=[1]))
+        self.assertContains(self.client.get(response.url), f'href="{reverse("amfm:beranda")}"')
 
-    def test_revisi_bukti_dapat_diganti_dan_dihapus(self):
+    def test_kontak_minimal_satu_dan_keduanya_tersimpan(self):
+        response = self.daftar(id_line="", nomor_whatsapp="")
+        self.assertIn("nomor_whatsapp", response.context["form"].errors)
+        self.assertFalse(Pendaftaran.objects.exists())
+        self.assertEqual(self.daftar(id_line="", nomor_whatsapp="08123456789").status_code, 302)
+        obj = Pendaftaran.objects.get()
+        self.assertEqual((obj.nomor_whatsapp, obj.id_line), ("08123456789", ""))
+        self.assertEqual(self.daftar(id_line="line-mahasiswa", nomor_whatsapp="08123456789", bukti_follow="", bukti_follow_2="").status_code, 302)
+        obj.refresh_from_db()
+        self.assertEqual((obj.nomor_whatsapp, obj.id_line), ("08123456789", "line-mahasiswa"))
+
+    def test_revisi_bukti_dapat_diganti_tetapi_tidak_dihapus_tanpa_pengganti(self):
         self.daftar(bukti_follow_2=gambar("JPEG"))
         obj = Pendaftaran.objects.get()
         old_names = (obj.bukti_follow.name, obj.bukti_follow_2.name)
         with self.captureOnCommitCallbacks(execute=True):
             response = self.daftar(bukti_follow=gambar(), bukti_follow_2="", hapus_bukti_follow_2="1")
-        self.assertEqual(response.status_code, 302)
+        self.assertIn("bukti_follow_2", response.context["form"].errors)
         obj.refresh_from_db()
         self.assertEqual(Pendaftaran.objects.count(), 1)
+        self.assertEqual((obj.bukti_follow.name, obj.bukti_follow_2.name), old_names)
+        self.assertTrue(all(default_storage.exists(name) for name in old_names))
+        with self.captureOnCommitCallbacks(execute=True):
+            self.assertEqual(self.daftar(bukti_follow=gambar(), bukti_follow_2="").status_code, 302)
+        obj.refresh_from_db()
         self.assertNotEqual(obj.bukti_follow.name, old_names[0])
-        self.assertFalse(obj.bukti_follow_2)
-        self.assertTrue(default_storage.exists(obj.bukti_follow.name))
-        self.assertTrue(all(not default_storage.exists(name) for name in old_names))
+        self.assertEqual(obj.bukti_follow_2.name, old_names[1])
 
-    def test_revisi_boleh_menghapus_slot_pertama_jika_slot_kedua_ada(self):
+    def test_revisi_tidak_boleh_menghapus_slot_pertama(self):
         self.daftar(bukti_follow_2=gambar())
         obj = Pendaftaran.objects.get()
         old_names = (obj.bukti_follow.name, obj.bukti_follow_2.name)
         with self.captureOnCommitCallbacks(execute=True):
             response = self.daftar(bukti_follow="", hapus_bukti_follow="1")
-        self.assertEqual(response.status_code, 302)
+        self.assertIn("bukti_follow", response.context["form"].errors)
         obj.refresh_from_db()
-        self.assertFalse(obj.bukti_follow)
+        self.assertEqual(obj.bukti_follow.name, old_names[0])
         self.assertEqual(obj.bukti_follow_2.name, old_names[1])
-        self.assertFalse(default_storage.exists(old_names[0]))
+        self.assertTrue(default_storage.exists(old_names[0]))
         self.assertTrue(default_storage.exists(old_names[1]))
 
     def test_revisi_tidak_boleh_menghapus_bukti_terakhir(self):
@@ -199,11 +216,11 @@ class PendaftaranTests(TestCase):
             self.info.status_pendaftaran, self.info.ditutup_pada = state, deadline
             self.info.save()
             self.assertContains(self.client.get(self.url), "Pendaftaran terkirim")
-            response = self.client.post(self.url, self.data(bukti_follow="", kontak="tidak-tersimpan"), HTTP_ACCEPT="application/json")
+            response = self.client.post(self.url, self.data(bukti_follow="", id_line="tidak-tersimpan"), HTTP_ACCEPT="application/json")
             self.assertEqual(response.status_code, 409)
             self.assertIn("tidak disimpan", response.json()["message"])
             obj.refresh_from_db()
-            self.assertEqual(obj.kontak, "line-mahasiswa")
+            self.assertEqual(obj.id_line, "line-mahasiswa")
         self.assertEqual(Pendaftaran.objects.count(), 1)
 
     def test_deadline_saat_upload_revisi_mempertahankan_data_dan_bukti_lama(self):
@@ -224,10 +241,10 @@ class PendaftaranTests(TestCase):
             return name
 
         with patch("amfm.models.timezone.now", side_effect=lambda: clock[0]), patch.object(default_storage, "save", side_effect=upload):
-            response = self.daftar(kontak="tidak-tersimpan", bukti_follow=gambar())
+            response = self.daftar(id_line="tidak-tersimpan", bukti_follow=gambar(), bukti_follow_2="")
         self.assertEqual(response.status_code, 409)
         obj.refresh_from_db()
-        self.assertEqual((obj.kontak, obj.bukti_follow.name), ("line-mahasiswa", old_name))
+        self.assertEqual((obj.id_line, obj.bukti_follow.name), ("line-mahasiswa", old_name))
         self.assertTrue(default_storage.exists(old_name))
         self.assertEqual(len(names), 1)
         self.assertFalse(default_storage.exists(names[0]))
@@ -247,9 +264,9 @@ class PendaftaranTests(TestCase):
             return name
 
         with patch.object(default_storage, "save", side_effect=upload), self.assertRaises(OSError):
-            self.daftar(bukti_follow=gambar(), bukti_follow_2=gambar(), kontak="tidak-tersimpan")
+            self.daftar(bukti_follow=gambar(), bukti_follow_2=gambar(), id_line="tidak-tersimpan")
         obj.refresh_from_db()
-        self.assertEqual((obj.kontak, obj.bukti_follow.name, obj.bukti_follow_2.name), ("line-mahasiswa", *old_names))
+        self.assertEqual((obj.id_line, obj.bukti_follow.name, obj.bukti_follow_2.name), ("line-mahasiswa", *old_names))
         self.assertTrue(all(default_storage.exists(name) for name in old_names))
         self.assertEqual(len(names), 1)
         self.assertFalse(default_storage.exists(names[0]))
@@ -326,8 +343,8 @@ class PendaftaranTests(TestCase):
             response = self.daftar()
         self.assertEqual(response.status_code, 409)
         self.assertFalse(Pendaftaran.objects.exists())
-        self.assertEqual(len(names), 1)
-        self.assertFalse(default_storage.exists(names[0]))
+        self.assertEqual(len(names), 2)
+        self.assertTrue(all(not default_storage.exists(name) for name in names))
 
     def test_pilihan_birdept_yang_sama_diterima(self):
         response = self.daftar(pilihan_2=self.itf.pk)
@@ -352,7 +369,7 @@ class PendaftaranTests(TestCase):
         self.assertIn("bukti_follow", form.errors)
         for file in files:
             self.assertIn("bukti_follow", self.daftar(bukti_follow=file).context["form"].errors)
-        for field in ("jenis_kelamin", "kontak", "motivasi"):
+        for field in ("jenis_kelamin", "motivasi"):
             self.assertIn(field, self.daftar(**{field: ""}).context["form"].errors)
         self.assertFalse(Pendaftaran.objects.exists())
 
@@ -375,7 +392,7 @@ class PendaftaranTests(TestCase):
         obj.save()
         response = self.client.get(self.url)
         self.assertContains(response, "NPM sudah terdaftar", status_code=409)
-        self.assertNotContains(response, obj.kontak, status_code=409)
+        self.assertNotContains(response, obj.id_line, status_code=409)
 
     def test_bukti_hanya_bisa_diunduh_admin_dengan_izin_model(self):
         self.daftar()
@@ -412,12 +429,12 @@ class PendaftaranTests(TestCase):
             obj.delete()
         self.assertTrue(all(not default_storage.exists(name) for name in names))
 
-    def test_boleh_hanya_menggunakan_slot_kedua(self):
+    def test_kedua_bukti_follow_wajib(self):
         response = self.client.post(self.url, self.data(bukti_follow="", bukti_follow_2=gambar()))
-        self.assertEqual(response.status_code, 302)
-        obj = Pendaftaran.objects.get()
-        self.assertFalse(obj.bukti_follow)
-        self.assertTrue(obj.bukti_follow_2)
+        self.assertIn("bukti_follow", response.context["form"].errors)
+        response = self.client.post(self.url, self.data(bukti_follow=gambar(), bukti_follow_2=""))
+        self.assertIn("bukti_follow_2", response.context["form"].errors)
+        self.assertFalse(Pendaftaran.objects.exists())
 
     def test_json_validasi_tidak_mengunggah_file_dan_bisa_dikirim_ulang(self):
         with patch.object(default_storage, "save", wraps=default_storage.save) as save:
@@ -432,10 +449,13 @@ class PendaftaranTests(TestCase):
         self.assertEqual(Pendaftaran.objects.count(), 1)
         self.assertTrue(Pendaftaran.objects.get().bukti_follow_2)
 
-    def test_json_memvalidasi_minimal_satu_bukti_dan_format_slot_kedua(self):
+    def test_json_memvalidasi_kedua_bukti_dan_format_slot_kedua(self):
         response = self.client.post(self.url, self.data(bukti_follow=""), HTTP_ACCEPT="application/json")
         self.assertEqual(response.status_code, 400)
         self.assertIn("bukti_follow", response.json()["errors"])
+        response = self.client.post(self.url, self.data(bukti_follow_2=""), HTTP_ACCEPT="application/json")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("bukti_follow_2", response.json()["errors"])
         response = self.client.post(self.url, self.data(bukti_follow_2=gambar("GIF")), HTTP_ACCEPT="application/json")
         self.assertEqual(response.status_code, 400)
         self.assertIn("bukti_follow_2", response.json()["errors"])
@@ -531,8 +551,8 @@ class PengirimanBersamaanTests(TransactionTestCase):
             connections.close_all()
             try:
                 return client.post(reverse("amfm:daftar"), {
-                    "jenis_kelamin": "P", "kontak": "line-id", "pilihan_1": a.pk,
-                    "pilihan_2": b.pk, "motivasi": "Ingin belajar", "bukti_follow": gambar(),
+                    "jenis_kelamin": "P", "id_line": "line-id", "pilihan_1": a.pk,
+                    "pilihan_2": b.pk, "motivasi": "Ingin belajar", "bukti_follow": gambar(), "bukti_follow_2": gambar(),
                 }).status_code
             finally:
                 connections.close_all()

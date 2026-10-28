@@ -43,7 +43,7 @@ def _kembali_daftar(request):
 
 
 def _form_response(request, info, form, existing=None):
-    step = 1 if any(name in form.errors for name in ("jenis_kelamin", "kontak")) else 2
+    step = 1 if any(name in form.errors for name in ("jenis_kelamin", "nomor_whatsapp", "id_line")) else 2
     if request.method == "POST" and "application/json" in request.headers.get("Accept", ""):
         return JsonResponse({"errors": form.errors.get_json_data(), "step": step}, status=400)
     # Form yang gagal validasi dapat mengubah instance di memori; tampilkan berkas yang masih tersimpan.
@@ -52,7 +52,7 @@ def _form_response(request, info, form, existing=None):
         "info": info, "form": form, "step": step if form.is_bound else 1,
         "is_edit": bool(existing),
         "existing_files": [
-            {"name": f"Bukti follow Instagram {number}", "url": reverse("amfm:bukti_peserta", args=[number])}
+            {"name": form.fields[name].label, "url": reverse("amfm:bukti_peserta", args=[number])}
             if saved and getattr(saved, name) else None
             for number, name in enumerate(("bukti_follow", "bukti_follow_2"), 1)
         ],
