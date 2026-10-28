@@ -22,12 +22,6 @@
     </nav>
     {% endif %}
     {% block panel %}{% endblock %}
-    <nav aria-label="Akun dan pengaturan" class="mt-10 flex flex-wrap items-center gap-4 border-t border-gold-light pt-6 text-sm text-navy">
-      {% if boleh_pengaturan %}<a class="underline underline-offset-4" href="{% url 'amfm:panel_pengaturan' %}">Pengaturan Pendaftaran</a>{% endif %}
-      {% if url_konten %}<a class="underline underline-offset-4" href="{{ url_konten }}">Kelola Konten</a>{% endif %}
-      <a class="underline underline-offset-4" href="{% url 'amfm:beranda' %}">Lihat halaman AM-FM</a>
-      <form method="post" action="{% url 'siwak:logout' %}" class="sm:ml-auto">{% csrf_token %}<button type="submit" class="panel-btn panel-btn-secondary">Keluar</button></form>
-    </nav>
   </div>
 </div>
 {% endblock %}
