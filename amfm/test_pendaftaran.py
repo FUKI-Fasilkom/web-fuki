@@ -182,9 +182,13 @@ class PendaftaranTests(TestCase):
         self.assertEqual(len(names), 1)
         self.assertFalse(default_storage.exists(names[0]))
 
-    def test_validasi_pilihan_berbeda_dan_birdept_aktif(self):
+    def test_pilihan_birdept_yang_sama_diterima(self):
         response = self.daftar(pilihan_2=self.itf.pk)
-        self.assertIn("pilihan_2", response.context["form"].errors)
+        self.assertEqual(response.status_code, 302)
+        obj = Pendaftaran.objects.get()
+        self.assertEqual((obj.pilihan_1_id, obj.pilihan_2_id), (self.itf.pk, self.itf.pk))
+
+    def test_birdept_tidak_aktif_ditolak(self):
         self.medkre.is_active = False
         self.medkre.save()
         self.assertIn("pilihan_2", self.daftar().context["form"].errors)
@@ -270,7 +274,7 @@ class PendaftaranTests(TestCase):
 
     def test_json_validasi_tidak_mengunggah_file_dan_bisa_dikirim_ulang(self):
         with patch.object(default_storage, "save", wraps=default_storage.save) as save:
-            response = self.client.post(self.url, self.data(pilihan_2=self.itf.pk, bukti_follow_2=gambar()), HTTP_ACCEPT="application/json")
+            response = self.client.post(self.url, self.data(pilihan_2=999999, bukti_follow_2=gambar()), HTTP_ACCEPT="application/json")
             self.assertEqual(response.status_code, 400)
             self.assertIn("pilihan_2", response.json()["errors"])
             self.assertEqual(response.json()["step"], 2)

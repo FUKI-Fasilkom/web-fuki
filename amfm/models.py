@@ -182,9 +182,6 @@ class Pendaftaran(models.Model):
         verbose_name = "Pendaftaran AM-FM"
         verbose_name_plural = "Pendaftaran AM-FM"
         ordering = ["-created_at"]
-        constraints = [models.CheckConstraint(
-            condition=~models.Q(pilihan_1=models.F("pilihan_2")), name="amfm_pilihan_berbeda",
-        )]
 
     def __str__(self):
         return f"{self.nama_lengkap} ({self.npm})"

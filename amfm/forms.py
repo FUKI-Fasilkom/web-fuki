@@ -62,8 +62,6 @@ class PendaftaranForm(forms.ModelForm):
             name in self.errors for name in ("bukti_follow", "bukti_follow_2")
         ):
             self.add_error("bukti_follow", "Unggah minimal satu gambar bukti follow Instagram.")
-        if data.get("pilihan_1") and data.get("pilihan_1") == data.get("pilihan_2"):
-            self.add_error("pilihan_2", "Pilihan birdept pertama dan kedua harus berbeda.")
         if not any(self.portfolio_birdept(data.get(name)) for name in ("pilihan_1", "pilihan_2")):
             data["portofolio"] = ""
         return data
