@@ -15,7 +15,7 @@
 </style>
 {{ portfolio_ids|json_script:'amfm-portfolio-ids' }}
 {{ existing_files|json_script:'amfm-existing-files' }}
-<script src="{% static 'amfm/pendaftaran-v4.js' %}"></script>
+<script src="{% static 'amfm/pendaftaran-v5.js' %}"></script>
 <section class="amfm-registration relative isolate bg-cream-50 px-5 py-16 text-navy sm:py-24" x-data="amfmForm({{ step }}, {{ is_edit|yesno:'true,false' }})">
   <div aria-hidden="true" class="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[650px] bg-gradient-to-b from-[#F2E5BB] to-cream-50"></div>
   <img src="{% static 'images/redesign/satin.png' %}" alt="" class="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[650px] w-full object-cover opacity-60 mix-blend-multiply [mask-image:linear-gradient(black,transparent)]">
@@ -28,7 +28,7 @@
       </template>
     </ol>
     <noscript><p class="mb-5 rounded-lg bg-cream p-4">JavaScript tidak aktif. Isi Data Diri dan Pilihan Birdept, lalu periksa jawabanmu sebelum menekan Kirim.</p></noscript>
-    <form method="post" action="{% url 'amfm:daftar' %}" enctype="multipart/form-data" class="mx-auto max-w-[930px] rounded-[28px] border-2 border-[#A77A1F] bg-white px-6 py-8 sm:px-20 sm:py-20" x-ref="form" novalidate @submit="submit($event)" @input="clearError($event.target.name)" @change="clearError($event.target.name)" :aria-busy="sending">
+    <form method="post" action="{% url 'amfm:daftar' %}" enctype="multipart/form-data" class="mx-auto max-w-[930px] rounded-[28px] border-2 border-[#A77A1F] bg-white px-6 py-8 sm:px-20 sm:py-20" x-ref="form" novalidate @submit="submit($event)" @input="$event.target.type !== 'file' && clearError($event.target.name)" @change="$event.target.type !== 'file' && clearError($event.target.name)" :aria-busy="sending">
       {% csrf_token %}
       {% for error in form.non_field_errors %}<p role="alert" class="mb-6 text-red-700">{{ error }}</p>{% endfor %}
       {% if form.errors %}<p role="alert" class="mb-6 text-red-700">Periksa isian yang ditandai.</p>{% endif %}

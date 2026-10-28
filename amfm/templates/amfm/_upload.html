@@ -1,4 +1,4 @@
-<div class="mb-6 rounded-xl border-2 border-dashed border-[#A77A1F] p-5" @change="updateFile({{ index }})">
+<div class="mb-6 rounded-xl border-2 border-dashed border-[#A77A1F] p-5" @change.stop="updateFile({{ index }})">
   <p class="mb-3 font-bold text-navy">{{ field.label }}</p>
   <label class="amfm-button inline-flex cursor-pointer items-center rounded-lg bg-navy px-4 py-3 text-sm text-white focus-within:ring-4 focus-within:ring-gold-light" for="{{ field.id_for_label }}">
     <span>Pilih gambar</span>{{ field }}

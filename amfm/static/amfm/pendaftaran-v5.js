@@ -2,9 +2,10 @@
 function amfmForm(initialStep, editMode) {
   return {
     step: initialStep, editMode, sending: false, review: [], portfolioVisible: false, motivationLength: 0,
-    files: [null, null], errors: {}, requestError: '',
+    files: [null, null], savedFiles: [null, null], errors: {}, requestError: '',
     init() {
       this.files = JSON.parse(document.getElementById('amfm-existing-files').textContent);
+      this.savedFiles = [...this.files];
       this.updatePortfolio();
       const motivation = this.$refs.form.elements.motivasi;
       this.motivationLength = motivation.value.length;
@@ -14,9 +15,18 @@ function amfmForm(initialStep, editMode) {
       return this.$refs.form.elements[index === 0 ? 'bukti_follow' : 'bukti_follow_2'];
     },
     updateFile(index) {
-      if (this.files[index]?.url.startsWith('blob:')) URL.revokeObjectURL(this.files[index].url);
       const input = this.fileInput(index);
       const file = input.files[0];
+      if (file && file.size > 2 * 1024 * 1024) {
+        input.value = '';
+        if (this.files[index]?.url.startsWith('blob:')) URL.revokeObjectURL(this.files[index].url);
+        this.files[index] = this.$refs.form.elements[`hapus_${input.name}`].value === '1' ? null : this.savedFiles[index];
+        const message = 'Ukuran bukti follow maksimal 2 MB. Pilih gambar yang lebih kecil.';
+        this.errors[input.name] = [message];
+        input.setCustomValidity(message);
+        return;
+      }
+      if (this.files[index]?.url.startsWith('blob:')) URL.revokeObjectURL(this.files[index].url);
       // Preview selalu bertipe gambar: berkas HTML/SVG tidak dieksekusi di origin situs.
       this.files[index] = file ? {
         name: file.name,
@@ -67,10 +77,10 @@ function amfmForm(initialStep, editMode) {
           const input = this.fileInput(index);
           input.setCustomValidity('');
           if (!this.files[index]) {
-            const message = `Unggah bukti follow Instagram ${index === 0 ? '@lifeatfuki' : '@fukifasilkom'}.`;
+            const message = this.errors[input.name]?.[0] || `Unggah bukti follow Instagram ${index === 0 ? '@lifeatfuki' : '@fukifasilkom'}.`;
             this.errors[input.name] = [message];
             input.setCustomValidity(message);
-          }
+          } else delete this.errors[input.name];
         });
       }
       const fields = this.$refs.form.querySelectorAll(`[data-step="${step}"] input, [data-step="${step}"] select, [data-step="${step}"] textarea`);
