@@ -2,25 +2,23 @@
 {% load static %}
 {% block page_title %}{{ judul_panel }} · Panel AM-FM{% endblock %}
 {% block meta_robots %}noindex, nofollow{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="{% static 'amfm/panel/panel.css' %}"><link rel="stylesheet" href="{% static 'amfm/controls.css' %}">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'amfm/panel/panel.css' %}"><link rel="stylesheet" href="{% static 'amfm/controls-v2.css' %}">{% endblock %}
 {% block content %}
 <div class="amfm-panel bg-[#F9F8F5]">
   {% include 'components/redesign_header.html' with page_title=judul_panel %}
   <div class="relative mx-auto -mt-10 min-h-[900px] max-w-[1440px] px-5 pb-24 lg:-mt-[71px] lg:px-12">
+    <nav class="mb-6 flex flex-wrap gap-3" aria-label="Pengelolaan AM-FM">
+      <a class="panel-btn panel-btn-secondary {% if tab_aktif == 'dashboard' or tab_aktif == 'pendaftar' %}amfm-nav-active{% endif %}" {% if tab_aktif == 'dashboard' %}aria-current="page"{% endif %} href="{% url 'amfm:panel_beranda' %}">Dashboard</a>
+      {% if boleh_pengaturan %}<a class="panel-btn panel-btn-secondary {% if tab_aktif == 'pengaturan' %}amfm-nav-active{% endif %}" {% if tab_aktif == 'pengaturan' %}aria-current="page"{% endif %} href="{% url 'amfm:panel_pengaturan' %}">Pengaturan Pendaftaran</a><a class="panel-btn panel-btn-secondary {% if tab_aktif == 'konten' and not slug_aktif %}amfm-nav-active{% endif %}" {% if tab_aktif == 'konten' and not slug_aktif %}aria-current="page"{% endif %} href="{% url 'amfm:panel_konten' %}">Konten Halaman</a>{% endif %}
+      {% for item in menu_konten %}<a class="panel-btn panel-btn-secondary {% if item.aktif %}amfm-nav-active{% endif %}" {% if item.aktif %}aria-current="page"{% endif %} href="{{ item.url }}">{{ item.label }}</a>{% endfor %}
+    </nav>
     {% if tab_aktif != 'konten' and tab_aktif != 'pengaturan' %}
     <nav aria-label="Navigasi admin AM-FM" class="mb-6 grid grid-cols-2 gap-3 lg:gap-[15px]">
-      <a href="{% url 'amfm:panel_beranda' %}" {% if tab_aktif == 'dashboard' %}aria-current="page"{% endif %} class="rounded-xl p-3 text-center text-base sm:text-lg lg:text-xl {% if tab_aktif == 'dashboard' %}bg-[#113665] text-white{% else %}bg-navy/10 text-[#3A3A3A]{% endif %}">Dashboard</a>
-      <a href="{% url 'amfm:panel_daftar' %}" {% if tab_aktif == 'pendaftar' %}aria-current="page"{% endif %} class="rounded-xl p-3 text-center text-base sm:text-lg lg:text-xl {% if tab_aktif == 'pendaftar' %}bg-[#113665] text-white{% else %}bg-navy/10 text-[#3A3A3A]{% endif %}">List Pendaftar</a>
+      <a href="{% url 'amfm:panel_beranda' %}" {% if tab_aktif == 'dashboard' %}aria-current="page"{% endif %} class="amfm-dashboard-tab rounded-xl p-3 text-center text-base sm:text-lg lg:text-xl {% if tab_aktif == 'dashboard' %}bg-[#113665] text-white{% else %}bg-navy/10 text-[#3A3A3A]{% endif %}">Dashboard</a>
+      <a href="{% url 'amfm:panel_daftar' %}" {% if tab_aktif == 'pendaftar' %}aria-current="page"{% endif %} class="amfm-dashboard-tab rounded-xl p-3 text-center text-base sm:text-lg lg:text-xl {% if tab_aktif == 'pendaftar' %}bg-[#113665] text-white{% else %}bg-navy/10 text-[#3A3A3A]{% endif %}">List Pendaftar</a>
     </nav>
     {% endif %}
     {% if messages %}<div class="mb-6 space-y-3" aria-live="polite">{% for message in messages %}<p role="{% if message.tags == 'error' %}alert{% else %}status{% endif %}" class="rounded-xl border px-4 py-3 {% if message.tags == 'error' %}border-red-300 bg-red-50 text-red-800{% else %}border-gold-light bg-cream text-navy{% endif %}">{{ message }}</p>{% endfor %}</div>{% endif %}
-    {% if tab_aktif == 'konten' or tab_aktif == 'pengaturan' %}
-    <nav class="mb-6 flex flex-wrap gap-3" aria-label="Pengelolaan AM-FM">
-      <a class="panel-btn panel-btn-secondary" href="{% url 'amfm:panel_beranda' %}">Dashboard</a>
-      {% if boleh_pengaturan %}<a class="panel-btn panel-btn-secondary" href="{% url 'amfm:panel_pengaturan' %}">Pengaturan Pendaftaran</a><a class="panel-btn panel-btn-secondary" href="{% url 'amfm:panel_konten' %}">Konten Halaman</a>{% endif %}
-      {% for item in menu_konten %}<a class="panel-btn panel-btn-secondary" href="{{ item.url }}">{{ item.label }}</a>{% endfor %}
-    </nav>
-    {% endif %}
     {% block panel %}{% endblock %}
   </div>
 </div>

@@ -87,16 +87,51 @@ class PanelTests(PanelFixture):
         self.peserta.groups.add(group)
         self.assertContains(self.client.get(url), "Admin Panel AM-FM", count=2)
 
-    def test_navigasi_pengaturan_ringkas_dan_dashboard_memakai_dua_tab(self):
+    def test_navigasi_utama_selalu_di_atas_tab_dan_menandai_halaman_aktif(self):
         from django.urls import reverse
         for name in ("panel_pengaturan", "panel_konten"):
             response = self.client.get(reverse("amfm:" + name))
             self.assertNotContains(response, 'aria-label="Navigasi admin AM-FM"')
             self.assertContains(response, 'aria-label="Pengelolaan AM-FM"')
-            self.assertContains(response, '>Dashboard</a>')
+            self.assertContains(response, 'amfm-nav-active')
         response = self.client.get(reverse("amfm:panel_beranda"))
         self.assertContains(response, 'aria-label="Navigasi admin AM-FM"')
-        self.assertNotContains(response, 'aria-label="Pengelolaan AM-FM"')
+        self.assertContains(response, 'aria-label="Pengelolaan AM-FM"')
+        self.assertLess(response.content.index(b'aria-label="Pengelolaan AM-FM"'), response.content.index(b'aria-label="Navigasi admin AM-FM"'))
+        self.assertContains(response, 'amfm-dashboard-tab', count=2)
+        self.assertTrue(self.client.get(reverse("amfm:panel_konten_daftar", args=["benefit"])).context["menu_konten"][0]["aktif"])
+
+    def test_semua_kolom_data_dapat_diurut_dengan_filter_tetap_terjaga(self):
+        from urllib.parse import parse_qs, urlparse
+        from django.urls import reverse
+        user = get_user_model().objects.create_user(username="nama-urut")
+        Pendaftaran.objects.create(user=user, npm="2600000002", nama_lengkap="Anisa", jurusan="SI",
+                                    jenis_kelamin="P", kontak="kontak", pilihan_1=self.medkre,
+                                    pilihan_2=self.itf, motivasi="Belajar", status="diterima", penempatan=self.itf)
+        url = reverse("amfm:panel_daftar")
+        response = self.client.get(url, {"urut": "nama", "q": "a", "birdept": self.itf.pk, "page": "2"})
+        self.assertEqual([obj.nama_lengkap for obj in response.context["halaman"]], ["Anisa", "Peserta AMFM"])
+        self.assertEqual(len(response.context["kepala_urut"]), 7)
+        kepala = next(item for item in response.context["kepala_urut"] if item["label"] == "Nama")
+        self.assertTrue(kepala["aktif"])
+        query = parse_qs(urlparse(kepala["url"]).query)
+        self.assertEqual(query, {"q": ["a"], "birdept": [str(self.itf.pk)], "urut": ["nama"], "arah": ["turun"]})
+        response = self.client.get(url, {"urut": "nama", "arah": "turun"})
+        self.assertEqual([obj.nama_lengkap for obj in response.context["halaman"]], ["Peserta AMFM", "Anisa"])
+        self.assertContains(response, 'aria-sort="descending"')
+        response = self.client.get(url, {"urut": "penempatan"})
+        self.assertEqual([obj.nama_lengkap for obj in response.context["halaman"]], ["Anisa", "Peserta AMFM"])
+        self.assertEqual(self.client.get(url, {"urut": "field_tidak_ada"}).status_code, 200)
+
+    def test_status_pendaftaran_memiliki_warna_sesuai_status_efektif(self):
+        from django.urls import reverse
+        from .models import AmfmInfo
+        url = reverse("amfm:panel_pengaturan")
+        info = AmfmInfo.get_solo()
+        for status in ("belum_dibuka", "dibuka", "ditutup"):
+            info.status_pendaftaran = status
+            info.save()
+            self.assertContains(self.client.get(url), f"amfm-status-effective--{status}")
 
     def test_panel_bukti_kedua_tetap_terotorisasi(self):
         from django.urls import reverse
