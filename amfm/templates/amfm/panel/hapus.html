@@ -1,0 +1,12 @@
+{% extends 'amfm/panel/base.html' %}
+{% block panel %}
+<section class="panel-card mx-auto max-w-2xl">
+  <h2 class="panel-title">{{ judul_panel }}</h2>
+  <p class="mb-4">Hapus <strong>{{ obj }}</strong>?</p>
+  <p class="mb-6 text-sm text-red-800">Data ini akan dihapus permanen. Untuk pendaftar, berkas bukti juga dihapus dan akun pengguna tetap tersimpan.</p>
+  <form method="post" class="space-y-6">{% csrf_token %}<input type="hidden" name="next" value="{{ url_kembali }}">
+    <label class="flex items-start gap-3"><input required type="checkbox" name="konfirmasi" value="ya" class="mt-1 h-4 w-4 accent-navy"><span>Saya konfirmasi penghapusan data ini.</span></label>
+    <div class="flex flex-wrap gap-3"><button type="submit" class="panel-btn panel-danger">Hapus Permanen</button><a class="panel-btn panel-btn-secondary" href="{{ url_kembali }}">Batal</a></div>
+  </form>
+</section>
+{% endblock %}

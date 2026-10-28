@@ -1,0 +1,12 @@
+<div class="mb-6 rounded-xl border-2 border-dashed border-[#A77A1F] p-5" @change.stop="updateFile({{ index }})">
+  <p class="mb-3 font-bold text-navy">{{ field.label }}</p>
+  <label class="amfm-button inline-flex cursor-pointer items-center rounded-lg bg-navy px-4 py-3 text-sm text-white focus-within:ring-4 focus-within:ring-gold-light" for="{{ field.id_for_label }}">
+    <span>Pilih gambar</span>{{ field }}
+  </label>
+  <div x-show="files[{{ index }}]" x-cloak class="mt-4 flex flex-wrap items-center gap-4">
+    <a class="amfm-file-link" :href="files[{{ index }}]?.url" target="_blank" rel="noopener noreferrer" x-text="files[{{ index }}]?.name" aria-label="Lihat {{ field.label }}"></a>
+    <button type="button" @click="removeFile({{ index }})" class="rounded-lg border border-red-700 px-3 py-2 text-sm text-red-700" aria-label="Hapus {{ field.label }}">Hapus</button>
+  </div>
+  {% for error in field.errors %}<p role="alert" class="mt-2 text-sm text-red-700">{{ error }}</p>{% endfor %}
+  <template x-for="message in errors['{{ field.name }}'] || []"><p role="alert" class="mt-2 text-sm text-red-700" x-text="message"></p></template>
+</div>

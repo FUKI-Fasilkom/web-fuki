@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+{% load i18n static %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'amfm/controls-v2.css' %}">{% endblock %}
+
+{% block title %}AM-FM{% endblock %}
+{% block meta_description %}Open Recruitment AM-FM (Anggota Muda FUKI Muda): wadah mahasiswa baru Fasilkom UI untuk belajar, berkarya, dan bertumbuh bersama FUKI Fasilkom UI.{% endblock %}
+
+{% block content %}
+
+{# ============================ HERO ============================ #}
+{% include 'components/redesign_header.html' with page_title=info.hero_judul subtitle=info.hero_tagline deskripsi=info.hero_deskripsi judul_besar=True logo_miring=False aksi_template='amfm/_hero_aksi.html' %}
+
+{% comment %}
+  Benefit dan Timeline sengaja memakai komponen yang sama dengan landing
+  SIWAK-NG (components/benefit_cards.html, components/timeline.html): design
+  AM-FM menyalin keduanya dari sana.
+{% endcomment %}
+<div class="relative isolate overflow-hidden bg-[#F9F8F5]">
+  <div class="mx-auto w-full max-w-[1118px] px-6">
+
+    {# ======================== APA ITU AM-FM ======================= #}
+    <section id="apa-itu" class="scroll-mt-24 py-12 sm:py-20">
+      <div class="mx-auto flex max-w-[1000px] flex-col items-center gap-8 md:flex-row md:gap-12 lg:gap-16">
+        {# Di mobile gambarnya disembunyikan, sesuai design. #}
+        <div class="hidden aspect-[325/286] w-[260px] shrink-0 overflow-hidden bg-[#D9D9D9] md:block lg:w-[325px]">
+          {% if info.apa_itu_gambar %}
+          <img src="{{ info.apa_itu_gambar.url }}" alt="AM-FM" class="h-full w-full object-cover">
+          {% endif %}
+        </div>
+        <div class="text-center md:text-left">
+          <h2 class="text-2xl font-bold text-[#001B3D] sm:text-4xl lg:text-5xl">Apa itu AM-FM?</h2>
+          <p class="mt-5 max-w-[630px] text-base leading-relaxed text-[#001B3D] sm:mt-6 lg:text-xl">
+            {{ info.apa_itu_deskripsi|default:"Informasi tentang AM-FM akan segera hadir." }}
+          </p>
+        </div>
+      </div>
+    </section>
+
+    {# =========================== TUJUAN =========================== #}
+    {% if info.tujuan %}
+    <section class="py-6 sm:py-10">
+      <h2 class="text-center text-2xl font-bold text-[#001B3D] sm:text-[32px]">Tujuan</h2>
+      <p class="mx-auto mt-5 max-w-[1024px] rounded-lg bg-[#FAF5E3] px-5 py-4 text-sm leading-relaxed text-[#001B3D] shadow-sm sm:mt-6 sm:px-6 sm:py-5 sm:text-base lg:text-lg">
+        {{ info.tujuan }}
+      </p>
+    </section>
+    {% endif %}
+  </div>
+
+  {# Pembungkus selebar layar untuk riak, yang di design jatuh di section Benefit. #}
+  <div class="relative">
+    {% include 'components/riak.html' %}
+    <div class="mx-auto w-full max-w-[1118px] px-6">
+
+      {# =========================== BENEFIT ========================== #}
+      <section class="py-12 sm:py-[60px]">
+        <div class="mb-5 flex justify-center sm:mb-8">
+          <span class="rounded-full bg-[#001B3D] px-5 py-2 text-xs font-medium text-white shadow-lg sm:text-sm">
+            Benefit AM-FM
+          </span>
+        </div>
+
+        {% include 'components/benefit_cards.html' with items=benefit_list kosong="Benefit AM-FM akan segera diumumkan." %}
+      </section>
+
+      {# ========================== TIMELINE ========================== #}
+      {% if timeline_list %}
+      <section id="timeline" class="py-12 sm:py-[60px]">
+        <div class="mb-10 text-center sm:mb-12 lg:text-left">
+          <h2 class="text-2xl font-bold text-[#001B3D] sm:text-[32px]">Timeline AM-FM</h2>
+          <p class="mt-2 text-sm text-[#001B3D] sm:text-lg">Catat tanggalnya agar tidak terlewat ya!</p>
+        </div>
+
+        {# LANGUAGE_CODE situs 'en-us'; tanpa ini nama bulan tampil "October", bukan "Oktober". #}
+        {% language 'id' %}
+        {% include 'components/timeline.html' with items=timeline_list %}
+        {% endlanguage %}
+      </section>
+      {% endif %}
+
+    </div>
+  </div>
+</div>
+
+{# ======================= SIAP BERGABUNG? ====================== #}
+<section class="bg-gradient-to-b from-[#F9F8F5] to-[#F5E9C4] px-6 py-12 sm:py-[60px]">
+  <div class="mx-auto max-w-[1000px] rounded-[28px] bg-gradient-to-r from-[#113665] to-[#001B3D] px-6 py-7 text-center text-white shadow-[0_10px_30px_rgba(0,27,61,0.22)] sm:px-10 sm:py-8">
+    <h2 class="text-xl font-bold sm:text-2xl">Siap Bergabung?</h2>
+    <p class="mx-auto mt-4 max-w-2xl text-sm leading-relaxed text-white/85 sm:text-base">
+      {{ info.cta_deskripsi|default:"Jadilah bagian dari keluarga FUKI Fasilkom UI dan mulai bertumbuh bersama di birdept pilihanmu." }}
+    </p>
+    <div class="mt-6">
+      {% include 'amfm/_tombol_daftar.html' with gaya='emas' %}
+    </div>
+  </div>
+</section>
+
+{% endblock %}

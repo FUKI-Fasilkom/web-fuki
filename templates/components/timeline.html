@@ -1,0 +1,48 @@
+{% comment %}
+  Timeline zig-zag (tanggal di satu sisi garis, judul + kartu di sisi lain),
+  dipakai bersama landing SIWAK-NG dan halaman AM-FM.
+  `items`: objek dengan judul, deskripsi, tanggal_mulai, tanggal_selesai,
+  status ('upcoming' / 'ongoing' / 'completed'), dan status_label.
+{% endcomment %}
+<div class="relative max-w-[1000px] mx-auto">
+  <div class="relative flex flex-col gap-9 sm:gap-12">
+    {% for item in items %}
+    {% cycle 'left' 'right' as timeline_side silent %}
+    <div class="relative grid grid-cols-[minmax(0,1fr)_28px_minmax(0,1fr)] sm:grid-cols-[minmax(0,1fr)_52px_minmax(0,1fr)] items-start">
+      {% if not forloop.last %}
+      <div class="absolute left-1/2 top-[10px] bottom-[-46px] sm:top-[12px] sm:bottom-[-60px] z-0 w-2 sm:w-3 -translate-x-1/2 bg-[#405F90]" aria-hidden="true"></div>
+      {% endif %}
+      <div class="col-start-2 row-start-1 z-10 flex justify-center pt-0.5 sm:pt-0">
+        <span class="block w-4 h-4 sm:w-6 sm:h-6 rounded-full bg-gradient-to-br from-[#E0BE6B] to-[#C79A3A] shadow-sm"
+              role="img" aria-label="Status: {{ item.status_label }}">
+        </span>
+      </div>
+
+      <div class="row-start-1 flex items-start
+                  {% if timeline_side == 'left' %}col-start-1 justify-end pr-2 sm:pr-5{% else %}col-start-3 justify-start pl-2 sm:pl-5{% endif %}
+                  {% if item.status == 'completed' %}opacity-60{% endif %}">
+        <span class="inline-flex max-w-full min-h-8 sm:min-h-11 items-center justify-center px-2 sm:px-5 rounded-full
+                     {% if item.status == 'ongoing' %}bg-[#9E7A2E] text-white{% elif item.status == 'completed' %}bg-[#E8E8E8] text-[#4A4A4A] border-2 border-[#4A4A4A]{% else %}bg-[#FAF5E3] text-[#001B3D] border-2 border-[#C79A3A]{% endif %}
+                     shadow-lg text-center text-[9px] sm:text-xs font-semibold leading-tight break-words">
+          {{ item.tanggal_mulai|date:"j F Y" }}{% if item.tanggal_selesai %} &ndash; {{ item.tanggal_selesai|date:"j F Y" }}{% endif %}
+        </span>
+      </div>
+
+      <div class="row-start-1 min-w-0
+                  {% if timeline_side == 'left' %}col-start-3 pl-2 sm:pl-5{% else %}col-start-1 pr-2 sm:pr-5 text-right{% endif %}
+                  {% if item.status == 'completed' %}opacity-60{% endif %}">
+        <h3 class="min-h-5 mb-2 sm:mb-3 text-xs sm:text-base leading-5 font-bold text-[#001B3D]">{{ item.judul }}</h3>
+        {% if item.deskripsi %}
+        <div class="min-h-[100px] sm:min-h-[145px] flex items-center rounded-2xl sm:rounded-[26px] px-3 py-4 sm:p-6
+                    {% if item.status == 'ongoing' %}bg-[#9E7A2E] border-[3px] border-[#D3A52F] shadow-[0_8px_24px_rgba(122,100,37,0.26)]{% elif item.status == 'completed' %}bg-[#D1D1D1] border-2 border-[#4A4A4A] shadow-[0_8px_24px_rgba(0,0,0,0.12)]{% else %}bg-[#FAF5E3] border-2 border-[#C79A3A] shadow-[0_8px_24px_rgba(0,0,0,0.12)]{% endif %}">
+          <div class="w-full">
+            <span class="mb-2 inline-block rounded-full px-2 py-1 text-[8px] sm:text-[10px] font-medium {% if item.status == 'ongoing' %}bg-[#E0BE6B] text-[#281F0C]{% elif item.status == 'completed' %}bg-[#9AA5AA] text-white{% else %}bg-[#E0BE6B] text-[#281F0C]{% endif %}">{{ item.status_label }}</span>
+            <p class="w-full text-[10px] sm:text-sm leading-relaxed {% if item.status == 'ongoing' %}text-white{% else %}text-[#333333]{% endif %} {% if timeline_side == 'right' %}text-right{% endif %}">{{ item.deskripsi }}</p>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>

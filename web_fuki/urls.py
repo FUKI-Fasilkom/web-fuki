@@ -11,10 +11,9 @@ from .sitemaps import SITEMAPS
 
 
 def protected_submission_media(request, path):
-    """Never expose SIWAK task files through Django's DEBUG media helper.
+    """Never expose private submissions through Django's DEBUG media helper.
 
-    They are only reachable through `siwak:answer_download`, which checks that
-    the viewer is the owner, the mentee's mentor, or staff.
+    SIWAK answers and AM-FM proofs use their authorized download views instead.
     """
     return HttpResponseNotFound()
 
@@ -31,9 +30,11 @@ urlpatterns = [
     path('kajian/', include('blog_kajian.urls')),
     path('siwak/', include('siwak.urls')),
     path('ki/', include('ki.urls')),
+    path('amfm/', include('amfm.urls')),
     # Lampiran jawaban tugas (siwak/jawaban/, dan siwak/tugas/ dari versi lama).
     path('media/siwak/jawaban/<path:path>', protected_submission_media),
     path('media/siwak/tugas/<path:path>', protected_submission_media),
+    path('media/amfm/pendaftaran/<path:path>', protected_submission_media),
 
     # SEO: dua berkas yang dicari perayap di akar domain.
     path(

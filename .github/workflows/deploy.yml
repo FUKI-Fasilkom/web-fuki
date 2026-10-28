@@ -50,7 +50,11 @@ jobs:
       - name: Validate nginx configs
         run: |
           for f in deploy/nginx/*.conf; do
-            docker run --rm -v "$PWD/$f:/etc/nginx/conf.d/default.conf:ro" \
+            echo "Validating $f"
+            # Compose supplies this hostname in deployment. nginx -t resolves
+            # static upstreams even though it never connects to the application.
+            docker run --rm --add-host web:127.0.0.1 \
+              -v "$PWD/$f:/etc/nginx/conf.d/default.conf:ro" \
               nginx:1.27-alpine nginx -t
           done
 

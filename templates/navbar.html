@@ -29,9 +29,13 @@
           </svg>
         </button>
         <div x-show="kegiatan" x-transition x-cloak
-             class="absolute left-0 mt-2 w-44 bg-white rounded-xl shadow-lg ring-1 ring-navy/10 py-2">
+             class="absolute left-0 mt-2 w-56 bg-white rounded-xl shadow-lg ring-1 ring-navy/10 py-2">
           <a href="{% url 'kegiatan:home' %}" class="block px-4 py-2 text-navy hover:bg-cream transition">Kegiatan</a>
           <a href="{% url 'blog_kajian' %}" class="block px-4 py-2 text-navy hover:bg-cream transition">Kajian</a>
+          <a href="{% url 'amfm:beranda' %}" class="block px-4 py-2 text-navy hover:bg-cream transition">AM-FM</a>
+          {% if perms.amfm.view_pendaftaran or perms.amfm.change_pendaftaran %}
+          <a href="{% url 'amfm:panel_beranda' %}" class="block px-4 py-2 text-navy hover:bg-cream transition">Admin Panel AM-FM</a>
+          {% endif %}
         </div>
       </div>
 
@@ -106,6 +110,10 @@
     <p class="pt-2 pb-1 text-xs font-semibold uppercase tracking-wide text-navy-400">Kegiatan</p>
     <a href="{% url 'kegiatan:home' %}" class="block py-2 pl-3 text-navy hover:text-navy-600">Kegiatan</a>
     <a href="{% url 'blog_kajian' %}" class="block py-2 pl-3 text-navy hover:text-navy-600">Kajian</a>
+    <a href="{% url 'amfm:beranda' %}" class="block py-2 pl-3 text-navy hover:text-navy-600">AM-FM</a>
+    {% if perms.amfm.view_pendaftaran or perms.amfm.change_pendaftaran %}
+    <a href="{% url 'amfm:panel_beranda' %}" class="block py-2 pl-3 text-navy hover:text-navy-600">Admin Panel AM-FM</a>
+    {% endif %}
     <p class="pt-2 pb-1 text-xs font-semibold uppercase tracking-wide text-navy-400">SIWAK-NG</p>
     <a href="{% url 'siwak:landing' %}" class="block py-2 pl-3 text-navy hover:text-navy-600">Info SIWAK</a>
     <a href="{% url 'siwak:kelompok_search' %}" class="block py-2 pl-3 text-navy hover:text-navy-600">Cari Kelompok Mentoring</a>

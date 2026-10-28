@@ -1,0 +1,23 @@
+{% comment %}
+  Riak air dekoratif, mengikuti design Biro & Departemen: garis putih melingkar
+  yang pusatnya tepat di dalam tepi kanan layar (900/2 - 430 = 20px). Dipakai
+  halaman Biro & Departemen, Kegiatan, dan AM-FM. Design HP tidak memuatnya.
+
+  Syarat pemanggil:
+  - Induk `relative` terdekat harus selebar layar: letak kanannya dihitung dari
+    tepi kanan induk itu, dan riaknya mulai dari tepi atasnya.
+  - Ada leluhur `isolate overflow-hidden` berlatar krem. Garisnya putih, jadi
+    hilang di atas latar putih; tanpa overflow-hidden, riak setinggi 900px ini
+    menjulur keluar dan memanjangkan halaman melewati footer.
+{% endcomment %}
+<svg class="pointer-events-none absolute top-0 -right-[430px] -z-10 hidden lg:block w-[900px] h-[900px]"
+     viewBox="0 0 900 900" fill="none" stroke="#ffffff" aria-hidden="true" focusable="false">
+  <circle cx="450" cy="450" r="30" stroke-width="3" />
+  <circle cx="450" cy="450" r="65" stroke-width="10" />
+  <circle cx="450" cy="450" r="105" stroke-width="12" />
+  <circle cx="450" cy="450" r="150" stroke-width="12" />
+  <circle cx="450" cy="450" r="210" stroke-width="10" />
+  <circle cx="450" cy="450" r="280" stroke-width="8" />
+  <circle cx="450" cy="450" r="360" stroke-width="6" />
+  <circle cx="450" cy="450" r="440" stroke-width="4" />
+</svg>

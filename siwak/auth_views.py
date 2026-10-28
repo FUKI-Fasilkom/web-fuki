@@ -61,11 +61,13 @@ def boleh_masuk_akun_khusus(user):
     ke panel Kontrol Internal.
     """
     from ki.akses import boleh_kelola_kegiatan
+    from amfm.akses import boleh_kelola_amfm
 
     return (
         user.is_staff
         or boleh_memindai(user)
         or boleh_kelola_kegiatan(user)
+        or boleh_kelola_amfm(user)
         or Profile.objects.filter(
             user=user,
             role=Profile.ROLE_MENTOR,

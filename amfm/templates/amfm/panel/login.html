@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Login Admin AM-FM{% endblock %}
+{% block meta_robots %}noindex, nofollow{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'amfm/panel/panel.css' %}">{% endblock %}
+{% block content %}
+<div class="amfm-panel relative isolate min-h-[925px] overflow-hidden bg-[#F9F8F5] px-5 pb-24 pt-[180px] lg:pt-[278px]">
+  <div aria-hidden="true" class="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[640px] bg-[#F2E5BB]">
+    <img src="{% static 'images/redesign/satin.png' %}" alt="" class="absolute inset-x-0 top-[-143px] h-[960px] w-full object-cover mix-blend-multiply">
+    <img src="{% static 'images/redesign/header-fade.png' %}" alt="" class="absolute inset-x-0 bottom-0 h-[257px] w-full">
+    <div class="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-[#F9F8F5] to-transparent"></div>
+  </div>
+  <section class="mx-auto w-full max-w-[437px] rounded-2xl px-8 py-8 sm:border sm:border-gold-dark sm:bg-[#FDFBF4]" aria-labelledby="login-title">
+    <h1 id="login-title" class="text-center text-2xl font-bold text-navy">Login Sebagai Admin</h1>
+    <p class="mb-6 text-center text-sm text-[#616161]">Silakan Login Sebagai Admin</p>
+    <form method="post" class="space-y-4">{% csrf_token %}
+      {{ form.non_field_errors }}
+      <input type="hidden" name="next" value="{{ next }}">
+      {% include 'siwak/panel/_field.html' with field=form.username %}
+      {% include 'siwak/panel/_field.html' with field=form.password %}
+      <button type="submit" class="panel-btn w-full">Login</button>
+    </form>
+  </section>
+</div>
+{% endblock %}
