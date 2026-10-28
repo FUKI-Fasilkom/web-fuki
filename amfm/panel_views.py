@@ -5,7 +5,7 @@ from django.contrib.auth.views import LoginView
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import F, Q
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -15,7 +15,7 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from birdep.models import BirDep
-from main.panel import ISIAN, PER_HALAMAN, sel_baris
+from main.panel import ISIAN, PER_HALAMAN, sel_baris, url_urut
 from siwak.akses import AksesDitolak
 from siwak.models import JURUSAN_CHOICES
 from siwak.utils import cari_teks, kueri_tanpa_halaman, next_aman
@@ -65,7 +65,13 @@ def _konteks(request, judul, aktif="pendaftar", **extra):
     model_konten = [(slug, sumber) for slug, sumber in KONTEN.items()
                     if request.user.has_perm(f"amfm.view_{sumber.model._meta.model_name}")
                     or request.user.has_perm(f"amfm.change_{sumber.model._meta.model_name}")]
-    konteks["menu_konten"] = [{"label": sumber.label_jamak, "url": reverse("amfm:panel_konten_daftar", args=[slug])} for slug, sumber in model_konten]
+    slug_aktif = request.resolver_match.kwargs.get("slug") if aktif == "konten" else None
+    konteks["slug_aktif"] = slug_aktif
+    konteks["menu_konten"] = [
+        {"label": sumber.label_jamak, "url": reverse("amfm:panel_konten_daftar", args=[slug]),
+         "aktif": slug == slug_aktif}
+        for slug, sumber in model_konten
+    ]
     konteks["url_konten"] = reverse("amfm:panel_konten") if konteks["boleh_pengaturan"] else (konteks["menu_konten"][0]["url"] if model_konten else "")
     konteks.update(extra)
     return konteks
@@ -83,6 +89,15 @@ def panel_beranda(request):
 @amfm_required()
 @require_GET
 def panel_daftar(request):
+    kolom_urut = (
+        ("waktu", "No.", ("created_at", "pk")),
+        ("nama", "Nama", ("nama_lengkap", "pk")),
+        ("prodi", "Prodi", ("jurusan", "nama_lengkap", "pk")),
+        ("birdept_1", "Birdept 1", ("pilihan_1__nama", "nama_lengkap", "pk")),
+        ("birdept_2", "Birdept 2", ("pilihan_2__nama", "nama_lengkap", "pk")),
+        ("status", "Status", ("status", "nama_lengkap", "pk")),
+        ("penempatan", "Penempatan", ("penempatan__nama", "nama_lengkap", "pk")),
+    )
     kata = (request.GET.get("q") or "").strip()
     qs = cari_teks(PENDAFTAR.ambil_queryset(), PENDAFTAR.pencarian, kata)
     birdept = list(BirDep.objects.all())
@@ -96,12 +111,28 @@ def panel_daftar(request):
         qs = qs.filter(status=status)
     else:
         status = ""
+    kunci_urut = request.GET.get("urut")
+    urut_diminta = kunci_urut in {key for key, _, _ in kolom_urut}
+    kunci_urut = kunci_urut if urut_diminta else "waktu"
+    turun = request.GET.get("arah") == "turun" if urut_diminta else True
+    if urut_diminta:
+        fields = next(fields for key, _, fields in kolom_urut if key == kunci_urut)
+        qs = qs.order_by(*(
+            F(field).desc(nulls_last=True) if turun else F(field).asc(nulls_last=True)
+            for field in fields
+        ))
+    kepala_urut = [
+        {"label": label, "url": url_urut(request, key, not turun if key == kunci_urut else False),
+         "aktif": key == kunci_urut, "turun": turun if key == kunci_urut else False}
+        for key, label, _ in kolom_urut
+    ]
     halaman = Paginator(qs, PER_HALAMAN).get_page(request.GET.get("page"))
     for obj in halaman.object_list:
         obj.prodi_label = dict(JURUSAN_CHOICES).get(obj.jurusan, obj.jurusan)
     return render(request, "amfm/panel/daftar.html", _konteks(
         request, "List Pendaftar", halaman=halaman, kata=kata, birdept=birdept,
         pilihan_birdept=pilihan_birdept, status_terpilih=status, statuses=STATUS.items(),
+        kepala_urut=kepala_urut, kunci_urut=kunci_urut, turun=turun, urut_diminta=urut_diminta,
         filter_form=FilterPendaftarForm(initial={"q": kata, "birdept": pilihan_birdept, "status": status}, auto_id="filter-%s"),
         massal_form=StatusMassalForm(auto_id="bulk-%s"),
         url_kembali=request.get_full_path(), kueri=kueri_tanpa_halaman(request),
@@ -210,10 +241,12 @@ def panel_pengaturan(request):
             form.save()
             messages.success(request, "Pengaturan pendaftaran berhasil disimpan.")
             return redirect("amfm:panel_pengaturan")
+    status_kunci = AmfmInfo.get_solo().status_saat_ini
     return render(request, "amfm/panel/form.html", _konteks(
         request, "Pengaturan Pendaftaran", "pengaturan", form=form,
         deskripsi="Atur jadwal, guidebook, dan folder kurikulum. Perubahan langsung berlaku pada formulir peserta.",
-        status_saat_ini=dict(info._meta.get_field("status_pendaftaran").choices)[info.status_saat_ini],
+        status_saat_ini=dict(info._meta.get_field("status_pendaftaran").choices)[status_kunci],
+        status_kunci=status_kunci,
     ))
 
 

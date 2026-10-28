@@ -106,6 +106,16 @@ class PendaftaranTests(TestCase):
         self.assertIn("no-store", response["Cache-Control"])
         self.assertContains(response, "noindex, nofollow")
 
+    def test_nama_lengkap_panjang_tampil_utuh_dan_tetap_dari_sso(self):
+        nama = "Muhammad Lanang Zalkifla Harits"
+        self.profile.nama_lengkap = nama
+        self.profile.save()
+        masuk(self.client, self.user, {**ATTRIBUTES, "nama": nama})
+        response = self.client.get(self.url)
+        self.assertContains(response, f'<p class="amfm-identity-value">{nama}</p>', html=True)
+        self.assertTrue(response.context["form"].fields["nama_lengkap"].disabled)
+        self.assertEqual(response.context["form"]["nama_lengkap"].value(), nama)
+
     def test_manipulasi_identitas_diabaikan_saat_buat_dan_revisi(self):
         self.assertEqual(self.daftar(npm="9999999999", nama_lengkap="Orang lain", jurusan="SI", user=999).status_code, 302)
         obj = Pendaftaran.objects.get()
