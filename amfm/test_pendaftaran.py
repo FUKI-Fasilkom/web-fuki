@@ -106,20 +106,157 @@ class PendaftaranTests(TestCase):
         self.assertIn("no-store", response["Cache-Control"])
         self.assertContains(response, "noindex, nofollow")
 
-    def test_manipulasi_identitas_diabaikan_dan_pengiriman_idempoten(self):
+    def test_manipulasi_identitas_diabaikan_saat_buat_dan_revisi(self):
         self.assertEqual(self.daftar(npm="9999999999", nama_lengkap="Orang lain", jurusan="SI", user=999).status_code, 302)
         obj = Pendaftaran.objects.get()
+        pk = obj.pk
         self.assertEqual((obj.user_id, obj.npm, obj.nama_lengkap, obj.jurusan),
                          (self.user.pk, ATTRIBUTES["npm"], ATTRIBUTES["nama"], "IK"))
         filename = obj.bukti_follow.name
         self.assertNotIn(obj.npm, filename)
         with patch.object(default_storage, "save") as save:
-            self.assertEqual(self.daftar().status_code, 200)
+            self.assertEqual(self.daftar(bukti_follow="", kontak="line-baru", npm="9999999999").status_code, 302)
             save.assert_not_called()
         self.assertEqual(Pendaftaran.objects.count(), 1)
+        obj.refresh_from_db()
+        self.assertEqual((obj.pk, obj.npm, obj.kontak, obj.bukti_follow.name), (pk, ATTRIBUTES["npm"], "line-baru", filename))
         self.info.status_pendaftaran = "ditutup"
         self.info.save()
         self.assertContains(self.client.get(self.url), "Pendaftaran terkirim")
+
+    def test_form_lama_terisi_dan_sukses_memiliki_tautan_ubah(self):
+        response = self.daftar()
+        self.assertEqual(response.url, self.url + "?terkirim=1")
+        self.assertContains(self.client.get(response.url), "Ubah Pendaftaran")
+        form_response = self.client.get(self.url)
+        self.assertContains(form_response, "Kirim Ulang")
+        self.assertEqual(form_response.context["form"]["kontak"].value(), "line-mahasiswa")
+        self.assertEqual(form_response.context["form"]["pilihan_1"].value(), self.itf.pk)
+        self.assertContains(form_response, reverse("amfm:bukti_peserta", args=[1]))
+
+    def test_revisi_bukti_dapat_diganti_dan_dihapus(self):
+        self.daftar(bukti_follow_2=gambar("JPEG"))
+        obj = Pendaftaran.objects.get()
+        old_names = (obj.bukti_follow.name, obj.bukti_follow_2.name)
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.daftar(bukti_follow=gambar(), bukti_follow_2="", hapus_bukti_follow_2="1")
+        self.assertEqual(response.status_code, 302)
+        obj.refresh_from_db()
+        self.assertEqual(Pendaftaran.objects.count(), 1)
+        self.assertNotEqual(obj.bukti_follow.name, old_names[0])
+        self.assertFalse(obj.bukti_follow_2)
+        self.assertTrue(default_storage.exists(obj.bukti_follow.name))
+        self.assertTrue(all(not default_storage.exists(name) for name in old_names))
+
+    def test_revisi_boleh_menghapus_slot_pertama_jika_slot_kedua_ada(self):
+        self.daftar(bukti_follow_2=gambar())
+        obj = Pendaftaran.objects.get()
+        old_names = (obj.bukti_follow.name, obj.bukti_follow_2.name)
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.daftar(bukti_follow="", hapus_bukti_follow="1")
+        self.assertEqual(response.status_code, 302)
+        obj.refresh_from_db()
+        self.assertFalse(obj.bukti_follow)
+        self.assertEqual(obj.bukti_follow_2.name, old_names[1])
+        self.assertFalse(default_storage.exists(old_names[0]))
+        self.assertTrue(default_storage.exists(old_names[1]))
+
+    def test_revisi_tidak_boleh_menghapus_bukti_terakhir(self):
+        self.daftar()
+        obj = Pendaftaran.objects.get()
+        old_name = obj.bukti_follow.name
+        response = self.daftar(bukti_follow="", hapus_bukti_follow="1")
+        self.assertIn("bukti_follow", response.context["form"].errors)
+        obj.refresh_from_db()
+        self.assertEqual(obj.bukti_follow.name, old_name)
+        self.assertTrue(default_storage.exists(old_name))
+
+    def test_perubahan_pilihan_membatalkan_penempatan_yang_tidak_berlaku(self):
+        self.daftar()
+        obj = Pendaftaran.objects.get()
+        obj.status, obj.penempatan = "diterima", self.itf
+        obj.save(update_fields=["status", "penempatan"])
+        self.assertEqual(self.daftar(bukti_follow="", pilihan_1=self.medkre.pk, pilihan_2=self.medkre.pk).status_code, 302)
+        obj.refresh_from_db()
+        self.assertEqual(obj.status, "menunggu")
+        self.assertIsNone(obj.penempatan)
+
+    def test_revisi_setelah_deadline_atau_penutupan_manual_ditolak(self):
+        self.daftar()
+        obj = Pendaftaran.objects.get()
+        for state, deadline in (("dibuka", timezone.now() - datetime.timedelta(seconds=1)),
+                                ("ditutup", timezone.now() + datetime.timedelta(days=1))):
+            self.info.status_pendaftaran, self.info.ditutup_pada = state, deadline
+            self.info.save()
+            self.assertContains(self.client.get(self.url), "Pendaftaran terkirim")
+            response = self.client.post(self.url, self.data(bukti_follow="", kontak="tidak-tersimpan"), HTTP_ACCEPT="application/json")
+            self.assertEqual(response.status_code, 409)
+            self.assertIn("tidak disimpan", response.json()["message"])
+            obj.refresh_from_db()
+            self.assertEqual(obj.kontak, "line-mahasiswa")
+        self.assertEqual(Pendaftaran.objects.count(), 1)
+
+    def test_deadline_saat_upload_revisi_mempertahankan_data_dan_bukti_lama(self):
+        self.daftar()
+        obj = Pendaftaran.objects.get()
+        old_name = obj.bukti_follow.name
+        now = timezone.now()
+        self.info.ditutup_pada = now + datetime.timedelta(seconds=1)
+        self.info.save()
+        clock = [now]
+        original_save = default_storage.save
+        names = []
+
+        def upload(*args, **kwargs):
+            name = original_save(*args, **kwargs)
+            names.append(name)
+            clock[0] = now + datetime.timedelta(seconds=2)
+            return name
+
+        with patch("amfm.models.timezone.now", side_effect=lambda: clock[0]), patch.object(default_storage, "save", side_effect=upload):
+            response = self.daftar(kontak="tidak-tersimpan", bukti_follow=gambar())
+        self.assertEqual(response.status_code, 409)
+        obj.refresh_from_db()
+        self.assertEqual((obj.kontak, obj.bukti_follow.name), ("line-mahasiswa", old_name))
+        self.assertTrue(default_storage.exists(old_name))
+        self.assertEqual(len(names), 1)
+        self.assertFalse(default_storage.exists(names[0]))
+
+    def test_upload_kedua_gagal_saat_revisi_tidak_menghapus_bukti_lama(self):
+        self.daftar(bukti_follow_2=gambar())
+        obj = Pendaftaran.objects.get()
+        old_names = (obj.bukti_follow.name, obj.bukti_follow_2.name)
+        original_save = default_storage.save
+        names = []
+
+        def upload(*args, **kwargs):
+            if names:
+                raise OSError("storage unavailable")
+            name = original_save(*args, **kwargs)
+            names.append(name)
+            return name
+
+        with patch.object(default_storage, "save", side_effect=upload), self.assertRaises(OSError):
+            self.daftar(bukti_follow=gambar(), bukti_follow_2=gambar(), kontak="tidak-tersimpan")
+        obj.refresh_from_db()
+        self.assertEqual((obj.kontak, obj.bukti_follow.name, obj.bukti_follow_2.name), ("line-mahasiswa", *old_names))
+        self.assertTrue(all(default_storage.exists(name) for name in old_names))
+        self.assertEqual(len(names), 1)
+        self.assertFalse(default_storage.exists(names[0]))
+
+    def test_bukti_lama_hanya_dapat_dibuka_pemilik_sso(self):
+        url = reverse("amfm:bukti_peserta", args=[2])
+        self.assertEqual(self.client.get(url).status_code, 404)
+        self.daftar(bukti_follow_2=gambar())
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("image/", response["Content-Type"])
+        self.assertIn("no-store", response["Cache-Control"])
+        self.client.logout()
+        self.assertEqual(self.client.get(url).status_code, 302)
+        other = get_user_model().objects.create_user(username="orang-lain")
+        masuk(self.client, other)
+        self.assertEqual(self.client.get(url).status_code, 404)
 
     def test_identitas_hilang_atau_berbeda_diblokir(self):
         for attributes in ({}, {**ATTRIBUTES, "npm": "2600000002"}, {**ATTRIBUTES, "kd_org": "99.00"}, {**ATTRIBUTES, "nama": [None]}):
@@ -158,7 +295,7 @@ class PendaftaranTests(TestCase):
         for state, start, end, text in cases:
             self.info.status_pendaftaran, self.info.dibuka_pada, self.info.ditutup_pada = state, start, end
             self.info.save()
-            self.assertContains(self.daftar(), text)
+            self.assertContains(self.daftar(), text, status_code=409)
         self.assertFalse(Pendaftaran.objects.exists())
 
     def test_deadline_diperiksa_lagi_setelah_upload_dan_file_dibersihkan(self):
@@ -281,7 +418,7 @@ class PendaftaranTests(TestCase):
             save.assert_not_called()
             self.assertFalse(Pendaftaran.objects.exists())
         response = self.client.post(self.url, self.data(bukti_follow_2=gambar()), HTTP_ACCEPT="application/json")
-        self.assertEqual(response.json(), {"redirect": self.url})
+        self.assertEqual(response.json(), {"redirect": self.url + "?terkirim=1"})
         self.assertEqual(Pendaftaran.objects.count(), 1)
         self.assertTrue(Pendaftaran.objects.get().bukti_follow_2)
 

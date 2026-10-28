@@ -1,4 +1,5 @@
 from django import forms
+from django.core.files.uploadedfile import UploadedFile
 
 from birdep.models import BirDep
 
@@ -17,6 +18,8 @@ class PendaftaranForm(forms.ModelForm):
         label="Bukti Follow Instagram 2 (opsional)", required=False,
         widget=forms.FileInput(attrs={"accept": "image/jpeg,image/png", "class": "sr-only"}),
     )
+    hapus_bukti_follow = forms.BooleanField(required=False, widget=forms.HiddenInput)
+    hapus_bukti_follow_2 = forms.BooleanField(required=False, widget=forms.HiddenInput)
 
     class Meta:
         model = Pendaftaran
@@ -46,7 +49,7 @@ class PendaftaranForm(forms.ModelForm):
 
     def _clean_bukti(self, name):
         file = self.cleaned_data.get(name)
-        if not file:
+        if not file or not isinstance(file, UploadedFile):
             return file
         if file.size > 2 * 1024 * 1024:
             raise forms.ValidationError("Ukuran bukti follow maksimal 2 MB.")
@@ -58,6 +61,9 @@ class PendaftaranForm(forms.ModelForm):
 
     def clean(self):
         data = super().clean()
+        for name in ("bukti_follow", "bukti_follow_2"):
+            if data.get(f"hapus_{name}"):
+                data[name] = False
         if not data.get("bukti_follow") and not data.get("bukti_follow_2") and not any(
             name in self.errors for name in ("bukti_follow", "bukti_follow_2")
         ):

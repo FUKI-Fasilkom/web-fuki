@@ -1,9 +1,10 @@
 /* File tetap di input browser saat server mengembalikan error validasi. */
-function amfmForm(initialStep) {
+function amfmForm(initialStep, editMode) {
   return {
-    step: initialStep, sending: false, review: [], portfolioVisible: false, motivationLength: 0,
+    step: initialStep, editMode, sending: false, review: [], portfolioVisible: false, motivationLength: 0,
     files: [null, null], errors: {}, requestError: '',
     init() {
+      this.files = JSON.parse(document.getElementById('amfm-existing-files').textContent);
       this.updatePortfolio();
       const motivation = this.$refs.form.elements.motivasi;
       this.motivationLength = motivation.value.length;
@@ -13,7 +14,7 @@ function amfmForm(initialStep) {
       return this.$refs.form.elements[index === 0 ? 'bukti_follow' : 'bukti_follow_2'];
     },
     updateFile(index) {
-      if (this.files[index]) URL.revokeObjectURL(this.files[index].url);
+      if (this.files[index]?.url.startsWith('blob:')) URL.revokeObjectURL(this.files[index].url);
       const input = this.fileInput(index);
       const file = input.files[0];
       // Preview selalu bertipe gambar: berkas HTML/SVG tidak dieksekusi di origin situs.
@@ -21,13 +22,19 @@ function amfmForm(initialStep) {
         name: file.name,
         url: URL.createObjectURL(new Blob([file], { type: file.type === 'image/jpeg' ? 'image/jpeg' : 'image/png' })),
       } : null;
+      this.$refs.form.elements[`hapus_${input.name}`].value = '0';
       this.fileInput(0).setCustomValidity('');
       this.clearError(input.name);
       if (file) this.clearError('bukti_follow');
     },
     removeFile(index) {
-      this.fileInput(index).value = '';
-      this.updateFile(index);
+      const input = this.fileInput(index);
+      if (this.files[index]?.url.startsWith('blob:')) URL.revokeObjectURL(this.files[index].url);
+      input.value = '';
+      this.files[index] = null;
+      this.$refs.form.elements[`hapus_${input.name}`].value = '1';
+      this.fileInput(0).setCustomValidity('');
+      this.clearError(input.name);
     },
     clearError(name) {
       delete this.errors[name];
@@ -46,7 +53,7 @@ function amfmForm(initialStep) {
       if (step === 2) {
         const first = this.fileInput(0);
         first.setCustomValidity('');
-        if (!first.files.length && !this.fileInput(1).files.length) {
+        if (!this.files.some(Boolean)) {
           const message = 'Unggah minimal satu gambar bukti follow Instagram.';
           this.errors.bukti_follow = [message];
           first.setCustomValidity(message);
@@ -101,6 +108,7 @@ function amfmForm(initialStep) {
         }
         const result = await response.json();
         if (result.redirect) { window.location.assign(result.redirect); return; }
+        if (result.message) { this.requestError = result.message; return; }
         if (result.errors) {
           this.errors = Object.fromEntries(Object.entries(result.errors).map(([name, errors]) => [name, errors.map(error => error.message)]));
           this.go(result.step === 1 ? 1 : 2);

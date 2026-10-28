@@ -21,6 +21,7 @@ urlpatterns = [
     path("admin/konten/<slug:slug>/<int:pk>/ubah/", panel_views.panel_konten_form, name="panel_konten_ubah"),
     path("admin/konten/<slug:slug>/<int:pk>/hapus/", panel_views.panel_konten_hapus, name="panel_konten_hapus"),
     path("", views.beranda, name="beranda"),
+    path("daftar/bukti/<int:nomor>/", views.bukti_peserta, name="bukti_peserta"),
     path("daftar/", views.daftar, name="daftar"),
     path("masuk-sso/", views.masuk_sso, name="masuk_sso"),  
 ]

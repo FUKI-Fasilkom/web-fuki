@@ -19,11 +19,11 @@
       {% elif state == 'belum_dibuka' %}
       <p class="mb-6 inline-block rounded-full bg-[#A9C7FF] px-4 py-2 text-navy">Dibuka: {% if info.dibuka_pada %}{{ info.dibuka_pada|date:'j F Y H:i' }} WIB{% else %}tanggal menyusul{% endif %}</p>
       <h2 class="text-2xl font-bold text-navy">Pendaftaran AM-FM belum dibuka</h2>
-      <p class="mt-4 text-lg text-gold-dark sm:text-2xl">Formulir akan dibuka sesuai timeline. Pantau Instagram FUKI untuk informasi terbaru.</p>
+      <p class="mt-4 text-lg text-gold-dark sm:text-2xl">{% if rejected %}Isian tidak disimpan karena pendaftaran belum dibuka.{% else %}Formulir akan dibuka sesuai timeline. Pantau Instagram FUKI untuk informasi terbaru.{% endif %}</p>
       {% elif state == 'ditutup' %}
       <p class="mb-6 inline-block rounded-full bg-[#A9C7FF] px-4 py-2 text-navy">Ditutup: {% if info.ditutup_pada %}{{ info.ditutup_pada|date:'j F Y H:i' }} WIB{% else %}tanggal menyusul{% endif %}</p>
       <h2 class="text-2xl font-bold text-navy">Pendaftaran AM-FM sudah ditutup</h2>
-      <p class="mt-4 text-lg text-gold-dark sm:text-2xl">Terima kasih atas antusiasmu. Pantau Instagram FUKI untuk info kegiatan dan pengumuman berikutnya.</p>
+      <p class="mt-4 text-lg text-gold-dark sm:text-2xl">{% if rejected %}Perubahan tidak disimpan karena pendaftaran sudah ditutup.{% else %}Terima kasih atas antusiasmu. Pantau Instagram FUKI untuk info kegiatan dan pengumuman berikutnya.{% endif %}</p>
       {% elif state == 'perlu_sso' %}
       <h2 class="text-2xl font-bold text-navy">Masuk dengan SSO UI untuk mendaftar</h2>
       <p class="mt-4 text-gold-dark">Akun Khusus tidak dapat digunakan untuk pendaftaran AM-FM. Gunakan akun SSO UI milikmu.</p>
@@ -35,7 +35,9 @@
       <p class="mt-4 text-gold-dark">Nama, NPM, atau program studi belum dapat diverifikasi. Masuk ulang dengan SSO UI. Jika masalah berlanjut, hubungi pengelola AM-FM. Identitas tidak dapat diisi manual.</p>
       {% endif %}
       <div class="mt-8 flex flex-wrap justify-center gap-3">
-        {% if state == 'perlu_sso' or state == 'identitas_tidak_lengkap' %}
+        {% if state == 'terkirim' and info.status_saat_ini == 'dibuka' %}
+        <a href="{% url 'amfm:daftar' %}" class="rounded-lg border-2 border-navy px-4 py-2 text-navy">Ubah Pendaftaran</a>
+        {% elif state == 'perlu_sso' or state == 'identitas_tidak_lengkap' %}
         <form method="post" action="{% url 'amfm:masuk_sso' %}">{% csrf_token %}<button class="rounded-lg bg-navy px-5 py-3 text-white">Masuk ulang dengan SSO UI</button></form>
         {% elif state != 'terkirim' %}
         <a href="https://www.instagram.com/fukifasilkom/" target="_blank" rel="noopener noreferrer" class="rounded-lg border-2 border-navy px-4 py-2 text-navy">Instagram FUKI</a>

@@ -14,12 +14,14 @@
   #id_jenis_kelamin > div { flex:1; min-width:160px; padding:10px 16px; border:2px solid #A77A1F; border-radius:12px; }
 </style>
 {{ portfolio_ids|json_script:'amfm-portfolio-ids' }}
-<script src="{% static 'amfm/pendaftaran-v2.js' %}"></script>
-<section class="amfm-registration relative isolate bg-cream-50 px-5 py-16 text-navy sm:py-24" x-data="amfmForm({{ step }})">
+{{ existing_files|json_script:'amfm-existing-files' }}
+<script src="{% static 'amfm/pendaftaran-v3.js' %}"></script>
+<section class="amfm-registration relative isolate bg-cream-50 px-5 py-16 text-navy sm:py-24" x-data="amfmForm({{ step }}, {{ is_edit|yesno:'true,false' }})">
   <div aria-hidden="true" class="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[650px] bg-gradient-to-b from-[#F2E5BB] to-cream-50"></div>
   <img src="{% static 'images/redesign/satin.png' %}" alt="" class="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[650px] w-full object-cover opacity-60 mix-blend-multiply [mask-image:linear-gradient(black,transparent)]">
   <div class="mx-auto max-w-[1056px]">
     <h1 class="text-3xl font-bold sm:text-5xl">Pendaftaran AM-FM</h1>
+    {% if is_edit %}<p class="mt-4 text-sm text-navy">Pendaftaranmu sudah terkirim. Kamu dapat mengubah dan mengirim ulang isian {% if info.ditutup_pada %}sebelum {{ info.ditutup_pada|date:'j F Y H:i' }} WIB{% else %}selama pendaftaran dibuka{% endif %}.</p>{% endif %}
     <ol class="my-9 flex flex-wrap gap-2 text-sm" aria-label="Langkah pendaftaran">
       <template x-for="(label, index) in ['Data Diri', 'Pilihan Birdept', 'Review']">
         <li class="rounded-full px-4 py-2" :class="step === index + 1 ? 'bg-navy text-white' : 'bg-[#F5E9C4] text-gold-dark'" :aria-current="step === index + 1 ? 'step' : null"><span class="mr-2 rounded-full bg-[#ECD894] px-2 text-navy" x-text="index + 1"></span><span x-text="label"></span></li>
@@ -53,6 +55,7 @@
           {% if info.kurikulum_url %}<a href="{{ info.kurikulum_url }}" target="_blank" rel="noopener noreferrer" class="rounded-lg bg-navy px-4 py-3 text-sm text-white">Buka folder kurikulum</a>{% else %}<p class="text-sm text-gold-dark">Kurikulum segera tersedia.</p>{% endif %}
         </div>
         <p class="mb-4 text-sm text-gray-600">Bukti follow @lifeatfuki dan @fukifasilkom. Unggah minimal satu gambar gabungan atau dua gambar terpisah. JPG atau PNG, maksimal 2 MB per gambar.</p>
+        {{ form.hapus_bukti_follow }}{{ form.hapus_bukti_follow_2 }}
         {% include 'amfm/_upload.html' with field=form.bukti_follow index=0 %}
         {% include 'amfm/_upload.html' with field=form.bukti_follow_2 index=1 %}
         <div @change="updatePortfolio()">
@@ -80,7 +83,7 @@
         <a href="{% url 'amfm:beranda' %}" x-show="step === 1" class="rounded-lg border-2 border-navy px-5 py-2">Kembali</a>
         <button type="button" x-show="step > 1" x-cloak @click="go(step - 1)" class="rounded-lg border-2 border-navy px-5 py-2">Kembali</button>
         <button type="button" x-show="step < 3" @click="next()" class="rounded-lg bg-navy px-5 py-2.5 text-white">Lanjut</button>
-        <button type="submit" x-show="step === 3" x-cloak :disabled="sending" class="rounded-lg bg-[#C79A3A] px-6 py-2.5 font-bold text-navy disabled:opacity-50" x-text="sending ? 'Mengirim…' : 'Kirim'">Kirim</button>
+        <button type="submit" x-show="step === 3" x-cloak :disabled="sending" class="rounded-lg bg-[#C79A3A] px-6 py-2.5 font-bold text-navy disabled:opacity-50" x-text="sending ? 'Mengirim…' : (editMode ? 'Kirim Ulang' : 'Kirim')">{% if is_edit %}Kirim Ulang{% else %}Kirim{% endif %}</button>
       </div>
       <noscript><button type="submit" class="mt-6 rounded-lg bg-navy px-5 py-3 text-white">Kirim</button></noscript>
     </form>
