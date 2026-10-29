@@ -26,6 +26,7 @@ class StaticViewSitemap(Sitemap):
             (reverse('beranda'), 1.0),
             (reverse('profil'), 0.9),
             (reverse('kegiatan:home'), 0.8),
+            (reverse('amfm:beranda'), 0.8),
             (reverse('blog_kajian'), 0.8),
             (reverse('birdep:team_list'), 0.8),
             (reverse('birdep:pi_list'), 0.6),

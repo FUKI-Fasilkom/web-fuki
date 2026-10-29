@@ -1,0 +1,12 @@
+{% extends 'amfm/panel/base.html' %}
+{% block panel %}
+<section class="panel-card mx-auto max-w-4xl">
+  <h2 class="panel-title">{{ judul_panel }}</h2>
+  {% if deskripsi %}<p class="mb-6 text-sm text-navy-400">{{ deskripsi }}</p>{% endif %}
+  <form method="post" enctype="multipart/form-data">{% csrf_token %}
+    {{ form.non_field_errors }}
+    <div class="space-y-5">{% for field in form %}{% include 'siwak/panel/_field.html' %}{% endfor %}</div>
+    <button class="panel-btn mt-4" type="submit">Simpan Perubahan</button>
+  </form>
+</section>
+{% endblock %}

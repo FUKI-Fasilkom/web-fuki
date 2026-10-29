@@ -1,0 +1,15 @@
+{% comment %}
+  Tombol "Daftar Sekarang" di hero (gaya='navy') dan kartu "Siap Bergabung?"
+  (gaya='emas'). Tanpa `url_daftar` tombolnya nonaktif bertuliskan "Segera
+  Dibuka", jadi tidak ada tautan mati selama formulir pendaftaran belum dibuka.
+{% endcomment %}
+{% if url_daftar %}
+<a href="{{ url_daftar }}" class="amfm-button {% if gaya == 'emas' %}inline-flex min-h-11 items-center justify-center rounded-lg bg-gradient-to-r from-[#E0BE6B] to-[#C79A3A] px-6 py-2 text-base font-semibold text-[#281F0C] shadow hover:brightness-105 focus-visible:ring-white/60{% else %}inline-flex min-h-10 items-center justify-center rounded-md border-2 border-navy bg-navy px-4 py-2 text-sm font-semibold text-white sm:text-base hover:bg-navy-700 focus-visible:ring-navy/40{% endif %} focus:outline-none focus-visible:ring-4 transition">
+  Daftar Sekarang
+</a>
+{% else %}
+<span aria-disabled="true" title="Pendaftaran AM-FM belum dibuka"
+      class="{% if gaya == 'emas' %}inline-flex min-h-11 items-center justify-center rounded-lg bg-gradient-to-r from-[#E0BE6B] to-[#C79A3A] px-6 py-2 text-base font-semibold text-[#281F0C]{% else %}inline-flex min-h-10 items-center justify-center rounded-md border-2 border-navy bg-navy px-4 py-2 text-sm font-semibold text-white sm:text-base{% endif %} cursor-not-allowed opacity-60">
+  Segera Dibuka
+</span>
+{% endif %}

@@ -50,7 +50,11 @@ jobs:
       - name: Validate nginx configs
         run: |
           for f in deploy/nginx/*.conf; do
-            docker run --rm -v "$PWD/$f:/etc/nginx/conf.d/default.conf:ro" \
+            echo "Validating $f"
+            # Compose supplies this hostname in deployment. nginx -t resolves
+            # static upstreams even though it never connects to the application.
+            docker run --rm --add-host web:127.0.0.1 \
+              -v "$PWD/$f:/etc/nginx/conf.d/default.conf:ro" \
               nginx:1.27-alpine nginx -t
           done
 
@@ -109,6 +113,9 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     environment: staging          # kasi tau github, ambil secretsnya dari environment ini
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@v4
 
@@ -135,7 +142,9 @@ jobs:
           db_name: ${{ secrets.DB_NAME }}
           db_user: ${{ secrets.DB_USER }}
           db_password: ${{ secrets.DB_PASSWORD }}
-          ghcr_token: ${{ secrets.GHCR_READ_TOKEN }}
+          # The image is published by this repository; use the job's temporary
+          # read-only token instead of a separately maintained PAT.
+          ghcr_token: ${{ secrets.GITHUB_TOKEN }}
           allowed_hosts: ${{ secrets.ALLOWED_HOSTS }}
           debug: ${{ secrets.DEBUG }}
           site_url: https://staging-fuki.cs.ui.ac.id
@@ -153,6 +162,9 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     environment: production      # <- required reviewers gate lives here
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@v4
 
@@ -178,7 +190,7 @@ jobs:
           db_name: ${{ secrets.DB_NAME }}
           db_user: ${{ secrets.DB_USER }}
           db_password: ${{ secrets.DB_PASSWORD }}
-          ghcr_token: ${{ secrets.GHCR_READ_TOKEN }}
+          ghcr_token: ${{ secrets.GITHUB_TOKEN }}
           allowed_hosts: ${{ secrets.ALLOWED_HOSTS }}
           debug: ${{ secrets.DEBUG }}
           site_url: https://fuki.cs.ui.ac.id

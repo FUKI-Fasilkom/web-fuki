@@ -249,10 +249,11 @@ runs:
       shell: bash
       env:
         GHCR_TOKEN: ${{ inputs.ghcr_token }}
+        GHCR_USERNAME: ${{ github.actor }}
       run: |
         set -euo pipefail
         printf '%s' "$GHCR_TOKEN" \
-          | ssh deploy-target 'docker login ghcr.io -u x-access-token --password-stdin'
+          | ssh deploy-target "docker login ghcr.io -u '$GHCR_USERNAME' --password-stdin"
 
     - name: Pull image & restart containers
       shell: bash
