@@ -160,6 +160,11 @@ action with its own paths, container prefix and health port. Production carries
 `environment: production`, and the **required-reviewers approval gate lives in that
 GitHub Environment, not in the YAML**.
 
+Both deploy jobs use their temporary `GITHUB_TOKEN` with `packages: read` to pull
+the image this repository publishes. `contents: read` permits checkout. The remote
+GHCR login uses `github.actor` as the username and receives the token over stdin;
+the deploy logs out afterward. No separate `GHCR_READ_TOKEN` PAT is required.
+
 ### 4.3 The deploy action, step by step
 
 `.github/actions/deploy-via-vpn/action.yml` — 14 steps. The *why* matters more than the
@@ -234,7 +239,6 @@ through to `HOST: localhost` with no `STATIC_ROOT` and crash-looped on `collects
 | `SSH_USER` | `fuki` |
 | `SSH_KEY` | deploy-only ed25519 **private** key |
 | `SSH_KNOWN_HOSTS` | output of `ssh-keyscan <VPS_IP>` — optional; without it the deploy warns and trusts on first use |
-| `GHCR_READ_TOKEN` | classic PAT, `read:packages` only. Fine-grained PATs do not support Packages — confirmed GitHub limitation |
 
 **Environment-scoped** (`Settings → Environments → staging` / `production`), same names,
 different values:
@@ -468,7 +472,7 @@ ssh -L 8080:localhost:8080 fuki@<VPS_IP>   # then browse http://localhost:8080
 | `scp: stat local "...yml": No such file` | Files are `.yaml`, workflow said `.yml` | Names must match exactly, extension included |
 | `manifests/...: denied` | Placeholder repo path; then GHCR packages being private by default | Real lowercase path; `docker login` on the server |
 | Fine-grained PAT has no Packages option | Confirmed GitHub limitation | Classic PAT with `read:packages` |
-| `docker login` fails with a valid PAT | GHCR requires the literal username `x-access-token` | `-u x-access-token --password-stdin` |
+| GHCR login returns `denied: denied` during deploy | Registry rejected the stored deploy credential | Use the job's `GITHUB_TOKEN` with `packages: read` and `github.actor` as the login username; keep the package connected to this repository |
 | `ImproperlyConfigured: ... STATIC_ROOT`, container crash-loops | `STATIC_ROOT` gated behind a `PRODUCTION` var CI never wrote | Flag removed; `STATIC_ROOT` unconditional |
 | DB `connection refused on localhost` | Same flag gated the DB config | `DB_HOST=db` in `app.env` |
 | Edits to `static/` never reach production | `STATIC_ROOT` equalled the image's own `/app/static`; volumes seed only on first creation | `STATIC_ROOT` = `/app/staticfiles` |
