@@ -24,8 +24,30 @@
 .amfm-registration .amfm-identity-value {
   width: 100%; border: 0; border-bottom: 2px solid #d1d1d1;
   background: transparent; padding: 0 0 8px; color: #6b7280;
-  font-size: 20px; line-height: 1.5; min-height: 38px;
+  font-size: 18px; line-height: 1.5; min-height: 38px;
   overflow-wrap: anywhere; white-space: normal;
+}
+.amfm-registration { font-size:16px; line-height:1.55; }
+.amfm-registration .amfm-field-label { font-size:18px; line-height:1.4; font-weight:600; }
+.amfm-registration .amfm-input { font-size:16px; line-height:1.5; }
+.amfm-info .benefit-header { font-size:14px; line-height:1.4; }
+.amfm-info .benefit-body p { font-size:14px; line-height:1.55; }
+.amfm-info #timeline span.inline-flex { font-size:12px; line-height:1.4; }
+.amfm-info #timeline h3 { font-size:16px; line-height:1.4; }
+.amfm-info #timeline span.mb-2 { font-size:12px; }
+.amfm-info #timeline p { font-size:14px; line-height:1.55; }
+.amfm-info > header p.italic { font-size:14px; line-height:1.45; }
+@media (max-width:639px) {
+  .amfm-info > header h1 { font-size:36px; line-height:1.15; }
+}
+@media (min-width:640px) {
+  .amfm-info .benefit-header { font-size:18px; }
+  .amfm-info .benefit-body p { font-size:16px; }
+  .amfm-info #timeline span.inline-flex { font-size:14px; }
+  .amfm-info #timeline h3 { font-size:18px; }
+  .amfm-info #timeline span.mb-2 { font-size:14px; }
+  .amfm-info #timeline p { font-size:16px; }
+  .amfm-info > header p.italic { font-size:18px; }
 }
 .amfm-panel .panel-btn.amfm-nav-active { background:#113665; color:white; border-color:#113665; }
 .amfm-panel .panel-btn.amfm-nav-active:hover { background:#1B477A; color:white; }

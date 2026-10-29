@@ -1,21 +1,21 @@
 /* Pelengkap token situs: kartu, status dan navigasi dari desain AM-FM. */
-.amfm-panel { --panel-card:#FDFBF4; --panel-border:#775C23; --panel-tab:#113665; color:#1F1F1F; }
+.amfm-panel { --panel-card:#FDFBF4; --panel-border:#775C23; --panel-tab:#113665; color:#1F1F1F; font-size:16px; line-height:1.5; }
 .amfm-panel .panel-card { background:var(--panel-card); border:1px solid var(--panel-border); border-radius:16px; padding:32px; min-width:0; }
 .amfm-panel .panel-title { font-size:24px; font-weight:700; line-height:1.5; margin-bottom:24px; }
-.amfm-panel .panel-btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:8px 16px; border-radius:8px; background:#001B3D; color:white; font-size:14px; min-height:40px; box-shadow:0 0 16px #00000018; }
+.amfm-panel .panel-btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:8px 16px; border-radius:8px; background:#001B3D; color:white; font-size:16px; min-height:44px; box-shadow:0 0 16px #00000018; }
 .amfm-panel .panel-btn:hover { background:var(--panel-tab); }
 .amfm-panel .panel-btn-secondary { background:#F6F6F6; border:1px solid #D1D1D1; color:#1F1F1F; box-shadow:none; }
 .amfm-panel .panel-btn-secondary:hover { background:#E8DCB0; }
 .amfm-panel .panel-danger { background:#991B1B; }
 .amfm-panel :is(a,button,input,select,textarea):focus-visible { outline:3px solid #4A6FA5; outline-offset:3px; }
-.amfm-panel .status-badge { display:inline-flex; align-items:center; justify-content:center; border-radius:8px; padding:6px 12px; font-size:12px; min-width:110px; color:#12284C; }
+.amfm-panel .status-badge { display:inline-flex; align-items:center; justify-content:center; border-radius:8px; padding:6px 12px; font-size:14px; min-width:110px; color:#12284C; }
 .amfm-panel .status-menunggu { background:#FFE1A7; }
 .amfm-panel .status-diterima { background:#B0E5D8; }
 .amfm-panel .status-ditolak { background:#F39C98; }
 .amfm-panel .chart-menunggu { background:#F8BA47; }
 .amfm-panel .chart-diterima { background:#0DA582; }
 .amfm-panel .chart-ditolak { background:#EB6D68; }
-.amfm-panel .panel-table { width:100%; text-align:left; border-collapse:separate; border-spacing:0; font-size:14px; color:#12284C; }
+.amfm-panel .panel-table { width:100%; text-align:left; border-collapse:separate; border-spacing:0; font-size:15px; color:#12284C; }
 .amfm-panel .panel-table thead { background:linear-gradient(135deg,#0048A3,#001B3D); clip-path:inset(0 round 12px); }
 .amfm-panel .panel-table th { background:transparent; color:white; padding:12px; font-weight:600; white-space:nowrap; }
 .amfm-panel .panel-table th:first-child { border-radius:12px 0 0 12px; }
@@ -25,11 +25,16 @@
 .amfm-panel .choice-row { display:flex; align-items:center; gap:16px; border:1px solid #999; border-radius:8px; padding:16px; cursor:pointer; }
 .amfm-panel .choice-row:has(input:checked) { border-color:#4A6FA5; background:#F8F9FF; }
 .amfm-panel .choice-row input { accent-color:#113665; }
-.amfm-panel dt { font-size:12px; color:#616161; margin-bottom:4px; }
+.amfm-panel dt { font-size:14px; font-weight:500; color:#4B5563; margin-bottom:4px; }
 .amfm-panel dd { overflow-wrap:anywhere; }
 .amfm-panel .errorlist { color:#B91C1C; font-size:14px; margin:8px 0; }
+.amfm-panel .panel-card .text-xs { font-size:14px; line-height:1.5; }
+.amfm-panel .panel-card .text-sm { font-size:16px; line-height:1.5; }
+.amfm-panel form label:not(.sr-only) { font-size:16px; line-height:1.5; }
+.amfm-panel form p.text-xs { font-size:14px; line-height:1.5; }
+.amfm-panel :is(input[type="text"],input[type="search"],input[type="url"],input[type="password"],input[type="date"],input[type="datetime-local"],select,textarea) { font-size:16px; }
 @media(max-width:639px) {
  .amfm-panel .panel-card { padding:20px; }
  .amfm-panel .panel-title { font-size:20px; margin-bottom:20px; }
- .amfm-panel .panel-table { font-size:12px; }
+ .amfm-panel .panel-table { font-size:14px; }
 }

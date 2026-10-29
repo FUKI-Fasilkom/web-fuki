@@ -1,5 +1,5 @@
 <div class="mb-5">
-  <label for="{{ field.id_for_label }}" class="mb-2 block font-bold text-navy">{{ field.label }}</label>
+  <label for="{{ field.id_for_label }}" class="amfm-field-label mb-2 block text-navy">{{ field.label }}</label>
   {{ field }}
   {% for error in field.errors %}<p role="alert" class="mt-2 text-sm text-red-700">{{ error }}</p>{% endfor %}
   <template x-for="message in errors['{{ field.name }}'] || []"><p role="alert" class="mt-2 text-sm text-red-700" x-text="message"></p></template>

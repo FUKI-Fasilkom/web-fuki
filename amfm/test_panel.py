@@ -123,7 +123,7 @@ class PanelTests(PanelFixture):
         self.assertEqual([obj.nama_lengkap for obj in response.context["halaman"]], ["Anisa", "Peserta AMFM"])
         self.assertEqual(self.client.get(url, {"urut": "field_tidak_ada"}).status_code, 200)
 
-    def test_status_pendaftaran_memiliki_warna_sesuai_status_efektif(self):
+    def test_status_pendaftaran_menampilkan_pilihan_tersimpan(self):
         from django.urls import reverse
         from .models import AmfmInfo
         url = reverse("amfm:panel_pengaturan")
@@ -131,7 +131,9 @@ class PanelTests(PanelFixture):
         for status in ("belum_dibuka", "dibuka", "ditutup"):
             info.status_pendaftaran = status
             info.save()
-            self.assertContains(self.client.get(url), f"amfm-status-effective--{status}")
+            response = self.client.get(url)
+            self.assertEqual(response.context["form"]["status_pendaftaran"].value(), status)
+            self.assertNotContains(response, "Status efektif saat ini")
 
     def test_panel_bukti_kedua_tetap_terotorisasi(self):
         from django.urls import reverse

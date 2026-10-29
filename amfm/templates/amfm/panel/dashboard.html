@@ -2,7 +2,7 @@
 {% load static %}
 {% block panel %}
 <div class="mb-6 grid grid-cols-2 gap-4 xl:grid-cols-4 xl:gap-[30px]">
-  {% for item in kartu %}<section class="panel-card !p-5 flex items-center justify-start gap-4"><div class="hidden h-20 w-20 shrink-0 items-center justify-center rounded-full bg-[#F2E5BB] md:flex"><img src="{% static 'amfm/panel/' %}{{ item.ikon }}.svg" alt="" class="w-10"></div><div class="py-1"><h2 class="text-xs sm:text-base">{{ item.label }}</h2><p class="text-2xl font-bold sm:text-3  xl">{{ item.jumlah }}</p></div></section>{% endfor %}
+  {% for item in kartu %}<section class="panel-card !p-5 flex items-center justify-start gap-4"><div class="hidden h-20 w-20 shrink-0 items-center justify-center rounded-full bg-[#F2E5BB] md:flex"><img src="{% static 'amfm/panel/' %}{{ item.ikon }}.svg" alt="" class="w-10"></div><div class="py-1"><h2 class="text-base font-medium">{{ item.label }}</h2><p class="text-3xl font-bold">{{ item.jumlah }}</p></div></section>{% endfor %}
 </div>
 <div class="mb-6 grid items-stretch gap-4 lg:grid-cols-[minmax(0,718fr)_minmax(0,608fr)]">
   <section class="panel-card"><h2 class="panel-title">Pendaftar Per-Birdept</h2>
@@ -18,7 +18,7 @@
   </section>
 </div>
 <section class="panel-card lg:max-w-[630px]">
-  <div class="mb-6 flex flex-wrap items-center justify-between gap-3"><h2 class="text-xl font-bold">Pendaftar Terbaru</h2><a class="panel-btn" href="{% url 'amfm:panel_daftar' %}">Lihat Semua</a></div>
+  <div class="mb-6 flex flex-wrap items-center justify-between gap-3"><h2 class="panel-title !mb-0">Pendaftar Terbaru</h2><a class="panel-btn" href="{% url 'amfm:panel_daftar' %}">Lihat Semua</a></div>
   <ul class="space-y-5">{% for obj in terbaru %}<li><a class="flex flex-wrap items-center justify-between gap-3 rounded-lg hover:bg-cream-200" href="{% url 'amfm:panel_detail' obj.pk %}"><div><h3 class="font-semibold">{{ obj.nama_lengkap }}</h3><p class="text-xs text-[#616161]">{{ obj.npm }} · {{ obj.created_at|date:'j F Y' }}</p></div><div class="flex gap-2"><span class="rounded-lg bg-badge px-2 py-2 text-xs">{{ obj.pilihan_1.nama }}</span><span class="rounded-lg bg-badge px-2 py-2 text-xs">{{ obj.pilihan_2.nama }}</span></div>{% include 'amfm/panel/_badge.html' %}</a></li>{% empty %}<li class="text-sm text-navy-400">Belum ada pendaftar.</li>{% endfor %}</ul>
 </section>
 {% endblock %}
